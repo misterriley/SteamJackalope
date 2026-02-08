@@ -456,15 +456,6 @@ with tabs[0]:
         remove_unreleased = st.checkbox(REMOVE_UNRELEASED_LABEL, help=REMOVE_UNRELEASED_HELP, key="remove_unreleased")
         
         st.divider()
-        genre_list = get_genre_list()
-        selected_genres = st.multiselect(
-            GENRE_FILTER_LABEL,
-            options=genre_list,
-            help=GENRE_FILTER_HELP,
-            key="genres_multiselect"
-        )
-
-        st.divider()
         debug_mode = st.checkbox(DEBUG_MODE_LABEL, help=DEBUG_MODE_HELP, key="debug_mode")
         top_k = st.number_input(TOP_K_LABEL, 1, TOP_K_MAX, help=TOP_K_HELP, key="top_k")
 
