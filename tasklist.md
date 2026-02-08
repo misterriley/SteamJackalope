@@ -5,6 +5,14 @@
 
 ## Task List
 
+- [ ] Create a banner at the top of the page.
+        - [ ] Give the name of the website.
+        - [ ] Make it a pretty color.
+        - [ ] Use the jackalope icon.
+        - [ ] Remove the jackalope icon from the Recommender header. 
+- [ ] Create a quick onboarding for new users. 
+        - [ ] Have prominent text at the top that says "New here? Click the 'Random' button to try out the features!"
+        - [ ] Create a guide page with simple instructions for how to use the site. 
 - [ ] Remove the API key for steam scarping into a private file that doesn't get added to github.
 - [ ] New research to do: discriminating between whether a game is liked or not based on playtime.
         - [ ] Pick a game with a large number of reviews.
@@ -12,4 +20,5 @@
         - [ ] Build out distributions of these reviews.
         - [ ] Train a logistic regression predicting the probability that a review will be positive as a function of the logarithm of its length + 1.
         - [ ] Test weighting based on the inverse of the rates of positive and negative reviews to combat unbalanced data.
-        - [ ] Generate a global prior and run a simulation study.
+        - [ ] Generate a global prior (equally weighted per game, not per rating) and run a simulation study.
+        - [ ] Find the best combination of prior and game data for predicting outcomes in small sythetic games. 

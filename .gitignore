@@ -1,8 +1,3 @@
-# Data Files (Binary)
-*.npy
-*.parquet
-*.csv
-
 # Logs
 *.log
 
@@ -21,6 +16,8 @@ venv.bak/
 # Project Specific
 data/
 old/
+research/*.csv
+research/*.npy
 checkpoint_state.json
 scraped_games.csv
 scraped_reviews.csv
