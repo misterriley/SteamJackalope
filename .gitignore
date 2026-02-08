@@ -1,0 +1,35 @@
+# Data Files (Binary)
+*.npy
+*.parquet
+*.csv
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Project Specific
+data/
+old/
+scraped_games.csv
+scraped_reviews.csv
+sample_games.csv
+
+# IDEs
+.vscode/
+.idea/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/

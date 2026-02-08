@@ -1,0 +1,1 @@
+- [ ] Replace `current_appids` with `appids` in `research/calc_difficulty.py`

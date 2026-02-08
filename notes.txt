@@ -1,0 +1,5 @@
+OnShutdown:
+
+Commit to git (once we have git up and running)
+
+Ideas: Lists page showing closest matches to a bunch of common games

@@ -1,0 +1,7 @@
+{
+    "games_file": "scraped_games.csv",
+    "reviews_file": "scraped_reviews.csv",
+    "data_dir": "data",
+    "clean_games_file": "data/pipeline_games_clean.csv",
+    "checkpoint_interval": 20
+}
