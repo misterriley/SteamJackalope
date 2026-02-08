@@ -328,7 +328,7 @@ def recommend(request: RecommendationRequest):
     metadata = data_manager.metadata
     
     # Identify seeds
-    seed_indices = metadata[metadata['name'].isin(request.seed_games)].index.tolist()
+    seed_indices = np.where(metadata['name'].isin(request.seed_games))[0]
     seed_appids = metadata.iloc[seed_indices]['appid'].tolist()
 
     # 1. Filtering
@@ -403,39 +403,7 @@ def recommend(request: RecommendationRequest):
             
             all_semantic_sims = (prompt_desc_sims + prompt_structural_sims) * SEMANTIC_PROMPT_SEED_BLEND
 
-        if seed_indices:
-            seed_desc_vecs = data_manager.embeddings_desc_norm[seed_indices] # Actually need raw vectors?
-            # Original code: seed_desc_vecs = embeddings_desc[seed_indices] (NOT normalized)
-            # But load_data returns normalized. Let's look at original code:
-            # "seed_desc_vecs = embeddings_desc[seed_indices]" -> This was using non-normalized in original app.py load_data returns 
-            # embeddings_desc_norm and embeddings_structural_norm, BUT ALSO embeddings_desc/structural?
-            # Original load_data returned: embeddings_desc_norm, embeddings_structural_norm, ...
-            # Wait, original app.py:
-            # embeddings_desc = np.load(EMBEDDINGS_DESC_FILE) ...
-            # embeddings_desc_norm = normalize(embeddings_desc) ...
-            # return embeddings_desc_norm ...
-            # So `embeddings_desc` (raw) was NOT returned. 
-            # Original app logic:
-            # seed_desc_vecs = embeddings_desc[seed_indices]
-            # This implies `embeddings_desc` WAS available in local scope of `app.py`.
-            # Ah, `load_data` function in `app.py` does:
-            # `return embeddings_desc_norm, embeddings_structural_norm, ...`
-            # It DOES NOT return raw embeddings.
-            # However, looking closely at `app.py` logic:
-            # `seed_desc_vecs = embeddings_desc[seed_indices]` 
-            # This line in `app.py` would fail if `embeddings_desc` wasn't returned.
-            # Let's re-read `app.py` provided in context.
-            # `load_data` returns `embeddings_desc_norm`.
-            # Usage: `seed_desc_vecs = embeddings_desc[seed_indices]`
-            # Wait, `embeddings_desc` is a variable name inside `load_data`. If it's not returned, it's not available.
-            # Let's look at the return statement in `app.py`:
-            # `return embeddings_desc_norm, embeddings_structural_norm, metadata, tag_vectors, quality_grid, tag_vectors_norms, w_desc, w_structural, mean_desc, mean_structural`
-            # And the unpacking:
-            # `embeddings_desc, embeddings_structural, metadata, ... = load_data()`
-            # So the variable named `embeddings_desc` in the global scope holds `embeddings_desc_norm`.
-            # So `seed_desc_vecs` IS getting normalized vectors.
-            
-            # OK, proceeding with normalized vectors for seeds.
+        if seed_indices.size > 0:
             seed_desc_vecs = data_manager.embeddings_desc_norm[seed_indices]
             avg_seed_desc = np.mean(seed_desc_vecs, axis=0)
             sd_mag = np.linalg.norm(avg_seed_desc)
@@ -456,7 +424,7 @@ def recommend(request: RecommendationRequest):
                 all_semantic_sims = seed_combined_sims
 
     all_tag_sims = np.zeros(len(metadata))
-    if seed_indices:
+    if seed_indices.size > 0:
         tag_seed_vectors = data_manager.tag_vectors[seed_indices]
         combined_tag_query = np.mean(tag_seed_vectors, axis=0)
         tag_q_mag = np.linalg.norm(combined_tag_query)
@@ -471,10 +439,7 @@ def recommend(request: RecommendationRequest):
     tag_sims = all_tag_sims[keep_indices]
 
     # 4. Rating Component
-    # Select quality scores from grid based on discovery slider
     num_grid_rows = data_manager.quality_grid.shape[0]
-    # Map disc_pref (ranging from -1.0 to 1.0) to grid index (0 to num_grid_rows - 1)
-    # Using the formula: (val - min) / (max - min) * (num_rows - 1)
     grid_index = int(round(((request.disc_pref - (-1.0)) / 2.0) * (num_grid_rows - 1)))
     grid_index = max(0, min(num_grid_rows - 1, grid_index))
     
@@ -512,8 +477,6 @@ def recommend(request: RecommendationRequest):
     # Exclude seeds
     meta_filt = metadata.iloc[keep_indices].copy()
     if seed_appids:
-        # Vectorized exclusion would be faster, but this is fine for now
-        # Creating a mask for final_scores is better
         seed_mask = meta_filt['appid'].isin(seed_appids)
         final_scores[seed_mask] = -1e12
 
@@ -531,15 +494,11 @@ def recommend(request: RecommendationRequest):
 
     results = meta_filt.iloc[top_indices].copy()
     
-    # Prepare JSON response
-    # We need to compute all the debug/display values
-    
     response_items = []
     
     for i, idx in enumerate(top_indices):
         game_meta = results.iloc[i]
         
-        # Calculate raw values for debug
         raw_pop = game_meta['positive'] + game_meta['negative']
         raw_length = game_meta['estimated_playtime'] / 60.0
         
@@ -552,15 +511,14 @@ def recommend(request: RecommendationRequest):
             "difficulty_predicted": float(game_meta['difficulty_predicted']) if pd.notna(game_meta['difficulty_predicted']) else 0.0,
             "positive": int(game_meta['positive']),
             "negative": int(game_meta['negative']),
-            "genres": game_meta['genres'], # Will be string or list
-            "tags": game_meta['tags'],     # Will be string or dict
+            "genres": game_meta['genres'], 
+            "tags": game_meta['tags'],     
             
             "weighted_score": float(final_scores[idx]),
             "semantic_match": float(semantic_sims[idx]),
             "tag_match": float(tag_sims[idx]),
-            "rating": float(z_spps[idx]), # This is z_spps in the original code, but 'Rating' in display
+            "rating": float(z_spps[idx]), 
             
-            # Debug info
             "z_semantic": float(z_semantic[idx]),
             "w_semantic": float(w_semantic),
             "z_tag": float(z_tag[idx]),
@@ -587,5 +545,4 @@ def recommend(request: RecommendationRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    # In production, reload=False
     uvicorn.run(app, host="0.0.0.0", port=8000)
