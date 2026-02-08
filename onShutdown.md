@@ -13,6 +13,7 @@
 - Check for text snippets looking like ">>>>+++ REPLACE" and remove them.
 - Make sure everything that's happening is clearly printed to the console so that someone watching it can tell what is happening. 
 - If any changes were made due to instructions in `onShutdown.md`, repeat the instructions in `onShutdown.md` from the beginning. If no changes were made since the last reading/execution of this list, proceed. 
+- Commit changes to git using best practices. 
 - When fully completed with this list, tell me a joke.
 
 # Have a nice day!
