@@ -8,6 +8,7 @@ from sentence_transformers import SentenceTransformer
 import os
 import sys
 import re
+import ast
 
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -61,6 +62,7 @@ class DataManager:
         self.mean_desc = None
         self.mean_structural = None
         self.model = None
+        self.all_genres = []
 
     def clean_release_date(self, date_str):
         if pd.isna(date_str) or date_str == "":
@@ -118,6 +120,22 @@ class DataManager:
         
         self.tag_vectors_norms = np.linalg.norm(self.tag_vectors, axis=1)
         
+        print("Processing genres...")
+        def parse_genres(x):
+            if isinstance(x, str):
+                try:
+                    return ast.literal_eval(x)
+                except:
+                    return [g.strip() for g in x.split(',') if g.strip()]
+            return x if isinstance(x, list) else []
+
+        self.metadata['genres_list'] = self.metadata['genres'].apply(parse_genres)
+        
+        all_genres_set = set()
+        for g_list in self.metadata['genres_list']:
+            all_genres_set.update(g_list)
+        self.all_genres = sorted(list(all_genres_set))
+
         print("Loading model...")
         self.model = SentenceTransformer(MODEL_NAME)
         print("Data loaded.")
@@ -150,8 +168,14 @@ class RecommendationRequest(BaseModel):
     top_k: int
     prompt: str
     seed_games: List[str]
+    genres: Optional[List[str]] = []
 
 # --- Endpoints ---
+
+@app.get("/genres")
+def get_genres():
+    """Returns a list of all unique genres available in the dataset."""
+    return data_manager.all_genres
 
 @app.get("/games")
 def get_games():
@@ -339,6 +363,10 @@ def recommend(request: RecommendationRequest):
             build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s')
             future_mask = (metadata['parsed_date'] > build_time).fillna(False)
             mask &= ~future_mask.values
+
+    if request.genres:
+        genre_mask = metadata['genres_list'].apply(lambda x: any(g in x for g in request.genres)).values
+        mask &= genre_mask
 
     keep_indices = np.where(mask)[0]
     

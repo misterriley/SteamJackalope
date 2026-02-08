@@ -136,6 +136,16 @@ def get_game_list():
         pass
     return None
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_genre_list():
+    try:
+        response = requests.get(f"{BACKEND_URL}/genres", timeout=5)
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return []
+
 # --- UI Layout ---
 st.title(APP_TITLE)
 
@@ -262,6 +272,7 @@ def reset_all_parameters():
     st.session_state.top_k = TOP_K_DEFAULT
     st.session_state.prompt = ""
     st.session_state.seed_multiselect = []
+    st.session_state.genres_multiselect = []
 
 def randomize_parameters():
     game_list = get_game_list()
@@ -441,6 +452,17 @@ with tabs[0]:
         remove_nsfw = st.checkbox(REMOVE_NSFW_LABEL, help=REMOVE_NSFW_HELP, key="remove_nsfw")
         remove_utilities = st.checkbox(REMOVE_UTILITIES_LABEL, help=REMOVE_UTILITIES_HELP, key="remove_utilities")
         remove_unreleased = st.checkbox(REMOVE_UNRELEASED_LABEL, help=REMOVE_UNRELEASED_HELP, key="remove_unreleased")
+        
+        st.divider()
+        genre_list = get_genre_list()
+        selected_genres = st.multiselect(
+            GENRE_FILTER_LABEL,
+            options=genre_list,
+            help=GENRE_FILTER_HELP,
+            key="genres_multiselect"
+        )
+
+        st.divider()
         debug_mode = st.checkbox(DEBUG_MODE_LABEL, help=DEBUG_MODE_HELP, key="debug_mode")
         top_k = st.number_input(TOP_K_LABEL, 1, TOP_K_MAX, help=TOP_K_HELP, key="top_k")
 
@@ -484,7 +506,8 @@ with tabs[0]:
             "remove_unreleased": remove_unreleased,
             "top_k": top_k,
             "prompt": prompt,
-            "seed_games": selected_games
+            "seed_games": selected_games,
+            "genres": selected_genres
         }
 
         try:

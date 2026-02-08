@@ -101,7 +101,7 @@ Users can tune these weights in the UI to prioritize long, easy, niche hidden ge
 - **Global Clamping:** To prevent extreme outliers from disproportionately influencing the final score, all component z-scores are clamped between -8.0 and 8.0.
 
 ## 8. Filtering
-The system allows real-time filtering for VR-Only titles, English language support, NSFW content (Adult Only banner), Software/Utilities (Breadcrumb detection), and Unreleased games to ensure the results are relevant to the user. Downloadable Content (DLC) is excluded from the database to focus recommendations on standalone games.
+The system allows real-time filtering for **Genres**, VR-Only titles, English language support, NSFW content (Adult Only banner), Software/Utilities (Breadcrumb detection), and Unreleased games to ensure the results are relevant to the user. The Genre filter supports multi-selection, ensuring that recommended games match at least one of the selected categories. Downloadable Content (DLC) is excluded from the database to focus recommendations on standalone games.
 
 ## 9. Insights & Rankings
 The "Lists" page provides a curated view of the Steam library's extremes, including the highest and lowest quality games, the longest and shortest experiences, and predicted difficulty rankings. These lists utilize the same Bayesian models and predictive analytics used in the recommendation engine, providing transparency into how different games are positioned within our statistical model.

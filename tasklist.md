@@ -5,9 +5,7 @@
 
 # Task List
 
-- [x] In generate_tag_vectors.apply_tag_transform, the regularization step has to be handled differently for CLR and anscombe transforms due to the change in geometry. 
-    - [x] The vote counts should be regularized toward the prior first, since the prior was determined on raw count data. 
-    - [x] Then, after vote counts have been regularized, apply the transform.
-    - [x] Also apply the transform to the prior.
-    - [x] The resultant vectors should be transform(regularized_vector) - transform(prior). If I am correct, then this should not change the output under the 'none' transform.
-    - [x] We will need to rerun generate_tag_vectors from scratch as well as any code that depends on the tag vectors data (e.g., calculating difficulty values). 
+- [x] Create a genre filter field for the website.
+    - [x] It should have selection and interaction capabilities like the seed game combo box.
+    - [x] It should be populated with all the genres that are stored in the database files.
+    - [x] When the selection in the box changes, it should prompt a call to the server, passing in the genre for filtering. The server should filter out any games that do not have that genre in their list.

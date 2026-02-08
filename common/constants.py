@@ -161,6 +161,9 @@ REMOVE_UNRELEASED_LABEL = "Filter Unreleased"
 REMOVE_UNRELEASED_HELP = "Excludes games that haven't been released yet."
 REMOVE_UNRELEASED_DEFAULT = True
 
+GENRE_FILTER_LABEL = "Filter by Genre"
+GENRE_FILTER_HELP = "Only show games that match at least one selected genre."
+
 DEBUG_MODE_LABEL = "Debug Mode"
 DEBUG_MODE_HELP = "Show detailed scoring breakdown."
 DEBUG_MODE_DEFAULT = False
