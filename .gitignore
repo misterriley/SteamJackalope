@@ -16,6 +16,7 @@ venv.bak/
 # Project Specific
 data/
 old/
+scraping/archive_csv/
 research/*.csv
 research/*.npy
 checkpoint_state.json
