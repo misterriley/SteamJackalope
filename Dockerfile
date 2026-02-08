@@ -15,17 +15,18 @@ RUN apt-get update && apt-get install -y \
 COPY . .
 
 # Install any needed packages specified in requirements.txt
-# Note: We use the production requirements if they exist, or the root one
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose ports for FastAPI (8000) and Streamlit (8501)
+# Render uses the PORT environment variable to define the port the service should listen on.
+# We will use this for the Streamlit frontend. 
+# FastAPI will run internally on port 8000.
 EXPOSE 8000
-EXPOSE 8501
 
 # Create a startup script to run both servers
+# We bind Streamlit to the PORT env var and FastAPI to localhost
 RUN echo '#!/bin/bash\n\
-python -m uvicorn app.server:app --host 0.0.0.0 --port 8000 & \n\
-streamlit run app/app.py --server.port 8501 --server.address 0.0.0.0\n\
+python -m uvicorn app.server:app --host 127.0.0.1 --port 8000 & \n\
+streamlit run app/app.py --server.port ${PORT:-8501} --server.address 0.0.0.0\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
 # Run the startup script

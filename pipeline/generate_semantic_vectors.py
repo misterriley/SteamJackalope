@@ -15,7 +15,8 @@ from common.constants import (
     W_DESC_FILE, 
     W_STRUCTURAL_FILE,
     MEAN_DESC_FILE,
-    MEAN_STRUCTURAL_FILE
+    MEAN_STRUCTURAL_FILE,
+    EPSILON
 )
 
 def whiten(vectors):
@@ -123,6 +124,15 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     print("Whitening embeddings...")
     embeddings_structural, W_structural, mean_structural = whiten(embeddings_structural)
     embeddings_desc, W_desc, mean_desc = whiten(embeddings_desc)
+
+    print("Normalizing embeddings for memory-mapping...")
+    def normalize(m):
+        norms = np.linalg.norm(m.astype(np.float32), axis=1, keepdims=True)
+        norms[norms == 0] = EPSILON
+        return (m / norms).astype(np.float16)
+
+    embeddings_structural = normalize(embeddings_structural)
+    embeddings_desc = normalize(embeddings_desc)
     
     print(f"Saving structural embeddings to {embeddings_tag_out}...")
     np.save(embeddings_tag_out, embeddings_structural)

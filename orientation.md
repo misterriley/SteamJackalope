@@ -34,8 +34,17 @@ This project is a Steam game recommendation engine that combines semantic search
 - **Metadata Retrieval:** The backend provides a `/metadata` endpoint to retrieve full metadata for specific games by name, enabling the frontend to display detailed game cards for user-selected seeds independently of the recommendation results.
 - **Genre Filtering:** The backend provides a `/genres` endpoint to retrieve a unique list of genres. The recommendation engine supports multi-genre filtering (OR logic) by applying a mask to the metadata before scoring.
 - **Performance Optimization:** The backend caches pre-normalized embedding matrices and metadata. Similarity scores and hybrid calculations are vectorized using `numpy`. Genres are pre-parsed into lists during startup to ensure fast filtering. The frontend uses `st.cache_data` to minimize redundant API calls for static data like the game and genre lists.
-- **Memory Footprint Optimization**: The backend server is optimized to run under 512 MB. Large NumPy arrays (`embeddings`, `tag_vectors`, `quality_grid`, weights, means) are cast to `np.float16`. Large read-only arrays (`tag_vectors`, `quality_grid`) utilize `mmap_mode='r'` to reduce Resident Set Size. Metadata loading is restricted to necessary columns, with bulky string columns (`categories`, `supported_languages`) dropped after extracting boolean flags.
+- **Memory Footprint Optimization**: The backend server is optimized to run under 512 MB to support cloud deployment on platforms like Render (Starter tier). 
+    - **Memory Mapping**: All large NumPy arrays (`embeddings_desc.npy`, `embeddings_structural.npy`, `tag_vectors`, `quality_grid`) now utilize `mmap_mode='r'`. This allows the OS to page data in and out as needed, keeping the active Resident Set Size (RSS) low.
+    - **Pre-Normalization**: Semantic embeddings are pre-normalized to unit length during the pipeline generation (`pipeline/generate_semantic_vectors.py`) or via `tools/precalculate_norm_embeddings.py`. This avoids loading them into RAM for normalization at startup.
+    - **Precision**: Large arrays are cast to `np.float16`.
+    - **Metadata**: Loading is restricted to necessary columns, with bulky string columns (`categories`, `supported_languages`) dropped after extracting boolean flags.
 - **Improved Debug Mode:** The recommender's game cards now feature a comprehensive debug section. It provides a full breakdown of the hybrid score calculation, including raw values, z-scores, and both slider and hard-coded weights for every component.
+
+- **Deployment**: The project is configured for deployment on **Render** using a single-container architecture (FastAPI backend + Streamlit frontend).
+    - `Dockerfile`: Configured to run both services, binding Streamlit to the `$PORT` environment variable.
+    - `render.yaml`: Blueprint for one-click deployment.
+    - `run_test_env.bat`: Mirrors the production setup locally for testing.
 
 - Data files like `embeddings.npy`, `steam_tag_vectors.npy`, and `metadata.parquet` are the core artifacts used by the recommender. 
     - **CRITICAL:** `metadata.parquet` should reside in the root directory. Conflicting versions in `data/` or other subfolders have caused inconsistent behavior in the past and should be deleted if found. The path in `common/constants.py` is standardized to the root version using an absolute path.

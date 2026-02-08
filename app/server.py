@@ -97,18 +97,11 @@ class DataManager:
         # Note: mmap arrays are read-only to prevent accidentally modifying on-disk data
         # We also cast to float16 to reduce memory when we DO load into RAM
         
-        # For embeddings, we need to normalize them, so we'll load them into memory but as float16
-        self.embeddings_desc_norm = np.load(EMBEDDINGS_DESC_FILE).astype(np.float16)
-        self.embeddings_structural_norm = np.load(EMBEDDINGS_TAG_FILE).astype(np.float16)
-        
-        def normalize_inplace(m):
-            norms = np.linalg.norm(m.astype(np.float32), axis=1, keepdims=True)
-            norms[norms == 0] = EPSILON
-            m /= norms.astype(np.float16)
-            return m
-
-        normalize_inplace(self.embeddings_desc_norm)
-        normalize_inplace(self.embeddings_structural_norm)
+        # 1. Use Memory Mapping for large NumPy arrays
+        # Note: mmap arrays are read-only to prevent accidentally modifying on-disk data
+        # Embeddings are pre-normalized by the pipeline/tools to allow for direct mmap usage
+        self.embeddings_desc_norm = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
+        self.embeddings_structural_norm = np.load(EMBEDDINGS_TAG_FILE, mmap_mode='r')
 
         # 2. Memory Map Tag Vectors and Quality Grid
         # These are large and used for indexing/dot products, mmap is perfect here

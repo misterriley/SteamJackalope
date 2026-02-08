@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: steam-jackalope
+    runtime: docker
+    plan: starter # Starter is recommended due to the ~1.3GB data size, though mmap should help it fit in Free if lucky
+    envVars:
+      - key: BACKEND_URL
+        value: http://localhost:8000
+      - key: PYTHON_VERSION
+        value: 3.10.12
+      - key: GIT_LFS_SKIP_SMUDGE
+        value: "0" # Ensure Git LFS files are pulled

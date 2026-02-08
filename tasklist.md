@@ -7,6 +7,11 @@
 
 ## Top Priority
 
+- [x] This project will deployed on Render. Make the file structure work for this purpose, please. I have no idea what I'm doing.
+    - [x] Optimized embedding loading with pre-normalization and memory-mapping to fit in limited RAM.
+    - [x] Updated Dockerfile to support Render's dynamic port allocation.
+    - [x] Created `render.yaml` for one-click Blueprint deployment.
+    - [x] Created `tools/precalculate_norm_embeddings.py` to prepare existing data artifacts.
 
 ### Lesser Priority
 
