@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 # Set the working directory in the container
 WORKDIR /app
@@ -8,7 +8,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the current directory contents into the container at /app
