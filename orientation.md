@@ -58,6 +58,8 @@ This project is a Steam game recommendation engine that combines semantic search
 
 - **Scraping Architecture**: The scraping process is split into three steps: download (`download_steam_data.py`), dataset build (`build_scraped_dataset.py`), and pipeline integration. It features robust interruption tolerance and a retry mechanism for file operations on Windows.
 
+- **Git LFS for Production Data**: Large production artifacts (embeddings, tag vectors, quality grids) are tracked via **Git LFS**. This allows the repository to stay under GitHub's file size limits while ensuring Render can pull the necessary binary data for deployment.
+
 - **Slider Impact Simulation**: A simulation study (`research/simulate_slider_impact.py`) quantifies the sensitivity of the recommendation leaderboard to different slider adjustments. The script is multithreaded (using up to 24 threads) for efficient execution. Results show that for the top 100 recommendations, the **Quality** slider has the highest impact (average shift of ~0.44 z-score units per notch), followed by **Length** and **Age**. The **Discovery** slider has the lowest relative impact (~60x smaller) because it influences the underlying data distribution rather than the component weights that drive the hybrid score normalization.
 
 - **Distribution Analysis**: A utility `research/analyze_vector_distributions.py` is used to verify that vector lengths and cosine similarities follow theoretical normal distribution expectations.
