@@ -7,10 +7,6 @@
 
 ## Top Priority
 
-- [x] Reduce memory footprint of the server
-        - [x] Try to get it down below 512 MB while running. (Reduced to 511.21 MB)
-        - [x] Reduce the precision of loaded objects since most of the precision is lost during processing. (Using float16 and mmap)
-        - [x] Create a test that loads all data like the server would and runs several calls to the recommend endpoint with different sets of inputs. Monitor the memory of the process while this is happening. Print out the memory footprint of the python process during this test; success means staying below 512 MB.
 
 ### Lesser Priority
 
@@ -19,6 +15,7 @@
         - [ ] Make it a pretty color.
         - [ ] Use the jackalope icon.
         - [ ] Remove the jackalope icon from the Recommender header. 
+        - [ ] Link the secondary pages from a hamburger menu rather than from links at the top of the page. 
 - [ ] Create a quick onboarding for new users. 
         - [ ] Have prominent text at the top that says "New here? Click the 'Random' button to try out the features!"
         - [ ] Create a guide page with simple instructions for how to use the site. 
@@ -31,3 +28,5 @@
         - [ ] Test weighting based on the inverse of the rates of positive and negative reviews to combat unbalanced data.
         - [ ] Generate a global prior (equally weighted per game, not per rating) and run a simulation study.
         - [ ] Find the best combination of prior and game data for predicting outcomes in small sythetic games. 
+- [ ] Add the short description of the game to the game cards.
+- [ ] Display image files linked in the download data on the game cards. 

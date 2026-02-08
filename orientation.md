@@ -19,6 +19,8 @@ This project is a Steam game recommendation engine that combines semantic search
 - `common/utils.py`: Shared utility functions (z-scoring, hybrid score calculation).
 - `methodology.md`: Detailed explanation of the statistical and machine learning techniques used. Note: `app.py` renders this by splitting at `![` to inject `st.image` calls, so image placement should follow this pattern. Note that this file is intended for human viewers of the website, so it should not be a place where notes about debugging or information related to internal workings of the app of statistical pipeline should go. Those types of notes should be put into `orientation.md`. 
 - `data/`: Contains processed data files, including tag vectors and quality scores.
+- `scraping/scrape_from_start.bat`: Convenience script to start scraping from the beginning (archives existing data).
+- `scraping/scrape_from_last_checkpoint.bat`: Convenience script to resume scraping from the last checkpoint.
 - `research/`: Contains experimental scripts and data analysis notebooks.
 - `common/common_adjectives.txt`: A curated list of common English adjectives used for the "Random" button functionality.
 
