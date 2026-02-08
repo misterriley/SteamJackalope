@@ -94,7 +94,14 @@ class DataManager:
         print("Loading data...")
         embeddings_desc = np.load(EMBEDDINGS_DESC_FILE)
         embeddings_structural = np.load(EMBEDDINGS_TAG_FILE)
+        print(f"DEBUG: METADATA_FILE is {METADATA_FILE}")
         self.metadata = pd.read_parquet(METADATA_FILE)
+        print(f"DEBUG: Metadata loaded. Rows: {len(self.metadata)}")
+        dota = self.metadata[self.metadata['name'] == 'Dota 2']
+        if not dota.empty:
+            print(f"DEBUG: Dota 2 found. Playtime: {dota.iloc[0]['estimated_playtime']}")
+        else:
+            print("DEBUG: Dota 2 NOT found in metadata!")
         self.tag_vectors = np.load(TAG_VECTORS_FILE)
         self.quality_grid = np.load(QUALITY_GRID_FILE)
         
@@ -215,10 +222,12 @@ def get_list(category: str, discovery_pref: float = 0.0):
         }
 
     elif category == "length":
-        playtime_col = 'median_playtime' if 'median_playtime' in metadata.columns else 'estimated_playtime'
+        playtime_col = 'estimated_playtime'
         valid = metadata[metadata[playtime_col] > 0].copy()
         
         longest = valid.sort_values(playtime_col, ascending=False).head(50)
+        # Debugging Dota 2 visibility
+        print(f"DEBUG: Longest in 'length': {longest.iloc[0]['name']} with {longest.iloc[0][playtime_col]} minutes")
         shortest = valid.sort_values(playtime_col, ascending=True).head(50)
         
         return {
@@ -292,8 +301,7 @@ def get_metadata(request: MetadataRequest):
     response_items = []
     for _, game_meta in matches.iterrows():
         raw_pop = game_meta['positive'] + game_meta['negative']
-        playtime_col = 'average_playtime_forever' if 'average_playtime_forever' in metadata.columns else 'median_playtime'
-        raw_length = game_meta[playtime_col] / 60.0
+        raw_length = game_meta['estimated_playtime'] / 60.0
         
         item = {
             "appid": int(game_meta['appid']),
@@ -533,8 +541,7 @@ def recommend(request: RecommendationRequest):
         
         # Calculate raw values for debug
         raw_pop = game_meta['positive'] + game_meta['negative']
-        playtime_col = 'average_playtime_forever' if 'average_playtime_forever' in metadata.columns else 'median_playtime'
-        raw_length = game_meta[playtime_col] / 60.0
+        raw_length = game_meta['estimated_playtime'] / 60.0
         
         item = {
             "appid": int(game_meta['appid']),

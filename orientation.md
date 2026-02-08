@@ -35,6 +35,7 @@ This project is a Steam game recommendation engine that combines semantic search
 - **Improved Debug Mode:** The recommender's game cards now feature a comprehensive debug section. It provides a full breakdown of the hybrid score calculation, including raw values, z-scores, and both slider and hard-coded weights for every component.
 
 - Data files like `embeddings.npy`, `steam_tag_vectors.npy`, and `metadata.parquet` are the core artifacts used by the recommender. 
+    - **CRITICAL:** `metadata.parquet` should reside in the root directory. Conflicting versions in `data/` or other subfolders have caused inconsistent behavior in the past and should be deleted if found. The path in `common/constants.py` is standardized to the root version using an absolute path.
 - `metadata.parquet` includes pre-calculated z-scores for release dates (`date_z`), popularity (`pop_z`), and game length (`playtime_z`), as well as a cleaned `release_year` for fast display.
     - **Age Z-Scoring**: Future release dates are clamped to today to prevent skewing the distribution. Unknown dates are assigned a neutral z-score of 0.
     - **Review Count Repair**: `generate_metadata.py` automatically repairs stale review counts using the raw individual reviews found in `scraped_reviews.csv` if they exceed the global reported counts.
