@@ -73,7 +73,7 @@ CHECKPOINT_INTERVAL = 20
 MAX_ERROR_RETRIES = 3
 ERROR_IDS_FILE = "data/error_ids.csv"
 SCRAPE_LOG_FILE = "scrape_steam.log"
-RAW_DOWNLOAD_PATH = os.getenv("RAW_DOWNLOAD_PATH", r"C:\Users\miste\OneDrive\Desktop\Repos\scraping\data\steam_raw_downloads")
+RAW_DOWNLOAD_PATH = os.getenv("RAW_DOWNLOAD_PATH", "/steam_raw_downloads")
 RAW_DOWNLOAD_REVIEWS_PATH = os.path.join(RAW_DOWNLOAD_PATH, "reviews")
 ARCHIVE_PATH = os.path.join(RAW_DOWNLOAD_PATH, "archive")
 
