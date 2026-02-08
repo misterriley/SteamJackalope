@@ -21,6 +21,7 @@ venv.bak/
 # Project Specific
 data/
 old/
+checkpoint_state.json
 scraped_games.csv
 scraped_reviews.csv
 sample_games.csv
