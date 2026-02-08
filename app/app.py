@@ -469,7 +469,7 @@ with tabs[0]:
         top_k = st.number_input(TOP_K_LABEL, 1, TOP_K_MAX, help=TOP_K_HELP, key="top_k")
 
     # Input section
-    col1, col2 = st.columns([1, 1])
+    col1, col2, col3 = st.columns([1, 1, 1])
 
     with col1:
         prompt = st.text_input(PROMPT_LABEL, placeholder=PROMPT_PLACEHOLDER, help=PROMPT_HELP, key="prompt")
@@ -489,6 +489,15 @@ with tabs[0]:
                 key="seed_multiselect",
                 help=SEED_HELP
             )
+
+    with col3:
+        genre_list = get_genre_list()
+        selected_genres = st.multiselect(
+            GENRE_FILTER_LABEL,
+            options=genre_list,
+            help=GENRE_FILTER_HELP,
+            key="genres_multiselect"
+        )
 
     # Search Logic
     with st.spinner(UPDATING_RESULTS_TEXT):
