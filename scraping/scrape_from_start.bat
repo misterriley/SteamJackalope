@@ -27,6 +27,9 @@ if exist scraped_reviews.csv (
 )
 if exist scraping\checkpoint_state.json del scraping\checkpoint_state.json
 
+echo Refreshing AppID list...
+python scraping/get_steam_appids.py
+
 echo Starting scraping...
 python scraping/scrape_steam.py
 pause
