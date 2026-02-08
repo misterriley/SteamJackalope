@@ -92,40 +92,82 @@ class DataManager:
 
     def load_data(self):
         print("Loading data...")
-        embeddings_desc = np.load(EMBEDDINGS_DESC_FILE)
-        embeddings_structural = np.load(EMBEDDINGS_TAG_FILE)
-        print(f"DEBUG: METADATA_FILE is {METADATA_FILE}")
-        self.metadata = pd.read_parquet(METADATA_FILE)
-        print(f"DEBUG: Metadata loaded. Rows: {len(self.metadata)}")
-        dota = self.metadata[self.metadata['name'] == 'Dota 2']
-        if not dota.empty:
-            print(f"DEBUG: Dota 2 found. Playtime: {dota.iloc[0]['estimated_playtime']}")
-        else:
-            print("DEBUG: Dota 2 NOT found in metadata!")
-        self.tag_vectors = np.load(TAG_VECTORS_FILE)
-        self.quality_grid = np.load(QUALITY_GRID_FILE)
         
-        self.w_desc = np.load(W_DESC_FILE) if os.path.exists(W_DESC_FILE) else None
-        self.w_structural = np.load(W_STRUCTURAL_FILE) if os.path.exists(W_STRUCTURAL_FILE) else None
-        self.mean_desc = np.load(MEAN_DESC_FILE) if os.path.exists(MEAN_DESC_FILE) else None
-        self.mean_structural = np.load(MEAN_STRUCTURAL_FILE) if os.path.exists(MEAN_STRUCTURAL_FILE) else None
+        # 1. Use Memory Mapping for large NumPy arrays
+        # Note: mmap arrays are read-only to prevent accidentally modifying on-disk data
+        # We also cast to float16 to reduce memory when we DO load into RAM
+        
+        # For embeddings, we need to normalize them, so we'll load them into memory but as float16
+        self.embeddings_desc_norm = np.load(EMBEDDINGS_DESC_FILE).astype(np.float16)
+        self.embeddings_structural_norm = np.load(EMBEDDINGS_TAG_FILE).astype(np.float16)
+        
+        def normalize_inplace(m):
+            norms = np.linalg.norm(m.astype(np.float32), axis=1, keepdims=True)
+            norms[norms == 0] = EPSILON
+            m /= norms.astype(np.float16)
+            return m
 
+        normalize_inplace(self.embeddings_desc_norm)
+        normalize_inplace(self.embeddings_structural_norm)
+
+        # 2. Memory Map Tag Vectors and Quality Grid
+        # These are large and used for indexing/dot products, mmap is perfect here
+        self.tag_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
+        self.quality_grid = np.load(QUALITY_GRID_FILE, mmap_mode='r')
+        
+        # 3. Load Metadata with specific columns and types
+        print(f"DEBUG: METADATA_FILE is {METADATA_FILE}")
+        needed_cols = [
+            'appid', 'name', 'release_date', 'positive', 'negative', 
+            'genres', 'tags', 'categories', 'supported_languages',
+            'mature_content', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z',
+            'estimated_playtime', 'difficulty_predicted'
+        ]
+        if 'release_year' in pd.read_parquet(METADATA_FILE, columns=[]).columns:
+            needed_cols.append('release_year')
+
+        self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols)
+        
+        # Extract necessary info from large string columns then drop them to save memory
+        self.metadata['is_vr_only'] = self.metadata['categories'].fillna('').str.contains('VR Only', case=False).astype(bool)
+        self.metadata['is_english'] = self.metadata['supported_languages'].fillna('').str.contains('English', case=False).astype(bool)
+        self.metadata['is_utility'] = self.metadata['tags'].fillna('').str.contains('Utilities', case=False).astype(bool)
+        self.metadata.drop(columns=['categories', 'supported_languages'], inplace=True)
+        
+        # Optimize metadata types
+        self.metadata['appid'] = self.metadata['appid'].astype(np.int32)
+        self.metadata['positive'] = self.metadata['positive'].astype(np.int32)
+        self.metadata['negative'] = self.metadata['negative'].astype(np.int32)
+        self.metadata['date_z'] = self.metadata['date_z'].astype(np.float16)
+        self.metadata['pop_z'] = self.metadata['pop_z'].astype(np.float16)
+        self.metadata['playtime_z'] = self.metadata['playtime_z'].astype(np.float16)
+        self.metadata['difficulty_z'] = self.metadata['difficulty_z'].astype(np.float16)
+        self.metadata['estimated_playtime'] = self.metadata['estimated_playtime'].astype(np.float32)
+        self.metadata['difficulty_predicted'] = self.metadata['difficulty_predicted'].astype(np.float32)
+        self.metadata['mature_content'] = self.metadata['mature_content'].fillna(0).astype(np.int8)
+
+        # Parse date and convert string columns to categorical to save memory while keeping functionality
         self.metadata['parsed_date'] = self.metadata['release_date'].apply(self.clean_release_date)
+        # Keep release_date but as categorical if it saves space? Actually release_date is unique mostly. 
+        # For now, let's keep it but ensure we don't drop it.
+        # self.metadata['release_date'] = self.metadata['release_date'].astype('category') 
+        
+        print(f"DEBUG: Metadata loaded. Rows: {len(self.metadata)}")
+        
+        # 4. Load weights and means
+        self.w_desc = np.load(W_DESC_FILE).astype(np.float16) if os.path.exists(W_DESC_FILE) else None
+        self.w_structural = np.load(W_STRUCTURAL_FILE).astype(np.float16) if os.path.exists(W_STRUCTURAL_FILE) else None
+        self.mean_desc = np.load(MEAN_DESC_FILE).astype(np.float16) if os.path.exists(MEAN_DESC_FILE) else None
+        self.mean_structural = np.load(MEAN_STRUCTURAL_FILE).astype(np.float16) if os.path.exists(MEAN_STRUCTURAL_FILE) else None
 
         if 'release_year' not in self.metadata.columns:
             self.metadata['release_year'] = self.metadata['parsed_date'].dt.year
             mean_year = self.metadata['release_year'].mean()
-            self.metadata['release_year'] = self.metadata['release_year'].fillna(mean_year)
-
-        def normalize(m):
-            norms = np.linalg.norm(m, axis=1, keepdims=True)
-            norms[norms == 0] = EPSILON
-            return m / norms
-
-        self.embeddings_desc_norm = normalize(embeddings_desc)
-        self.embeddings_structural_norm = normalize(embeddings_structural)
+            self.metadata['release_year'] = self.metadata['release_year'].fillna(mean_year).astype(np.int16)
+        else:
+            self.metadata['release_year'] = self.metadata['release_year'].fillna(0).astype(np.int16)
         
-        self.tag_vectors_norms = np.linalg.norm(self.tag_vectors, axis=1)
+        self.tag_vectors_norms = np.linalg.norm(self.tag_vectors.astype(np.float32), axis=1).astype(np.float16)
         
         print("Processing genres...")
         def parse_genres(x):
@@ -335,25 +377,15 @@ def recommend(request: RecommendationRequest):
     mask = np.ones(len(metadata), dtype=bool)
     
     if request.remove_vr:
-        # Assuming categories is loaded as string or similar check
-        # We need to handle potential NaNs safely if categories was float in parquet
-        cats = metadata['categories'].fillna('')
-        vr_only_mask = cats.str.contains('VR Only', case=False, na=False).values
-        mask &= ~vr_only_mask
+        mask &= ~metadata['is_vr_only'].values
         
     if request.english_only:
-        langs = metadata['supported_languages'].fillna('')
-        english_mask = langs.str.contains('English', case=False, na=False).values
-        mask &= english_mask
+        mask &= metadata['is_english'].values
     
     if request.remove_nsfw:
-        if 'mature_content' in metadata.columns:
-            mask &= (metadata['mature_content'].fillna(0) == 0).values
+        mask &= (metadata['mature_content'] == 0).values
         
         tags = metadata['tags'].fillna('')
-        # tags column might be stringified dict or list. If it's a string, str.contains works.
-        # If it was saved as something else, we might need care. Parquet preserves types better.
-        # Assuming string for regex search:
         nsfw_tag_mask = tags.apply(lambda x: any(tag in str(x).lower() for tag in NSFW_TAGS) if x else False).values
         mask &= ~nsfw_tag_mask
         
@@ -361,8 +393,7 @@ def recommend(request: RecommendationRequest):
         mask &= ~nsfw_name_mask
     
     if request.remove_utilities:
-        utility_mask = metadata['tags'].fillna('').str.contains('Utilities', case=False, na=False).values
-        mask &= ~utility_mask
+        mask &= ~metadata['is_utility'].values
 
     if request.remove_unreleased:
         # Dynamic build time check might be overkill, let's assume current time or file time

@@ -5,6 +5,15 @@
 
 ## Task List
 
+## Top Priority
+
+- [x] Reduce memory footprint of the server
+        - [x] Try to get it down below 512 MB while running. (Reduced to 511.21 MB)
+        - [x] Reduce the precision of loaded objects since most of the precision is lost during processing. (Using float16 and mmap)
+        - [x] Create a test that loads all data like the server would and runs several calls to the recommend endpoint with different sets of inputs. Monitor the memory of the process while this is happening. Print out the memory footprint of the python process during this test; success means staying below 512 MB.
+
+### Lesser Priority
+
 - [ ] Create a banner at the top of the page.
         - [ ] Give the name of the website.
         - [ ] Make it a pretty color.
