@@ -215,7 +215,7 @@ def get_list(category: str, discovery_pref: float = 0.0):
         }
 
     elif category == "length":
-        playtime_col = 'estimated_playtime' if 'estimated_playtime' in metadata.columns else 'median_playtime'
+        playtime_col = 'median_playtime' if 'median_playtime' in metadata.columns else 'estimated_playtime'
         valid = metadata[metadata[playtime_col] > 0].copy()
         
         longest = valid.sort_values(playtime_col, ascending=False).head(50)
