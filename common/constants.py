@@ -90,7 +90,7 @@ QUALITY_SCORE_PIN_GROUP = 500
 PIN_QUALITY_DISTRIBUTION = True
 
 # Constants for UI and Logic
-APP_TITLE = "Steam Jackalope v0.0.1 (pre-pre-alpha)"
+APP_TITLE = "Steam Jackalope v0.0.1 (pre-pre-alpha)\n\nFirst time here? Press \"Surprise Me (Random)\" to get started!"
 LOADING_APP_TEXT = "Loading massive neural networks..."
 UPDATING_RESULTS_TEXT = "Thinking..."
 TOP_RECOMMENDATIONS_HEADER = "Top {top_k} Recommendations"
@@ -222,9 +222,9 @@ METHODOLOGY_ERROR = "Methodology file not found."
 # Text
 APP_IMAGE_TEXT = """
 **The Jackalope** is a hybrid recommender system that blends:
-*   **Semantic Search:** Understanding the meaning of your request.
-*   **Vibe Matching:** Analyzing tag distributions to find similar 'feels'.
-*   **Bayesian Scoring:** robust quality estimation that handles 'hidden gems'.
+*   **Semantic Search:** Understanding the vibes of games and what people say about them.
+*   **Tag Matching:** Analyzing the similarity of tag distributions.
+*   **Bayesian Scoring:** robust estimation of several factors that handles 'hidden gems' and rarely played games.
 """
 
 # Logic Constants

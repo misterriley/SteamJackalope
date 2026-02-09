@@ -38,14 +38,15 @@ class TestTagVectorsRobustness(unittest.TestCase):
         # Force a linear constraint: sum(rows) = 0
         X = X - X.mean(axis=1, keepdims=True)
         
-        # Whiten with reduction
-        n_components = 5
-        whitened, W = whiten(X, n_components=n_components)
+        # Whiten with variance threshold (new API)
+        variance_threshold = 0.80
+        whitened, W = whiten(X, variance_threshold=variance_threshold)
         
-        # Check shape
-        self.assertEqual(whitened.shape, (num_games, n_components))
+        # Check shape - should be reduced but at least 1 dimension
+        self.assertGreater(whitened.shape[1], 0)
+        self.assertLess(whitened.shape[1], num_tags + 1)
         
-        # Check that no value is 'exploding'
+        # Check that no value is 'exploding''
         # With unit variance, values shouldn't be massive
         self.assertLess(np.max(np.abs(whitened)), 10.0) 
         

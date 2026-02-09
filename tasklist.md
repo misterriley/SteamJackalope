@@ -7,26 +7,17 @@
 
 ## Recently Completed
 
-- [x] Create a batch file `run_all_tests.bat` to run all tests using `pytest` and updated `requirements.txt`.
-- [x] Resolve "exploding similarity" bug in tag vectors by implementing truncated PCA-ZCA whitening and 128-dimensional reduction.
-- [x] Fixed contaminated "Filter by Genre" list by improving Steam scraper regex and cleaning corrupted CSV/Parquet data.
-- [x] Implemented robust unit and robustness tests for tag vector generation to prevent future regressions.
-
 ## Top Priority
 
-- [x] Reduce the granularity of sliders in the website to be increments of 0.1, yielding a total of 21 possible values per slider. The purpose of this task is to reduce memory load. 
+- [x] Reduce the dimension of whitening matrices. The purpose of this task is to reduce memory load and decrease noise sensitivity. 
         - [x] To begin, print the size and shape of all production files.
-        - [x] Change any constants used to set the granularity of sliders to reflect this change. 
-        - [x] Change the `pipeline\generate_quality_grid.py` function so that it produces values according to the new granularity. The bounding values of s should not change.  
-        - [x] Sliders on the website should snap to the closest value rather than allow continuous values.
-        - [x] Rerun `pipeline\run_pipeline.py`.
-        - [x] Finally, print the size and shape of the new production files.
-        
-        **Notes:** 
-        - `ABG_NOTCHES_ON_SLIDER` changed from 100 to 10 (affects alpha/beta sliders)
-        - `AP_SLIDER_STEP` changed from 0.01 to 0.1, yielding 21 values from -1.0 to 1.0
-        - Quality grid regenerated: shape (21, 155015), ~6.4 MB (down from 201×155015, ~60.9 MB)
-        - File replacement created via `finalize_grid_replace.bat` due to Windows file locking
+        - [x] For whitening steps, check the ZCA eigenvalues for the percent variance explained by each dimension. Order the dimensions by percent variance explained, and cut off the smallest explained-variance dimensions after a total of 80% of the variance explained has been retained.
+        - [x] Ensure that these reduced dimension matrices are being produced in all scripts in the `pipeline` directory.
+        - [x] Ensure that when data from these files is used while the website is running, the lower dimension matrices do not interfere with how the website functions.
+        - [x] Ensure that this change does not interfere with the 'float16' formatting currently in place.
+        - [x] When finished, rerun `pipeline\run_pipeline.py`, then print out the size and shape of the new production files. 
+        - [x] Report the change in size.
+        - [x] Call `./run_test_env.bat` to launch the website.
 
 ### Lesser Priority
 

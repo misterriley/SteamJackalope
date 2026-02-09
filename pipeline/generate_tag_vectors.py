@@ -407,28 +407,34 @@ def apply_tag_transform(augmented_counts, prior_G, original_total_votes, K, tran
     
     return final_vectors
 
-def whiten(vectors, n_components=128):
+def whiten(vectors, variance_threshold=0.80):
     """
     Whitening using PCA-based dimensionality reduction followed by ZCA rotation.
     Reduces memory footprint and eliminates singular/noisy dimensions.
+    Dimensionality is chosen to retain specified proportion of variance.
     """
-    print(f"Whitening vectors (PCA-ZCA with {n_components} components)...")
+    print(f"Whitening vectors (PCA-ZCA with variance threshold {variance_threshold:.1%})...")
     n_games = vectors.shape[0]
     
     # M is the second moment matrix (uncentered covariance)
     M = np.dot(vectors.T, vectors) / n_games
     U, S, Vt = np.linalg.svd(M)
     
-    # Keep only top n_components
+    # Compute cumulative explained variance
+    cumvar = np.cumsum(S) / np.sum(S)
+    n_components = np.argmax(cumvar >= variance_threshold) + 1
+    if n_components <= 0:
+        n_components = max(1, int(variance_threshold * len(S)))  # fallback
     actual_n = min(n_components, np.sum(S > 1e-9))
+    
     print(f"Keeping top {actual_n} components (explaining {np.sum(S[:actual_n])/np.sum(S):.2%} variance)")
     
     U_reduced = U[:, :actual_n]
     S_reduced = S[:actual_n]
     
-    # PCA Whitening Matrix: U @ diag(1/sqrt(S))
-    # ZCA Whitening Matrix: U @ diag(1/sqrt(S)) @ U.T
-    # We want to return whitened vectors of shape (n_games, actual_n)
+    # PCA Whitening Matrix: U_reduced @ diag(1/sqrt(S_reduced))
+    # ZCA Whitening Matrix would be U_reduced @ diag(1/sqrt(S_reduced)) @ U_reduced.T
+    # But we want to return whitened vectors of shape (n_games, actual_n)
     # to save memory as specified in orientation.md
     
     W = np.dot(U_reduced, np.diag(1.0 / np.sqrt(S_reduced + 1e-6)))
@@ -454,7 +460,7 @@ def generate_tag_vectors(csv_path, output_vectors="steam_tag_vectors.npy", outpu
     
     # 5. Whiten
     if USE_TAG_WHITENING:
-        whitened_vectors, W = whiten(transformed_vectors)
+        whitened_vectors, W = whiten(transformed_vectors, variance_threshold=0.80)
     else:
         print("Skipping whitening (Identity transform)...")
         whitened_vectors = transformed_vectors

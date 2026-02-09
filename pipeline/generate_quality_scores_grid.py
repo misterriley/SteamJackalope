@@ -115,7 +115,9 @@ def generate_quality_grid(metadata_path, output_path):
 
         print_grid = sorted(grid[i], reverse=True)[:5]
         game_names_to_print = [df.iloc[np.where(grid[i] == score)[0][0]]['name'] for score in print_grid]
-        print(f"  Top 5 games: {game_names_to_print}")  
+        # Convert to ASCII-safe strings for Windows console (replace non-ASCII with '?')
+        safe_names = [name.encode('ascii', errors='replace').decode('ascii') for name in game_names_to_print]
+        print(f"  Top 5 games: {', '.join(safe_names)}")  
         print(f"  Top 5 scores: {print_grid}")
 
     print(f"Saving grid to {output_path}...")

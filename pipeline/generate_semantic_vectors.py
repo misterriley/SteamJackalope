@@ -19,8 +19,8 @@ from common.constants import (
     EPSILON
 )
 
-def whiten(vectors):
-    print("Whitening vectors (Centered ZCA)...")
+def whiten(vectors, variance_threshold=0.80):
+    print("Whitening vectors (Centered ZCA with dimensionality reduction)...")
     n_samples = vectors.shape[0]
     
     # Calculate and subtract mean
@@ -30,9 +30,21 @@ def whiten(vectors):
     # Calculate covariance matrix M (centered)
     M = np.dot(centered_vectors.T, centered_vectors) / n_samples
     U, S, Vt = np.linalg.svd(M)
+    
+    # Compute cumulative explained variance
+    cumvar = np.cumsum(S) / np.sum(S)
+    n_components = np.argmax(cumvar >= variance_threshold) + 1
+    if n_components <= 0:
+        n_components = max(1, int(variance_threshold * len(S)))  # fallback
+    print(f"Retaining {n_components} dimensions for {variance_threshold:.1%} variance (original: {len(S)})")
+    
+    # Keep top components
+    U_reduced = U[:, :n_components]
+    S_reduced = S[:n_components]
+    
     epsilon = 1e-7
-    # W = U * diag(1/sqrt(S + epsilon)) * U.T
-    W = np.dot(U, np.dot(np.diag(1.0 / np.sqrt(S + epsilon)), U.T))
+    # ZCA whitening matrix: U_reduced @ diag(1/sqrt(S_reduced + epsilon))
+    W = np.dot(U_reduced, np.diag(1.0 / np.sqrt(S_reduced + epsilon)))
     whitened = np.dot(centered_vectors, W)
     return whitened, W, mean
 
@@ -122,8 +134,8 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     embeddings_desc[is_empty_desc] = 0
 
     print("Whitening embeddings...")
-    embeddings_structural, W_structural, mean_structural = whiten(embeddings_structural)
-    embeddings_desc, W_desc, mean_desc = whiten(embeddings_desc)
+    embeddings_structural, W_structural, mean_structural = whiten(embeddings_structural, variance_threshold=0.80)
+    embeddings_desc, W_desc, mean_desc = whiten(embeddings_desc, variance_threshold=0.80)
 
     print("Normalizing embeddings for memory-mapping...")
     def normalize(m):
