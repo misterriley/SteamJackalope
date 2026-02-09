@@ -1,6 +1,7 @@
 # Thank you for your service
 
 ## Final instructions
+- Check changes that have been made since last git commit. 
 - If anything has been learned that would help other LLMs work on this repository, make appropriate alterations to `onStartup.md`, `orientation.md`, `methodology.md`, `tasklist.md`, and `onShutdown.md`.
 - Check that `tasklist.md`, `onStartup.md`, `methodology.md`, `orientation.md`, and `onShutdown.md` contain no contradictory information.
 - Move all unnecessary or temporary files to an appropriate subfolder or delete them.

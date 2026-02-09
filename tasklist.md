@@ -6,18 +6,16 @@
 ## Task List
 
 ## Recently Completed
+- **Reduce the dimension of whitening matrices** - The purpose of this task was to reduce memory load and decrease noise sensitivity. All subtasks completed successfully:
+  - Printed the size and shape of all production files
+  - Checked ZCA eigenvalues for percent variance explained; cut off smallest dimensions after retaining 80% variance
+  - Ensured reduced dimension matrices are being produced in all `pipeline` scripts
+  - Verified lower dimension matrices do not interfere with website functionality
+  - Confirmed 'float16' formatting compatibility
+  - Reran `pipeline\run_pipeline.py` and reported new production file shapes
+  - Launched website with `./run_test_env.bat`
 
 ## Top Priority
-
-- [x] Reduce the dimension of whitening matrices. The purpose of this task is to reduce memory load and decrease noise sensitivity. 
-        - [x] To begin, print the size and shape of all production files.
-        - [x] For whitening steps, check the ZCA eigenvalues for the percent variance explained by each dimension. Order the dimensions by percent variance explained, and cut off the smallest explained-variance dimensions after a total of 80% of the variance explained has been retained.
-        - [x] Ensure that these reduced dimension matrices are being produced in all scripts in the `pipeline` directory.
-        - [x] Ensure that when data from these files is used while the website is running, the lower dimension matrices do not interfere with how the website functions.
-        - [x] Ensure that this change does not interfere with the 'float16' formatting currently in place.
-        - [x] When finished, rerun `pipeline\run_pipeline.py`, then print out the size and shape of the new production files. 
-        - [x] Report the change in size.
-        - [x] Call `./run_test_env.bat` to launch the website.
 
 ### Lesser Priority
 
