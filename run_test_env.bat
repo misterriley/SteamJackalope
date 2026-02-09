@@ -1,6 +1,18 @@
 @echo off
 echo Starting Steam Jackalope Test Environment...
 
+echo Killing any existing backend/frontend processes...
+rem Kill processes on port 8000 (backend)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000') do (
+    echo Killing process on port 8000 with PID %%a
+    taskkill /F /PID %%a 2>nul
+)
+rem Kill processes on port 8501 (frontend)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8501') do (
+    echo Killing process on port 8501 with PID %%a
+    taskkill /F /PID %%a 2>nul
+)
+
 echo Checking/Normalizing Embeddings for memory-mapping...
 python tools/precalculate_norm_embeddings.py
 

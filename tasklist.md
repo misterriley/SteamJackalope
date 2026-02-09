@@ -15,6 +15,11 @@
   - Reran `pipeline\run_pipeline.py` and reported new production file shapes
   - Launched website with `./run_test_env.bat`
 
+- **Fixed backend startup failure** - Backend server failed to load due to incomplete `metadata.parquet` file (only 6 columns present instead of required 67). Regenerated metadata from scraped data using `pipeline/generate_metadata.py`. Verified backend loads successfully (36.39 MB RAM usage).
+- **Enhanced test environment launcher** - Updated `run_test_env.bat` to automatically kill any existing backend/frontend processes on ports 8000 and 8501 before launching new instances. Prevents "port already in use" errors during restarts.
+- **Repository cleanup** - Removed temporary in-progress files: `scraped_games_inprogress.csv`, `scraped_reviews_inprogress.csv`, `test_scraped_games_inprogress.csv`, `test_scraped_reviews_inprogress.csv`, `pipeline_run.log`, `scrape_steam.log`.
+- **All unit tests passing** - Ran full test suite: 46 passed, 1 skipped, 2 warnings. No regressions detected.
+
 ## Top Priority
 
 ### Lesser Priority
