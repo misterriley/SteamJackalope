@@ -3,19 +3,23 @@ from common.constants import EPSILON, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX
 
 def to_z(x, ignore_zeros=False):
     """
-    Calculates the z-score of a numerical array and clamps it between global min/max.
+    Calculates the z-score of a numerical array.
     
     Args:
         x (np.array): Input data.
-        ignore_zeros (bool): If True, 0 values are ignored when calculating mean and std.
+        ignore_zeros (bool): If True, values near zero are ignored when calculating mean and std.
+                            This is useful for sparse similarity distributions.
 
     Returns:
-        np.array: Z-scored data (clamped).
+        np.array: Z-scored data.
     """
     if ignore_zeros:
-        subset = x[x != 0]
+        # Use a small threshold to handle numerical noise in dense/whitened vectors
+        subset = x[np.abs(x) > 1e-5]
         if len(subset) == 0:
-            return np.zeros_like(x)
+            # Fallback to non-ignored if everything is near zero
+            subset = x
+            
         mean = np.mean(subset)
         std = np.std(subset)
     else:
