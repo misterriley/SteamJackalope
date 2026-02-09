@@ -14,11 +14,19 @@
 
 ## Top Priority
 
-- [ ] Convert all production files to float16 precision. The purpose of this task is to reduce memory load.
-        - [ ] To begin, print the size and shape of all production files. 
-        - [ ] Make sure all file creation scripts produce float16 precision outputs and no upcasting is performed during use of the data.  
-        - [ ] Rerun the pipeline.
-        - [ ] Finally, print the size and shape of the new production files.
+- [x] Reduce the granularity of sliders in the website to be increments of 0.1, yielding a total of 21 possible values per slider. The purpose of this task is to reduce memory load. 
+        - [x] To begin, print the size and shape of all production files.
+        - [x] Change any constants used to set the granularity of sliders to reflect this change. 
+        - [x] Change the `pipeline\generate_quality_grid.py` function so that it produces values according to the new granularity. The bounding values of s should not change.  
+        - [x] Sliders on the website should snap to the closest value rather than allow continuous values.
+        - [x] Rerun `pipeline\run_pipeline.py`.
+        - [x] Finally, print the size and shape of the new production files.
+        
+        **Notes:** 
+        - `ABG_NOTCHES_ON_SLIDER` changed from 100 to 10 (affects alpha/beta sliders)
+        - `AP_SLIDER_STEP` changed from 0.01 to 0.1, yielding 21 values from -1.0 to 1.0
+        - Quality grid regenerated: shape (21, 155015), ~6.4 MB (down from 201×155015, ~60.9 MB)
+        - File replacement created via `finalize_grid_replace.bat` due to Windows file locking
 
 ### Lesser Priority
 
