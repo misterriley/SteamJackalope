@@ -54,6 +54,8 @@ Steam tags are user-contributed and often noisy. We apply a pipeline to transfor
 
 - **Regularized Similarity:** We use a **Regularized Cosine Similarity** for tag vectors: $\text{Sim}(A,B) = \frac{A \cdot B}{\|A\|\|B\| + \lambda}$. This effectively penalizes similarity scores for games with low-information (short) tag vectors, ensuring that recommendations are based on strong, confident tag matches. The parameter $\lambda$ is determined by fitting a [Chi-distribution](https://en.wikipedia.org/wiki/Chi-distribution) to the lengths (norms) of "low-tag" vectors (norms between 0 and 5). We set $\lambda$ to the 95th percentile of this fitted distribution, which represents the "noise floor" of the embedding space. This ensures that a vector's length must be statistically significant before it can achieve high similarity scores.
 
+- **Whitening & Dimensionality Reduction:** To ensure stability and remove numerical noise, tag vectors undergo **Truncated PCA-ZCA Whitening**. The data is projected onto its top 128 principal components, which capture the vast majority of variance while eliminating singular dimensions (such as the linear constraint imposed by the CLR transform). This process decorrelates the tags and prevents "ghost" similarities between unrelated games.
+
 ## 4. Quality Scoring
 Instead of raw review percentages, we use a Bayesian score that smooths out noisy reviews. This allows the system to distinguish between a game with 10 positive reviews out of 10 and a masterpiece with 98,000 positive reviews out of 100,000. 
 

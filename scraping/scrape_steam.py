@@ -398,13 +398,24 @@ def get_storefront_data(app_id, refresh=False, verbose=False):
     data['price'] = clean_text(price_match.group(1)) if price_match else ""
 
     # 7. Developer / Publisher
-    dev_match = re.search(r'<b>Developer:</b>.*?href="[^"]*">([^<]*)</a>', html_content, re.DOTALL)
-    pub_match = re.search(r'<b>Publisher:</b>.*?href="[^"]*">([^<]*)</a>', html_content, re.DOTALL)
-    data['developers'] = clean_text(dev_match.group(1)) if dev_match else ""
-    data['publishers'] = clean_text(pub_match.group(1)) if pub_match else ""
+    # Capture all developer/publisher links if multiple exist
+    dev_section = re.search(r'<b>Developer:</b>(.*?)(?=<b>|</div>|<br>|$)', html_content, re.DOTALL)
+    if dev_section:
+        devs = re.findall(r'<a[^>]*>([^<]*)</a>', dev_section.group(1))
+        data['developers'] = ",".join([clean_text(d) for d in devs])
+    else:
+        data['developers'] = ""
+
+    pub_section = re.search(r'<b>Publisher:</b>(.*?)(?=<b>|</div>|<br>|$)', html_content, re.DOTALL)
+    if pub_section:
+        pubs = re.findall(r'<a[^>]*>([^<]*)</a>', pub_section.group(1))
+        data['publishers'] = ",".join([clean_text(p) for p in pubs])
+    else:
+        data['publishers'] = ""
 
     # 8. Genres
-    genre_section = re.search(r'<b>Genre:</b>(.*?)</div>', html_content, re.DOTALL)
+    # Stop at the next <b> tag to avoid capturing Developer/Publisher links
+    genre_section = re.search(r'<b>Genre:</b>(.*?)(?=<b>|</div>|<br>|$)', html_content, re.DOTALL)
     if genre_section:
         genres = re.findall(r'<a[^>]*>([^<]*)</a>', genre_section.group(1))
         data['genres'] = ",".join([clean_text(g) for g in genres])

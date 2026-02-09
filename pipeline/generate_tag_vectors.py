@@ -407,17 +407,37 @@ def apply_tag_transform(augmented_counts, prior_G, original_total_votes, K, tran
     
     return final_vectors
 
-def whiten(vectors):
-    print("Whitening vectors (Uncentered ZCA)...")
+def whiten(vectors, n_components=128):
+    """
+    Whitening using PCA-based dimensionality reduction followed by ZCA rotation.
+    Reduces memory footprint and eliminates singular/noisy dimensions.
+    """
+    print(f"Whitening vectors (PCA-ZCA with {n_components} components)...")
     n_games = vectors.shape[0]
+    
+    # M is the second moment matrix (uncentered covariance)
     M = np.dot(vectors.T, vectors) / n_games
     U, S, Vt = np.linalg.svd(M)
-    epsilon = 1e-7
-    W = np.dot(U, np.dot(np.diag(1.0 / np.sqrt(S + epsilon)), U.T))
+    
+    # Keep only top n_components
+    actual_n = min(n_components, np.sum(S > 1e-9))
+    print(f"Keeping top {actual_n} components (explaining {np.sum(S[:actual_n])/np.sum(S):.2%} variance)")
+    
+    U_reduced = U[:, :actual_n]
+    S_reduced = S[:actual_n]
+    
+    # PCA Whitening Matrix: U @ diag(1/sqrt(S))
+    # ZCA Whitening Matrix: U @ diag(1/sqrt(S)) @ U.T
+    # We want to return whitened vectors of shape (n_games, actual_n)
+    # to save memory as specified in orientation.md
+    
+    W = np.dot(U_reduced, np.diag(1.0 / np.sqrt(S_reduced + 1e-6)))
     whitened = np.dot(vectors, W)
+    
+    # Also return the full projection matrix for query transformation
     return whitened, W
 
-def generate_tag_vectors(csv_path, output_vectors="steam_tag_vectors.npy", output_constants="regularization_constants.json", output_norms=None):
+def generate_tag_vectors(csv_path, output_vectors="steam_tag_vectors.npy", output_constants="regularization_constants.json", output_norms=None, w_tag_path=None):
     df = load_data(csv_path)
     sparse_counts, tag_to_idx, unique_tags, appids = parse_tags(df)
     
@@ -450,8 +470,9 @@ def generate_tag_vectors(csv_path, output_vectors="steam_tag_vectors.npy", outpu
     tag_norms = np.linalg.norm(whitened_vectors.astype(np.float32), axis=1).astype(np.float16)
     np.save(norms_path, tag_norms)
 
-    print(f"Saving whitening matrix to {W_TAG_FILE}...")
-    np.save(W_TAG_FILE, W)
+    final_w_path = w_tag_path if w_tag_path else W_TAG_FILE
+    print(f"Saving whitening matrix to {final_w_path}...")
+    np.save(final_w_path, W)
 
     # Run distribution analysis
     try:

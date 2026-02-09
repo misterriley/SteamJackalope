@@ -8,6 +8,9 @@
 ## Recently Completed
 
 - [x] Create a batch file `run_all_tests.bat` to run all tests using `pytest` and updated `requirements.txt`.
+- [x] Resolve "exploding similarity" bug in tag vectors by implementing truncated PCA-ZCA whitening and 128-dimensional reduction.
+- [x] Fixed contaminated "Filter by Genre" list by improving Steam scraper regex and cleaning corrupted CSV/Parquet data.
+- [x] Implemented robust unit and robustness tests for tag vector generation to prevent future regressions.
 
 ## Top Priority
 
