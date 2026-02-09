@@ -463,7 +463,7 @@ def generate_tag_vectors(csv_path, output_vectors="steam_tag_vectors.npy", outpu
         W = np.eye(dim)
     
     print(f"Saving vectors to {output_vectors}...")
-    np.save(output_vectors, whitened_vectors)
+    np.save(output_vectors, whitened_vectors.astype(np.float16))
 
     norms_path = output_norms if output_norms else TAG_NORMS_FILE
     print(f"Saving tag vector norms to {norms_path}...")
@@ -472,7 +472,7 @@ def generate_tag_vectors(csv_path, output_vectors="steam_tag_vectors.npy", outpu
 
     final_w_path = w_tag_path if w_tag_path else W_TAG_FILE
     print(f"Saving whitening matrix to {final_w_path}...")
-    np.save(final_w_path, W)
+    np.save(final_w_path, W.astype(np.float16))
 
     # Run distribution analysis
     try:

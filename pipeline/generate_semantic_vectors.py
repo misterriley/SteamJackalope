@@ -137,16 +137,16 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     print(f"Saving structural embeddings to {embeddings_tag_out}...")
     np.save(embeddings_tag_out, embeddings_structural)
     print(f"Saving structural whitening matrix to {W_STRUCTURAL_FILE}...")
-    np.save(W_STRUCTURAL_FILE, W_structural)
+    np.save(W_STRUCTURAL_FILE, W_structural.astype(np.float16))
     print(f"Saving structural mean vector to {MEAN_STRUCTURAL_FILE}...")
-    np.save(MEAN_STRUCTURAL_FILE, mean_structural)
+    np.save(MEAN_STRUCTURAL_FILE, mean_structural.astype(np.float16))
     
     print(f"Saving descriptive embeddings to {embeddings_desc_out}...")
     np.save(embeddings_desc_out, embeddings_desc)
     print(f"Saving descriptive whitening matrix to {W_DESC_FILE}...")
-    np.save(W_DESC_FILE, W_desc)
+    np.save(W_DESC_FILE, W_desc.astype(np.float16))
     print(f"Saving descriptive mean vector to {MEAN_DESC_FILE}...")
-    np.save(MEAN_DESC_FILE, mean_desc)
+    np.save(MEAN_DESC_FILE, mean_desc.astype(np.float16))
 
     # Run distribution analysis
     try:

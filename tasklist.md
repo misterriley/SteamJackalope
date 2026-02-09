@@ -14,10 +14,15 @@
 
 ## Top Priority
 
-- [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)
+- [ ] Convert all production files to float16 precision. The purpose of this task is to reduce memory load.
+        - [ ] To begin, print the size and shape of all production files. 
+        - [ ] Make sure all file creation scripts produce float16 precision outputs and no upcasting is performed during use of the data.  
+        - [ ] Rerun the pipeline.
+        - [ ] Finally, print the size and shape of the new production files.
 
 ### Lesser Priority
 
+- [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)
 - [ ] Create a banner at the top of the page.
         - [ ] Give the name of the website.
         - [ ] Make it a pretty color, maybe a light purple.

@@ -119,7 +119,7 @@ def generate_quality_grid(metadata_path, output_path):
         print(f"  Top 5 scores: {print_grid}")
 
     print(f"Saving grid to {output_path}...")
-    np.save(output_path, grid)
+    np.save(output_path, grid.astype(np.float16))
     print("Done!")
 
 if __name__ == "__main__":
