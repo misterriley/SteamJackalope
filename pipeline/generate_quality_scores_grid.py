@@ -35,6 +35,8 @@ def generate_quality_grid(metadata_path, output_path):
     print(f"Loading metadata from {metadata_path}...")
     df = pd.read_parquet(metadata_path)
     df.drop_duplicates(subset=['appid'], inplace=True)
+    # Ensure name is present to maintain index synchronization with other pipeline stages
+    df.dropna(subset=['appid', 'name'], inplace=True)
     df.reset_index(drop=True, inplace=True)
     p = df['positive'].fillna(0).values
     n = df['negative'].fillna(0).values

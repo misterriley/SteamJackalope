@@ -106,6 +106,8 @@ def generate_metadata(games_path, reviews_path=None, output_path="metadata.parqu
             df = df[df['is_dlc'] != True]
             
     df.drop_duplicates(subset=['appid'], inplace=True)
+    # Ensure name is present to maintain index synchronization with other pipeline stages
+    df.dropna(subset=['appid', 'name'], inplace=True)
     df.reset_index(drop=True, inplace=True)
     
     # Use release_date from games_path as the final date
