@@ -102,7 +102,13 @@ def main():
 
     # 1. Generate Tag Vectors
     tag_vectors_path = config.get("tag_vectors_file", "steam_tag_vectors.npy")
-    run_script(os.path.join(SCRIPT_DIR, "generate_tag_vectors.py"), [args.games, "--output", tag_vectors_path, "--constants", reg_json])
+    tag_norms_path = config.get("tag_norms_file", "tag_vectors_norms.npy")
+    run_script(os.path.join(SCRIPT_DIR, "generate_tag_vectors.py"), [
+        args.games, 
+        "--output", tag_vectors_path, 
+        "--constants", reg_json,
+        "--norms", tag_norms_path
+    ])
 
     # 1.5 Generate Difficulty Model
     difficulty_preds_path = config.get("difficulty_preds_file", "data/difficulty_predictions.csv")
@@ -152,6 +158,7 @@ def validate_outputs(clean_games_path):
         EMBEDDINGS_TAG_FILE, 
         METADATA_FILE, 
         TAG_VECTORS_FILE, 
+        TAG_NORMS_FILE,
         QUALITY_GRID_FILE
     )
     
@@ -200,6 +207,17 @@ def validate_outputs(clean_games_path):
             errors.append(f"Error reading {TAG_VECTORS_FILE}: {e}")
     else:
         errors.append(f"{TAG_VECTORS_FILE} is missing")
+
+    # Check Tag Norms
+    if os.path.exists(TAG_NORMS_FILE):
+        try:
+            norms = np.load(TAG_NORMS_FILE)
+            if len(norms) != expected_len:
+                errors.append(f"{TAG_NORMS_FILE} has {len(norms)} elements, expected {expected_len}")
+        except Exception as e:
+            errors.append(f"Error reading {TAG_NORMS_FILE}: {e}")
+    else:
+        errors.append(f"{TAG_NORMS_FILE} is missing")
 
     # Check Quality Grid
     if os.path.exists(QUALITY_GRID_FILE):

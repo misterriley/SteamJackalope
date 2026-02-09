@@ -22,6 +22,7 @@ class TestPipelineIntegration(unittest.TestCase):
             "embeddings_desc_file": "test_embeddings_desc.npy",
             "embeddings_tag_file": "test_embeddings_structural.npy",
             "tag_vectors_file": "test_tag_vectors.npy",
+            "tag_norms_file": "test_tag_vectors_norms.npy",
             "quality_grid_file": "test_quality_scores_grid.npy",
             "regularization_json": "test_regularization_constants.json"
         }
@@ -66,6 +67,7 @@ class TestPipelineIntegration(unittest.TestCase):
             "test_embeddings_desc.npy",
             "test_embeddings_structural.npy",
             "test_tag_vectors.npy",
+            "test_tag_vectors_norms.npy",
             "test_quality_scores_grid.npy",
             "test_regularization_constants.json"
         ]
@@ -91,6 +93,7 @@ class TestPipelineIntegration(unittest.TestCase):
         test_env["STEAM_EMBEDDINGS_DESC_FILE"] = "test_embeddings_desc.npy"
         test_env["STEAM_EMBEDDINGS_TAG_FILE"] = "test_embeddings_structural.npy"
         test_env["STEAM_TAG_VECTORS_FILE"] = "test_tag_vectors.npy"
+        test_env["STEAM_TAG_NORMS_FILE"] = "test_tag_vectors_norms.npy"
         test_env["STEAM_QUALITY_GRID_FILE"] = "test_quality_scores_grid.npy"
         test_env["STEAM_REGULARIZATION_JSON"] = "test_regularization_constants.json"
 
@@ -114,6 +117,7 @@ class TestPipelineIntegration(unittest.TestCase):
         self.assertTrue(os.path.exists("data/test_pipeline_games_clean.csv"), "Clean games file not found")
         self.assertTrue(os.path.exists("test_regularization_constants.json"), "Test constants file not found")
         self.assertTrue(os.path.exists("test_tag_vectors.npy"), "Test tag vectors file not found")
+        self.assertTrue(os.path.exists("test_tag_vectors_norms.npy"), "Test tag vector norms file not found")
         self.assertTrue(os.path.exists("test_metadata.parquet"), "Test metadata file not found")
 
 if __name__ == "__main__":

@@ -200,11 +200,17 @@ class DataManager:
             self.metadata['release_year'] = self.metadata['release_year'].fillna(0).astype(np.int16)
         
         # Load pre-calculated tag vector norms if available to save massive RAM spike
+        loaded_norms = False
         if os.path.exists(TAG_NORMS_FILE):
              print(f"Loading pre-calculated tag norms from {TAG_NORMS_FILE}...")
              self.tag_vectors_norms = np.load(TAG_NORMS_FILE)
-        else:
-             print("WARNING: Pre-calculated tag norms not found. Computing on the fly (High RAM Usage)...")
+             if len(self.tag_vectors_norms) == len(self.tag_vectors):
+                 loaded_norms = True
+             else:
+                 print(f"WARNING: Pre-calculated tag norms shape mismatch ({len(self.tag_vectors_norms)} vs {len(self.tag_vectors)}).")
+        
+        if not loaded_norms:
+             print("WARNING: Pre-calculated tag norms not found or mismatched. Computing on the fly (High RAM Usage)...")
              # Use float32 for computation but avoid creating a full copy if possible? 
              # No, mmap astype creates copy. We stick to old way if file missing.
              self.tag_vectors_norms = np.linalg.norm(self.tag_vectors.astype(np.float32), axis=1).astype(np.float16)

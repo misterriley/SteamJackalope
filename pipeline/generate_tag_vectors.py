@@ -21,6 +21,7 @@ from common.constants import (
     CHI_FIT_PERCENTILE,
     USE_TAG_WHITENING,
     W_TAG_FILE,
+    TAG_NORMS_FILE,
     TAG_TRANSFORM_TYPE
 )
 
@@ -416,7 +417,7 @@ def whiten(vectors):
     whitened = np.dot(vectors, W)
     return whitened, W
 
-def generate_tag_vectors(csv_path, output_vectors="steam_tag_vectors.npy", output_constants="regularization_constants.json"):
+def generate_tag_vectors(csv_path, output_vectors="steam_tag_vectors.npy", output_constants="regularization_constants.json", output_norms=None):
     df = load_data(csv_path)
     sparse_counts, tag_to_idx, unique_tags, appids = parse_tags(df)
     
@@ -443,6 +444,11 @@ def generate_tag_vectors(csv_path, output_vectors="steam_tag_vectors.npy", outpu
     
     print(f"Saving vectors to {output_vectors}...")
     np.save(output_vectors, whitened_vectors)
+
+    norms_path = output_norms if output_norms else TAG_NORMS_FILE
+    print(f"Saving tag vector norms to {norms_path}...")
+    tag_norms = np.linalg.norm(whitened_vectors.astype(np.float32), axis=1).astype(np.float16)
+    np.save(norms_path, tag_norms)
 
     print(f"Saving whitening matrix to {W_TAG_FILE}...")
     np.save(W_TAG_FILE, W)
@@ -528,9 +534,10 @@ if __name__ == "__main__":
     parser.add_argument("csv", default="data/pipeline_games_clean.csv", nargs='?', help="Path to cleaned games CSV")
     parser.add_argument("--output", default="steam_tag_vectors.npy", help="Path to output vectors (.npy)")
     parser.add_argument("--constants", default="regularization_constants.json", help="Path to output constants (.json)")
+    parser.add_argument("--norms", default=None, help="Path to output norms (.npy)")
     args = parser.parse_args()
         
-    vectors, appids = generate_tag_vectors(args.csv, output_vectors=args.output, output_constants=args.constants)
+    vectors, appids = generate_tag_vectors(args.csv, output_vectors=args.output, output_constants=args.constants, output_norms=args.norms)
     
     searcher = TagSearchEngine(vectors, appids)
     v1 = searcher.get_vector(10) # CS
