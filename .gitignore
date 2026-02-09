@@ -22,6 +22,7 @@ research/*.npy
 checkpoint_state.json
 scraped_games.csv
 scraped_reviews.csv
+*_inprogress.csv
 sample_games.csv
 
 # IDEs
