@@ -316,7 +316,8 @@ def get_list(category: str, discovery_pref: float = 0.0):
         
         longest = valid.sort_values(playtime_col, ascending=False).head(50)
         # Debugging Dota 2 visibility
-        print(f"DEBUG: Longest in 'length': {longest.iloc[0]['name']} with {longest.iloc[0][playtime_col]} minutes")
+        if not longest.empty:
+            print(f"DEBUG: Longest in 'length': {longest.iloc[0]['name']} with {longest.iloc[0][playtime_col]} minutes")
         shortest = valid.sort_values(playtime_col, ascending=True).head(50)
         
         return {

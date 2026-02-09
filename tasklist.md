@@ -5,6 +5,10 @@
 
 ## Task List
 
+## Recently Completed
+
+- [x] Create a batch file `run_all_tests.bat` to run all tests using `pytest` and updated `requirements.txt`.
+
 ## Top Priority
 
 - [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)

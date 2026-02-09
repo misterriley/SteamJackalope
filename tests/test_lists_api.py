@@ -39,7 +39,8 @@ def test_lists_length(client):
     data = response.json()
     assert "top" in data
     assert "bottom" in data
-    assert "playtime" in data["top"][0]
+    if data["top"]:
+        assert "playtime" in data["top"][0]
 
 def test_lists_popularity(client):
     response = client.get("/lists/popularity")

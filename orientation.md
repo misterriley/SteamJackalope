@@ -12,6 +12,7 @@ This project is a Steam game recommendation engine that combines semantic search
 - `app/server.py`: The backend FastAPI server that handles data loading and hybrid score calculations. Start with `python -m uvicorn app.server:app --host 127.0.0.1 --port 8000`.
 - `app/app.py`: The frontend Streamlit UI that communicates with the backend server. Start with `streamlit run app/app.py`.
 - `run_test_env.bat`: A convenience batch file to launch both the server and frontend for local testing.
+- `run_all_tests.bat`: A convenience batch file to run the full test suite using `pytest`.
 - `pipeline/run_pipeline.py`: Orchestrates the data processing pipeline (tags -> semantic vectors -> metadata -> quality scores). Uses `pipeline/pipeline_config.json` for path and interval settings.
 - `pipeline/pipeline_config.json`: Configuration file for `run_pipeline.py` defaults.
 - `common/constants.py`: Centralized configuration and hyperparameters. Loads from `pipeline/regularization_constants.json` if present.
@@ -94,5 +95,6 @@ A series of research tests were conducted to predict game difficulty, initially 
 ## Testing
 
 - Unit tests are located in `tests/`.
+- **Running Tests:** Use `run_all_tests.bat` to execute the full suite. This script ensures `PYTHONPATH` is set correctly and `pytest` is installed.
 - **CRITICAL:** Ensure tests use temporary files or mock objects. Do not write to production data files (e.g., `.npy` files in root or `data/`) during tests.
 - `tests/test_tag_vector_generation.py` uses explicit temporary file paths to prevent overwriting `steam_tag_vectors.npy`.
