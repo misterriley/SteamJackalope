@@ -562,9 +562,16 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="steam_tag_vectors.npy", help="Path to output vectors (.npy)")
     parser.add_argument("--constants", default="regularization_constants.json", help="Path to output constants (.json)")
     parser.add_argument("--norms", default=None, help="Path to output norms (.npy)")
+    parser.add_argument("--w_tag", default=None, help="Path to output whitening matrix (.npy)")
     args = parser.parse_args()
         
-    vectors, appids = generate_tag_vectors(args.csv, output_vectors=args.output, output_constants=args.constants, output_norms=args.norms)
+    vectors, appids = generate_tag_vectors(
+        args.csv, 
+        output_vectors=args.output, 
+        output_constants=args.constants, 
+        output_norms=args.norms,
+        w_tag_path=args.w_tag
+    )
     
     searcher = TagSearchEngine(vectors, appids)
     v1 = searcher.get_vector(10) # CS

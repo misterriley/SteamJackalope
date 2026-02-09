@@ -7,6 +7,15 @@ import json
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# Import constants for default file paths
+from common.constants import (
+    W_DESC_FILE,
+    W_STRUCTURAL_FILE,
+    MEAN_DESC_FILE,
+    MEAN_STRUCTURAL_FILE,
+    W_TAG_FILE
+)
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def run_script(script_name, args):
@@ -103,11 +112,13 @@ def main():
     # 1. Generate Tag Vectors
     tag_vectors_path = config.get("tag_vectors_file", "steam_tag_vectors.npy")
     tag_norms_path = config.get("tag_norms_file", "tag_vectors_norms.npy")
+    w_tag_path = config.get("w_tag_file", W_TAG_FILE)
     run_script(os.path.join(SCRIPT_DIR, "generate_tag_vectors.py"), [
         args.games, 
         "--output", tag_vectors_path, 
         "--constants", reg_json,
-        "--norms", tag_norms_path
+        "--norms", tag_norms_path,
+        "--w_tag", w_tag_path
     ])
 
     # 1.5 Generate Difficulty Model
@@ -119,13 +130,21 @@ def main():
     # This takes both games and reviews.
     embeddings_desc_path = config.get("embeddings_desc_file", "embeddings_desc.npy")
     embeddings_tag_path = config.get("embeddings_tag_file", "embeddings_structural.npy")
+    w_desc_path = config.get("w_desc_file", W_DESC_FILE)
+    w_structural_path = config.get("w_structural_file", W_STRUCTURAL_FILE)
+    mean_desc_path = config.get("mean_desc_file", MEAN_DESC_FILE)
+    mean_structural_path = config.get("mean_structural_file", MEAN_STRUCTURAL_FILE)
     temp_metadata_path = "temp_metadata_for_embeddings.parquet"
     run_script(os.path.join(SCRIPT_DIR, "generate_semantic_vectors.py"), [
         "--csv", args.games, 
         "--reviews", args.reviews,
         "--embeddings_desc", embeddings_desc_path,
         "--embeddings_tag", embeddings_tag_path,
-        "--metadata", temp_metadata_path
+        "--metadata", temp_metadata_path,
+        "--w_desc", w_desc_path,
+        "--w_structural", w_structural_path,
+        "--mean_desc", mean_desc_path,
+        "--mean_structural", mean_structural_path
     ])
     if os.path.exists(temp_metadata_path):
         os.remove(temp_metadata_path)

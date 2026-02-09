@@ -12,11 +12,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common.constants import (
     EMBEDDINGS_DESC_FILE, 
     EMBEDDINGS_TAG_FILE, 
-    W_DESC_FILE, 
-    W_STRUCTURAL_FILE,
-    MEAN_DESC_FILE,
-    MEAN_STRUCTURAL_FILE,
-    EPSILON
+    EPSILON,
+    MODEL_NAME,
+    SENTENCE_TRANSFORMER_BACKEND,
+    SENTENCE_TRANSFORMER_MODEL_KWARGS
 )
 
 def whiten(vectors, variance_threshold=0.80):
@@ -64,7 +63,12 @@ def clean_tag_string(tag_str):
     except:
         return str(tag_str)
 
-def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_tag_out, metadata_out):
+def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_tag_out, metadata_out,
+                        w_desc_out=None, w_structural_out=None, mean_desc_out=None, mean_structural_out=None):
+    """
+    Generate semantic embeddings with optional custom output paths for whitening matrices and means.
+    If the weight/mean outputs are None, they will not be saved (to prevent overwriting production files).
+    """
     print(f"Loading data from {csv_path}...")
     df = pd.read_csv(csv_path)
     df.drop_duplicates(subset=['appid'], inplace=True)
@@ -113,9 +117,12 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
         " Reviews: " + df['review_text']
     )
     
-    from common.constants import MODEL_NAME
     print(f"Loading SentenceTransformer model: {MODEL_NAME}...")
-    model = SentenceTransformer(MODEL_NAME)
+    model = SentenceTransformer(
+        MODEL_NAME,
+        backend=SENTENCE_TRANSFORMER_BACKEND,
+        model_kwargs=SENTENCE_TRANSFORMER_MODEL_KWARGS
+    )
     
     print("Generating structural embeddings...")
     structural_texts = df['structural_text'].tolist()
@@ -148,17 +155,24 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     
     print(f"Saving structural embeddings to {embeddings_tag_out}...")
     np.save(embeddings_tag_out, embeddings_structural)
-    print(f"Saving structural whitening matrix to {W_STRUCTURAL_FILE}...")
-    np.save(W_STRUCTURAL_FILE, W_structural.astype(np.float16))
-    print(f"Saving structural mean vector to {MEAN_STRUCTURAL_FILE}...")
-    np.save(MEAN_STRUCTURAL_FILE, mean_structural.astype(np.float16))
+    
+    # Save whitening matrices and means only if paths are provided
+    if w_structural_out:
+        print(f"Saving structural whitening matrix to {w_structural_out}...")
+        np.save(w_structural_out, W_structural.astype(np.float16))
+    if mean_structural_out:
+        print(f"Saving structural mean vector to {mean_structural_out}...")
+        np.save(mean_structural_out, mean_structural.astype(np.float16))
     
     print(f"Saving descriptive embeddings to {embeddings_desc_out}...")
     np.save(embeddings_desc_out, embeddings_desc)
-    print(f"Saving descriptive whitening matrix to {W_DESC_FILE}...")
-    np.save(W_DESC_FILE, W_desc.astype(np.float16))
-    print(f"Saving descriptive mean vector to {MEAN_DESC_FILE}...")
-    np.save(MEAN_DESC_FILE, mean_desc.astype(np.float16))
+    
+    if w_desc_out:
+        print(f"Saving descriptive whitening matrix to {w_desc_out}...")
+        np.save(w_desc_out, W_desc.astype(np.float16))
+    if mean_desc_out:
+        print(f"Saving descriptive mean vector to {mean_desc_out}...")
+        np.save(mean_desc_out, mean_desc.astype(np.float16))
 
     # Run distribution analysis
     try:
@@ -183,10 +197,24 @@ if __name__ == "__main__":
     parser.add_argument("--embeddings_desc", default=EMBEDDINGS_DESC_FILE, help="Output .npy file for description embeddings")
     parser.add_argument("--embeddings_tag", default=EMBEDDINGS_TAG_FILE, help="Output .npy file for structural embeddings")
     parser.add_argument("--metadata", default="metadata.parquet", help="Output .parquet file")
+    parser.add_argument("--w_desc", default=None, help="Output .npy file for desc whitening matrix (default: skip)")
+    parser.add_argument("--w_structural", default=None, help="Output .npy file for structural whitening matrix (default: skip)")
+    parser.add_argument("--mean_desc", default=None, help="Output .npy file for desc mean vector (default: skip)")
+    parser.add_argument("--mean_structural", default=None, help="Output .npy file for structural mean vector (default: skip)")
     
     args = parser.parse_args()
     
     if os.path.exists(args.csv):
-        generate_embeddings(args.csv, args.reviews, args.embeddings_desc, args.embeddings_tag, args.metadata)
+        generate_embeddings(
+            args.csv, 
+            args.reviews, 
+            args.embeddings_desc, 
+            args.embeddings_tag, 
+            args.metadata,
+            args.w_desc,
+            args.w_structural,
+            args.mean_desc,
+            args.mean_structural
+        )
     else:
         print(f"Error: {args.csv} not found.")

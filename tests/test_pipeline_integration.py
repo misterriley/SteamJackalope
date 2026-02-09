@@ -21,8 +21,13 @@ class TestPipelineIntegration(unittest.TestCase):
             "metadata_file": "test_metadata.parquet",
             "embeddings_desc_file": "test_embeddings_desc.npy",
             "embeddings_tag_file": "test_embeddings_structural.npy",
+            "w_desc_file": "test_w_desc.npy",
+            "w_structural_file": "test_w_structural.npy",
+            "mean_desc_file": "test_mean_desc.npy",
+            "mean_structural_file": "test_mean_structural.npy",
             "tag_vectors_file": "test_tag_vectors.npy",
             "tag_norms_file": "test_tag_vectors_norms.npy",
+            "w_tag_file": "test_w_tag.npy",
             "quality_grid_file": "test_quality_scores_grid.npy",
             "regularization_json": "test_regularization_constants.json"
         }
@@ -66,8 +71,13 @@ class TestPipelineIntegration(unittest.TestCase):
             "test_metadata.parquet",
             "test_embeddings_desc.npy",
             "test_embeddings_structural.npy",
+            "test_w_desc.npy",
+            "test_w_structural.npy",
+            "test_mean_desc.npy",
+            "test_mean_structural.npy",
             "test_tag_vectors.npy",
             "test_tag_vectors_norms.npy",
+            "test_w_tag.npy",
             "test_quality_scores_grid.npy",
             "test_regularization_constants.json"
         ]

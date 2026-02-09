@@ -21,6 +21,8 @@ from common.constants import (
     MEAN_DESC_FILE,
     MEAN_STRUCTURAL_FILE,
     MODEL_NAME,
+    SENTENCE_TRANSFORMER_BACKEND,
+    SENTENCE_TRANSFORMER_MODEL_KWARGS,
     DOT_PRODUCT_LAMBDA,
     EPSILON
 )
@@ -29,7 +31,11 @@ st.set_page_config(page_title="Vector Interrogator", layout="wide")
 
 @st.cache_resource
 def load_model():
-    return SentenceTransformer(MODEL_NAME)
+    return SentenceTransformer(
+        MODEL_NAME,
+        backend=SENTENCE_TRANSFORMER_BACKEND,
+        model_kwargs=SENTENCE_TRANSFORMER_MODEL_KWARGS
+    )
 
 @st.cache_data
 def load_data():

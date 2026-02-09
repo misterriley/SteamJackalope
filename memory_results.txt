@@ -1,0 +1,5 @@
+Baseline (no model): 676.27 MB
+Peak (with model): 889.70 MB
+Inference impact: 213.43 MB
+Total footprint: 889.70 MB
+Status: OVER 512 MB limit

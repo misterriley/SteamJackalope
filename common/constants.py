@@ -234,6 +234,8 @@ Z_SCORE_CLAMP_MAX = 8.0
 TOP_K_SORT_MULTIPLIER = 2  # Extract 2x requested K then sort fully to handle ties
 SEMANTIC_PROMPT_SEED_BLEND = 0.5 # 50% prompt, 50% seeds for semantic vector
 MODEL_NAME = 'all-MiniLM-L6-v2'
+SENTENCE_TRANSFORMER_BACKEND = 'onnx'
+SENTENCE_TRANSFORMER_MODEL_KWARGS = {"file_name": "onnx/model_quint8_avx2.onnx"}
 
 # NSFW Definitions
 NSFW_TAGS = ['sexual content', 'nudity', 'nsfw', 'hentai', 'mature', 'adult only']

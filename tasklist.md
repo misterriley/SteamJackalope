@@ -19,6 +19,11 @@
 - **Enhanced test environment launcher** - Updated `run_test_env.bat` to automatically kill any existing backend/frontend processes on ports 8000 and 8501 before launching new instances. Prevents "port already in use" errors during restarts.
 - **Repository cleanup** - Removed temporary in-progress files: `scraped_games_inprogress.csv`, `scraped_reviews_inprogress.csv`, `test_scraped_games_inprogress.csv`, `test_scraped_reviews_inprogress.csv`, `pipeline_run.log`, `scrape_steam.log`.
 - **All unit tests passing** - Ran full test suite: 46 passed, 1 skipped, 2 warnings. No regressions detected.
+- **Migrated to quantized ONNX transformer models** - To reduce memory footprint and improve inference speed:
+  - Added `SENTENCE_TRANSFORMER_BACKEND` and `SENTENCE_TRANSFORMER_MODEL_KWARGS` constants to `common/constants.py`
+  - Updated all SentenceTransformer instantiations (7 files) to use ONNX backend with quantized model (`onnx/model_quint8_avx2.onnx`)
+  - Externalized model name and backend parameters to constants
+  - Updated `requirements.txt` to use `sentence-transformers[onnx]` instead of `sentence-transformers`
 
 ## Top Priority
 

@@ -39,6 +39,8 @@ from common.constants import (
     TOP_K_SORT_MULTIPLIER,
     SEMANTIC_PROMPT_SEED_BLEND,
     MODEL_NAME,
+    SENTENCE_TRANSFORMER_BACKEND,
+    SENTENCE_TRANSFORMER_MODEL_KWARGS,
     AP_SLIDER_VALUES,
     AP_SLIDER_STEP,
     AP_SLIDER_MIN,
@@ -78,25 +80,11 @@ class DataManager:
         if self._model is None:
             print("Loading SentenceTransformer model (Lazy Load)...")
             from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(MODEL_NAME)
-            
-            # Attempt dynamic quantization to reduce memory usage (Linux/CPU optimization)
-            # Update: Quantization increases startup memory overhead significantly in PyTorch.
-            # Disabling it might actually keep peak memory lower (around 350MB vs 475MB).
-            # try:
-            #     import torch
-            #     torch.set_num_threads(1) # Explicitly set torch threads
-            #     print("Quantizing model to qint8...")
-            #     self._model = torch.quantization.quantize_dynamic(
-            #         self._model, {torch.nn.Linear}, dtype=torch.qint8
-            #     )
-            #     print("Model quantized.")
-            #     # Force garbage collection to free original float32 weights
-            #     gc.collect()
-            # except Exception as e:
-            #     print(f"Quantization failed: {e}")
-            pass
-                
+            self._model = SentenceTransformer(
+                MODEL_NAME,
+                backend=SENTENCE_TRANSFORMER_BACKEND,
+                model_kwargs=SENTENCE_TRANSFORMER_MODEL_KWARGS
+            )
         return self._model
 
     def clean_release_date(self, date_str):
