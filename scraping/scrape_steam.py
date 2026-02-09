@@ -23,7 +23,7 @@ from common.constants import (
     API_KEY, CHECKPOINT_INTERVAL, MAX_ERROR_RETRIES, ERROR_IDS_FILE, 
     SCRAPE_LOG_FILE, SCRAPE_SLEEP_TIME, SCRAPE_BACKOFF_BASE_DELAY, 
     SCRAPE_BACKOFF_MAX_RETRIES, RAW_DOWNLOAD_PATH, RAW_DOWNLOAD_REVIEWS_PATH,
-    ARCHIVE_PATH
+    ARCHIVE_PATH, SCRAPE_INPROGRESS_SUFFIX, SCRAPE_ARCHIVE_CSV_DIR
 )
 
 # Ensure reproducible language detection
@@ -636,17 +636,43 @@ def scrape_games(output_file="scraped_games.csv", reviews_file="scraped_reviews.
     app_list_df = pd.read_csv(appids_file)
     app_ids = app_list_df['appid'].tolist()
     
-    session = SessionManager(output_file, reviews_file)
+    # -------------------------------------------------------------------------
+    # Use temporary "in-progress" files to avoid locking/overwriting production
+    # data while the scrape is running.
+    # -------------------------------------------------------------------------
+    inprogress_games = output_file.replace('.csv', SCRAPE_INPROGRESS_SUFFIX)
+    inprogress_reviews = reviews_file.replace('.csv', SCRAPE_INPROGRESS_SUFFIX)
 
-    # Load existing review IDs for deduplication
-    existing_review_ids = set()
-    if os.path.exists(reviews_file):
+    # If in-progress files don't exist, initialize them from the last successful scrape
+    # so we can resume where we left off (or just start fresh if no previous scrape).
+    if not os.path.exists(inprogress_games) and os.path.exists(output_file):
+        logger.info(f"Initializing {inprogress_games} from {output_file}...")
         try:
-            rev_ids_df = pd.read_csv(reviews_file, usecols=['review_id'])
-            existing_review_ids = set(rev_ids_df['review_id'].tolist())
-            logger.info(f"Loaded {len(existing_review_ids)} existing review IDs.")
+            shutil.copy2(output_file, inprogress_games)
         except Exception as e:
-            logger.warning(f"Could not load review IDs from {reviews_file}: {e}")
+            logger.error(f"Failed to copy {output_file} to {inprogress_games}: {e}")
+
+    if not os.path.exists(inprogress_reviews) and os.path.exists(reviews_file):
+        logger.info(f"Initializing {inprogress_reviews} from {reviews_file}...")
+        try:
+            shutil.copy2(reviews_file, inprogress_reviews)
+        except Exception as e:
+            logger.error(f"Failed to copy {reviews_file} to {inprogress_reviews}: {e}")
+
+    session = SessionManager(inprogress_games, inprogress_reviews)
+
+    # Load existing review IDs for deduplication (from the in-progress file now)
+    existing_review_ids = set()
+    # We check the in-progress file first, as it's the active one
+    target_reviews_load = inprogress_reviews if os.path.exists(inprogress_reviews) else reviews_file
+    
+    if os.path.exists(target_reviews_load):
+        try:
+            rev_ids_df = pd.read_csv(target_reviews_load, usecols=['review_id'])
+            existing_review_ids = set(rev_ids_df['review_id'].tolist())
+            logger.info(f"Loaded {len(existing_review_ids)} existing review IDs from {target_reviews_load}.")
+        except Exception as e:
+            logger.warning(f"Could not load review IDs from {target_reviews_load}: {e}")
 
     # Load skipped IDs
     skipped_ids = set()
@@ -774,6 +800,47 @@ def scrape_games(output_file="scraped_games.csv", reviews_file="scraped_reviews.
         error_df.to_csv(ERROR_IDS_FILE, index=False)
         
     logger.info(f"Finished! Total apps saved: {len(session.results)}")
+
+    # -------------------------------------------------------------------------
+    # Atomic Swap: Archive old production files and promote in-progress files
+    # -------------------------------------------------------------------------
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    archive_dir = SCRAPE_ARCHIVE_CSV_DIR
+    os.makedirs(archive_dir, exist_ok=True)
+    
+    # 1. Archive existing production files
+    if os.path.exists(output_file):
+        archive_name = f"{os.path.basename(output_file).replace('.csv', '')}_{timestamp}.csv"
+        archive_path = os.path.join(archive_dir, archive_name)
+        logger.info(f"Archiving {output_file} to {archive_path}")
+        try:
+            shutil.move(output_file, archive_path)
+        except Exception as e:
+            logger.error(f"Failed to archive {output_file}: {e}")
+
+    if os.path.exists(reviews_file):
+        archive_name = f"{os.path.basename(reviews_file).replace('.csv', '')}_{timestamp}.csv"
+        archive_path = os.path.join(archive_dir, archive_name)
+        logger.info(f"Archiving {reviews_file} to {archive_path}")
+        try:
+            shutil.move(reviews_file, archive_path)
+        except Exception as e:
+            logger.error(f"Failed to archive {reviews_file}: {e}")
+
+    # 2. Promote in-progress files to production
+    if os.path.exists(inprogress_games):
+        logger.info(f"Promoting {inprogress_games} to {output_file}")
+        try:
+            os.replace(inprogress_games, output_file)
+        except Exception as e:
+            logger.error(f"Failed to promote {inprogress_games}: {e}")
+
+    if os.path.exists(inprogress_reviews):
+        logger.info(f"Promoting {inprogress_reviews} to {reviews_file}")
+        try:
+            os.replace(inprogress_reviews, reviews_file)
+        except Exception as e:
+            logger.error(f"Failed to promote {inprogress_reviews}: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape Steam game data and reviews.")
