@@ -4,6 +4,9 @@ FROM python:3.10-slim-bookworm
 # Set the working directory in the container
 WORKDIR /app
 
+# Suppress the "Running pip as the 'root' user" warning
+ENV PIP_ROOT_USER_ACTION=ignore
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \

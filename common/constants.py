@@ -18,6 +18,7 @@ DIFFICULTY_WEIGHT_MULTIPLIER = 1.3
 EMBEDDINGS_DESC_FILE = "embeddings_desc.npy"
 EMBEDDINGS_TAG_FILE = "embeddings_structural.npy"
 TAG_VECTORS_FILE = "steam_tag_vectors.npy"
+TAG_NORMS_FILE = "tag_vectors_norms.npy"
 QUALITY_GRID_FILE = "quality_scores_grid.npy"
 # Ensure we use the absolute path or root-relative path for metadata.parquet
 METADATA_FILE = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')), "metadata.parquet")

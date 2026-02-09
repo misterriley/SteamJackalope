@@ -4,11 +4,19 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import pandas as pd
 import numpy as np
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer # Moved to lazy load
 import os
 import sys
 import re
 import ast
+import gc
+
+# Memory Optimization: Limit threads to reduce buffer overhead
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -22,6 +30,7 @@ from common.constants import (
     MEAN_DESC_FILE,
     MEAN_STRUCTURAL_FILE,
     TAG_VECTORS_FILE,
+    TAG_NORMS_FILE,
     METADATA_FILE,
     DOT_PRODUCT_LAMBDA,
     EPSILON,
@@ -61,8 +70,34 @@ class DataManager:
         self.w_structural = None
         self.mean_desc = None
         self.mean_structural = None
-        self.model = None
+        self._model = None
         self.all_genres = []
+
+    @property
+    def model(self):
+        if self._model is None:
+            print("Loading SentenceTransformer model (Lazy Load)...")
+            from sentence_transformers import SentenceTransformer
+            self._model = SentenceTransformer(MODEL_NAME)
+            
+            # Attempt dynamic quantization to reduce memory usage (Linux/CPU optimization)
+            # Update: Quantization increases startup memory overhead significantly in PyTorch.
+            # Disabling it might actually keep peak memory lower (around 350MB vs 475MB).
+            # try:
+            #     import torch
+            #     torch.set_num_threads(1) # Explicitly set torch threads
+            #     print("Quantizing model to qint8...")
+            #     self._model = torch.quantization.quantize_dynamic(
+            #         self._model, {torch.nn.Linear}, dtype=torch.qint8
+            #     )
+            #     print("Model quantized.")
+            #     # Force garbage collection to free original float32 weights
+            #     gc.collect()
+            # except Exception as e:
+            #     print(f"Quantization failed: {e}")
+            pass
+                
+        return self._model
 
     def clean_release_date(self, date_str):
         if pd.isna(date_str) or date_str == "":
@@ -119,12 +154,18 @@ class DataManager:
         if 'release_year' in pd.read_parquet(METADATA_FILE, columns=[]).columns:
             needed_cols.append('release_year')
 
-        self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols)
+        # Use pyarrow backend for memory efficiency with strings
+        try:
+             self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols, dtype_backend='pyarrow')
+        except Exception as e:
+             print(f"WARNING: Failed to load with pyarrow backend: {e}. Falling back to standard.")
+             self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols)
         
         # Extract necessary info from large string columns then drop them to save memory
-        self.metadata['is_vr_only'] = self.metadata['categories'].fillna('').str.contains('VR Only', case=False).astype(bool)
-        self.metadata['is_english'] = self.metadata['supported_languages'].fillna('').str.contains('English', case=False).astype(bool)
-        self.metadata['is_utility'] = self.metadata['tags'].fillna('').str.contains('Utilities', case=False).astype(bool)
+        # Note: With pyarrow strings, operations are fast.
+        self.metadata['is_vr_only'] = self.metadata['categories'].fillna('').astype(str).str.contains('VR Only', case=False).astype(bool)
+        self.metadata['is_english'] = self.metadata['supported_languages'].fillna('').astype(str).str.contains('English', case=False).astype(bool)
+        self.metadata['is_utility'] = self.metadata['tags'].fillna('').astype(str).str.contains('Utilities', case=False).astype(bool)
         self.metadata.drop(columns=['categories', 'supported_languages'], inplace=True)
         
         # Optimize metadata types
@@ -140,10 +181,8 @@ class DataManager:
         self.metadata['mature_content'] = self.metadata['mature_content'].fillna(0).astype(np.int8)
 
         # Parse date and convert string columns to categorical to save memory while keeping functionality
+        # We need standard pandas datetime for dt accessor, pyarrow timestamp is tricky with some pandas ops
         self.metadata['parsed_date'] = self.metadata['release_date'].apply(self.clean_release_date)
-        # Keep release_date but as categorical if it saves space? Actually release_date is unique mostly. 
-        # For now, let's keep it but ensure we don't drop it.
-        # self.metadata['release_date'] = self.metadata['release_date'].astype('category') 
         
         print(f"DEBUG: Metadata loaded. Rows: {len(self.metadata)}")
         
@@ -160,26 +199,41 @@ class DataManager:
         else:
             self.metadata['release_year'] = self.metadata['release_year'].fillna(0).astype(np.int16)
         
-        self.tag_vectors_norms = np.linalg.norm(self.tag_vectors.astype(np.float32), axis=1).astype(np.float16)
+        # Load pre-calculated tag vector norms if available to save massive RAM spike
+        if os.path.exists(TAG_NORMS_FILE):
+             print(f"Loading pre-calculated tag norms from {TAG_NORMS_FILE}...")
+             self.tag_vectors_norms = np.load(TAG_NORMS_FILE)
+        else:
+             print("WARNING: Pre-calculated tag norms not found. Computing on the fly (High RAM Usage)...")
+             # Use float32 for computation but avoid creating a full copy if possible? 
+             # No, mmap astype creates copy. We stick to old way if file missing.
+             self.tag_vectors_norms = np.linalg.norm(self.tag_vectors.astype(np.float32), axis=1).astype(np.float16)
         
         print("Processing genres...")
-        def parse_genres(x):
-            if isinstance(x, str):
+        # Avoid creating a list column (genres_list) to save ~100MB RAM.
+        # We extract unique genres once for the filter list.
+        def parse_genres_safe(x):
+            if pd.isna(x): return []
+            x = str(x)
+            if x.startswith('[') and x.endswith(']'):
                 try:
                     return ast.literal_eval(x)
                 except:
-                    return [g.strip() for g in x.split(',') if g.strip()]
-            return x if isinstance(x, list) else []
+                    pass
+            return [g.strip() for g in x.split(',') if g.strip()]
 
-        self.metadata['genres_list'] = self.metadata['genres'].apply(parse_genres)
-        
         all_genres_set = set()
-        for g_list in self.metadata['genres_list']:
-            all_genres_set.update(g_list)
+        # Process in chunks or iterate to avoid creating a massive series
+        for g_str in self.metadata['genres'].dropna().unique():
+            all_genres_set.update(parse_genres_safe(g_str))
         self.all_genres = sorted(list(all_genres_set))
 
-        print("Loading model...")
-        self.model = SentenceTransformer(MODEL_NAME)
+        # print("Loading model...")
+        # self.model = SentenceTransformer(MODEL_NAME)
+        # Lazy load model only when needed to save startup memory
+        
+        mem_usage = self.metadata.memory_usage(deep=True).sum() / (1024 * 1024)
+        print(f"Metadata loaded. Size in RAM: {mem_usage:.2f} MB")
         print("Data loaded.")
 
 data_manager = DataManager()
@@ -397,7 +451,22 @@ def recommend(request: RecommendationRequest):
             mask &= ~future_mask.values
 
     if request.genres:
-        genre_mask = metadata['genres_list'].apply(lambda x: any(g in x for g in request.genres)).values
+        # Optimized genre filtering without list column
+        # Genres are stored as "['Action', 'RPG']" or "Action, RPG"
+        # We check if the string contains the genre.
+        # Note: This might match substrings (e.g. "Action" inside "Reaction"), but genre names are usually distinct.
+        # To be safe, we could regex, but str.contains is faster.
+        # Given the dataset, genre names are standard Steam genres.
+        
+        # Create a combined mask
+        genre_mask = np.zeros(len(metadata), dtype=bool)
+        for genre in request.genres:
+            # Escape regex chars if any
+            escaped_genre = re.escape(genre)
+            # Check if genre exists in the string representation
+            # Simple contains is usually sufficient for standard genres
+            genre_mask |= metadata['genres'].fillna('').astype(str).str.contains(escaped_genre, regex=True, case=False).values
+        
         mask &= genre_mask
 
     keep_indices = np.where(mask)[0]

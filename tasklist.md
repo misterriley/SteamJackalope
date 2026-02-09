@@ -7,17 +7,13 @@
 
 ## Top Priority
 
-- [x] This project will deployed on Render. Make the file structure work for this purpose, please. I have no idea what I'm doing.
-    - [x] Optimized embedding loading with pre-normalization and memory-mapping to fit in limited RAM.
-    - [x] Updated Dockerfile to support Render's dynamic port allocation.
-    - [x] Created `render.yaml` for one-click Blueprint deployment.
-    - [x] Created `tools/precalculate_norm_embeddings.py` to prepare existing data artifacts.
+- [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)
 
 ### Lesser Priority
 
 - [ ] Create a banner at the top of the page.
         - [ ] Give the name of the website.
-        - [ ] Make it a pretty color.
+        - [ ] Make it a pretty color, maybe a light purple.
         - [ ] Use the jackalope icon.
         - [ ] Remove the jackalope icon from the Recommender header. 
         - [ ] Link the secondary pages from a hamburger menu rather than from links at the top of the page. 
@@ -34,4 +30,5 @@
         - [ ] Generate a global prior (equally weighted per game, not per rating) and run a simulation study.
         - [ ] Find the best combination of prior and game data for predicting outcomes in small sythetic games. 
 - [ ] Add the short description of the game to the game cards.
-- [ ] Display image files linked in the download data on the game cards. 
+- [ ] Display image files linked in the download data on the game cards if it can be done without expanding memory footprint too much.
+- [ ] Generate a changelog and link it as a page on the website. Make updating the changelog one of the tasks on onShutdown.md.

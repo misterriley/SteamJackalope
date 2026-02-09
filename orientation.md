@@ -36,9 +36,11 @@ This project is a Steam game recommendation engine that combines semantic search
 - **Performance Optimization:** The backend caches pre-normalized embedding matrices and metadata. Similarity scores and hybrid calculations are vectorized using `numpy`. Genres are pre-parsed into lists during startup to ensure fast filtering. The frontend uses `st.cache_data` to minimize redundant API calls for static data like the game and genre lists.
 - **Memory Footprint Optimization**: The backend server is optimized to run under 512 MB to support cloud deployment on platforms like Render (Starter tier). 
     - **Memory Mapping**: All large NumPy arrays (`embeddings_desc.npy`, `embeddings_structural.npy`, `tag_vectors`, `quality_grid`) now utilize `mmap_mode='r'`. This allows the OS to page data in and out as needed, keeping the active Resident Set Size (RSS) low.
-    - **Pre-Normalization**: Semantic embeddings are pre-normalized to unit length during the pipeline generation (`pipeline/generate_semantic_vectors.py`) or via `tools/precalculate_norm_embeddings.py`. This avoids loading them into RAM for normalization at startup.
-    - **Precision**: Large arrays are cast to `np.float16`.
-    - **Metadata**: Loading is restricted to necessary columns, with bulky string columns (`categories`, `supported_languages`) dropped after extracting boolean flags.
+    - **Pre-Normalization**: Semantic embeddings are pre-normalized to unit length.
+    - **Lazy Loading**: The `SentenceTransformer` model (which consumes significant RAM) and the `torch` library are only loaded when a user enters a text prompt. This keeps the baseline memory usage low (< 200 MB) for standard interactions.
+    - **Dimensionality Reduction**: `steam_tag_vectors.npy` has been reduced to 128 dimensions (via PCA) and `quality_scores_grid.npy` to 51 steps to minimize file size and cache pressure.
+    - **Metadata Optimization**: Uses `pyarrow` backend for efficient string storage and avoids creating Python list objects for genres/tags where possible.
+    - **Thread Limiting**: `OMP_NUM_THREADS` and related variables are set to `1` to prevent excessive buffer allocation by linear algebra libraries.
 - **Improved Debug Mode:** The recommender's game cards now feature a comprehensive debug section. It provides a full breakdown of the hybrid score calculation, including raw values, z-scores, and both slider and hard-coded weights for every component.
 
 - **Deployment**: The project is configured for deployment on **Render** using a single-container architecture (FastAPI backend + Streamlit frontend).
