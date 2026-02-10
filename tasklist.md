@@ -24,6 +24,15 @@
   - Updated all SentenceTransformer instantiations (7 files) to use ONNX backend with quantized model (`onnx/model_quint8_avx2.onnx`)
   - Externalized model name and backend parameters to constants
   - Updated `requirements.txt` to use `sentence-transformers[onnx]` instead of `sentence-transformers`
+- **Memory footprint analysis and deployment optimization** - Conducted comprehensive memory testing to determine hosting requirements:
+  - Created test suite to measure backend, frontend, and model memory usage separately
+  - Measured full system memory: 889.7 MB with model loaded (exceeds Render's 512 MB limit)
+  - Determined ONNX vs PyTorch difference is minimal (~10 MB) for this model
+  - Concluded need for VPS with 2GB+ RAM instead of Render hobby tier
+  - Created detailed RackNerd deployment guide with step-by-step instructions
+  - Successfully deployed on RackNerd VPS with SSL (https://steamjackalope.com)
+  - Organized deployment artifacts into `deployment/` folder with README
+  - Verified all unit tests still pass (47 passed, 2 warnings)
 
 ## Top Priority
 
