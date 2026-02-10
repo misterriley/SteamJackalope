@@ -32,6 +32,8 @@ from common.constants import (
     DIFFICULTY_WEIGHT_MULTIPLIER,
     AP_SLIDER_VALUES,
     AP_SLIDER_MIN,
+    AP_SLIDER_MAX,
+    AP_SLIDER_STEP,
     DISCOVERY_LABEL_LEFT,
     DISCOVERY_LABEL_RIGHT,
     
@@ -387,10 +389,11 @@ with tabs[0]:
         st.divider()
 
         st.write(QUALITY_PREF_LABEL)
-        quality_pref = st.select_slider(
+        quality_pref = st.slider(
             QUALITY_SLIDER_LABEL,
-            options=AP_SLIDER_VALUES,
-            format_func=lambda x: "",
+            min_value=AP_SLIDER_MIN,
+            max_value=AP_SLIDER_MAX,
+            step=AP_SLIDER_STEP,
             label_visibility="collapsed",
             help=QUALITY_PREF_HELP,
             key="quality_pref"
