@@ -1,7 +1,7 @@
 # Thank you for your service
 
 ## Final instructions
-- Check changes that have been made since last git commit. 
+- Check changes that have been made since last git commit - it is possible that files besides the ones you changed have edits. 
 - If anything has been learned that would help other LLMs work on this repository, make appropriate alterations to `onStartup.md`, `orientation.md`, `methodology.md`, `tasklist.md`, and `onShutdown.md`.
 - Check that `tasklist.md`, `onStartup.md`, `methodology.md`, `orientation.md`, and `onShutdown.md` contain no contradictory information.
 - Move all unnecessary or temporary files to an appropriate subfolder or delete them.
@@ -15,7 +15,7 @@
 - Make sure everything that's happening is clearly printed to the console so that someone watching it can tell what is happening. 
 - Cross off any completed tasks from `tasklist.md`, and move them to the "## Recently Completed" section.
 - If any changes were made due to instructions in `onShutdown.md`, repeat the instructions in `onShutdown.md` from the beginning. If no changes were made since the last reading/execution of this list, proceed. 
-- Commit changes to git using best practices. 
+- Add and commit changes to git using best practices. Do not push. 
 - When fully completed with this list, tell me a joke.
 
 # Have a nice day!

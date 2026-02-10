@@ -4,6 +4,7 @@ import numpy as np
 import requests
 import os
 import sys
+import logging
 
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -11,6 +12,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common.constants import (
     BACKEND_URL
 )
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
 
 def make_md_link(name, appid):
     """Generates a markdown link to a Steam app page, escaping special characters."""
@@ -23,6 +32,7 @@ def render_lists_page():
     Renders the 'Lists' tab in the Streamlit app.
     Fetches curated game lists from the FastAPI backend.
     """
+    logger.info("Rendering Lists page")
     st.header("Project Insights & Rankings")
     st.write("Explore the extremes of the Steam library through curated lists.")
 
@@ -42,27 +52,38 @@ def render_lists_page():
         disc_pref = discovery_levels[disc_choice]
         
         try:
-            response = requests.get(f"{BACKEND_URL}/lists/quality?discovery_pref={disc_pref}")
+            logger.info(f"Fetching quality list with discovery_pref={disc_pref}")
+            response = requests.get(f"{BACKEND_URL}/lists/quality?discovery_pref={disc_pref}", timeout=10)
+            logger.info(f"Quality list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"Quality list data: {len(data.get('top', []))} top, {len(data.get('bottom', []))} bottom")
                 col1, col2 = st.columns(2)
                 
                 with col1:
                     st.write("### Top 50 Highest Quality")
                     top_df = pd.DataFrame(data['top'])
-                    top_df['Link'] = top_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
-                    top_df['Quality Score'] = top_df['quality_score'].round(2)
-                    st.write(top_df[['Link', 'Quality Score']].to_markdown(index=False))
+                    if not top_df.empty:
+                        top_df['Link'] = top_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
+                        top_df['Quality Score'] = top_df['quality_score'].round(2)
+                        st.write(top_df[['Link', 'Quality Score']].to_markdown(index=False))
+                    else:
+                        st.warning("No quality data available")
                     
                 with col2:
                     st.write("### Top 50 Lowest Quality")
                     bottom_df = pd.DataFrame(data['bottom'])
-                    bottom_df['Link'] = bottom_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
-                    bottom_df['Quality Score'] = bottom_df['quality_score'].round(2)
-                    st.write(bottom_df[['Link', 'Quality Score']].to_markdown(index=False))
+                    if not bottom_df.empty:
+                        bottom_df['Link'] = bottom_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
+                        bottom_df['Quality Score'] = bottom_df['quality_score'].round(2)
+                        st.write(bottom_df[['Link', 'Quality Score']].to_markdown(index=False))
+                    else:
+                        st.warning("No quality data available")
             else:
-                st.error("Failed to fetch quality list.")
+                logger.error(f"Quality list fetch failed: {response.status_code} - {response.text}")
+                st.error(f"Failed to fetch quality list. Status: {response.status_code}")
         except Exception as e:
+            logger.exception(f"Error fetching quality list: {e}")
             st.error(f"Error: {e}")
 
     with list_tabs[1]:
@@ -70,7 +91,9 @@ def render_lists_page():
         st.write("Based on estimated average playtime.")
         
         try:
-            response = requests.get(f"{BACKEND_URL}/lists/length")
+            logger.info("Fetching length list")
+            response = requests.get(f"{BACKEND_URL}/lists/length", timeout=10)
+            logger.info(f"Length list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
                 col1, col2 = st.columns(2)
@@ -78,19 +101,27 @@ def render_lists_page():
                 with col1:
                     st.write("### Top 50 Longest")
                     top_df = pd.DataFrame(data['top'])
-                    top_df['Hours'] = (top_df['playtime'] / 60.0).round(1)
-                    top_df['Link'] = top_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
-                    st.write(top_df[['Link', 'Hours']].to_markdown(index=False))
+                    if not top_df.empty:
+                        top_df['Hours'] = (top_df['playtime'] / 60.0).round(1)
+                        top_df['Link'] = top_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
+                        st.write(top_df[['Link', 'Hours']].to_markdown(index=False))
+                    else:
+                        st.warning("No length data available")
                     
                 with col2:
                     st.write("### Top 50 Shortest")
                     bottom_df = pd.DataFrame(data['bottom'])
-                    bottom_df['Hours'] = (bottom_df['playtime'] / 60.0).round(1)
-                    bottom_df['Link'] = bottom_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
-                    st.write(bottom_df[['Link', 'Hours']].to_markdown(index=False))
+                    if not bottom_df.empty:
+                        bottom_df['Hours'] = (bottom_df['playtime'] / 60.0).round(1)
+                        bottom_df['Link'] = bottom_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
+                        st.write(bottom_df[['Link', 'Hours']].to_markdown(index=False))
+                    else:
+                        st.warning("No length data available")
             else:
+                logger.error(f"Length list fetch failed: {response.status_code}")
                 st.error("Failed to fetch length list.")
         except Exception as e:
+            logger.exception(f"Error fetching length list: {e}")
             st.error(f"Error: {e}")
 
     with list_tabs[2]:
@@ -98,7 +129,9 @@ def render_lists_page():
         st.write("Popularity is measured by the total number of reviews. Least popular games must have at least 1 review.")
         
         try:
-            response = requests.get(f"{BACKEND_URL}/lists/popularity")
+            logger.info("Fetching popularity list")
+            response = requests.get(f"{BACKEND_URL}/lists/popularity", timeout=10)
+            logger.info(f"Popularity list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
                 col1, col2 = st.columns(2)
@@ -106,19 +139,27 @@ def render_lists_page():
                 with col1:
                     st.write("### Top 50 Most Popular")
                     top_df = pd.DataFrame(data['top'])
-                    top_df['Total Reviews'] = top_df['total_reviews'].astype(int)
-                    top_df['Link'] = top_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
-                    st.write(top_df[['Link', 'Total Reviews']].to_markdown(index=False))
+                    if not top_df.empty:
+                        top_df['Total Reviews'] = top_df['total_reviews'].astype(int)
+                        top_df['Link'] = top_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
+                        st.write(top_df[['Link', 'Total Reviews']].to_markdown(index=False))
+                    else:
+                        st.warning("No popularity data available")
                     
                 with col2:
                     st.write("### Top 50 Least Popular (min 1 review)")
                     bottom_df = pd.DataFrame(data['bottom'])
-                    bottom_df['Total Reviews'] = bottom_df['total_reviews'].astype(int)
-                    bottom_df['Link'] = bottom_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
-                    st.write(bottom_df[['Link', 'Total Reviews']].to_markdown(index=False))
+                    if not bottom_df.empty:
+                        bottom_df['Total Reviews'] = bottom_df['total_reviews'].astype(int)
+                        bottom_df['Link'] = bottom_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
+                        st.write(bottom_df[['Link', 'Total Reviews']].to_markdown(index=False))
+                    else:
+                        st.warning("No popularity data available")
             else:
+                logger.error(f"Popularity list fetch failed: {response.status_code}")
                 st.error("Failed to fetch popularity list.")
         except Exception as e:
+            logger.exception(f"Error fetching popularity list: {e}")
             st.error(f"Error: {e}")
 
     with list_tabs[3]:
@@ -126,7 +167,9 @@ def render_lists_page():
         st.write("Excluding games with future release dates.")
         
         try:
-            response = requests.get(f"{BACKEND_URL}/lists/age")
+            logger.info("Fetching age list")
+            response = requests.get(f"{BACKEND_URL}/lists/age", timeout=10)
+            logger.info(f"Age list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
                 col1, col2 = st.columns(2)
@@ -134,19 +177,27 @@ def render_lists_page():
                 with col1:
                     st.write("### Top 50 Newest")
                     top_df = pd.DataFrame(data['top'])
-                    top_df['Release Date'] = top_df['release_date']
-                    top_df['Link'] = top_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
-                    st.write(top_df[['Link', 'Release Date']].to_markdown(index=False))
+                    if not top_df.empty:
+                        top_df['Release Date'] = top_df['release_date']
+                        top_df['Link'] = top_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
+                        st.write(top_df[['Link', 'Release Date']].to_markdown(index=False))
+                    else:
+                        st.warning("No age data available")
                     
                 with col2:
                     st.write("### Top 50 Oldest")
                     bottom_df = pd.DataFrame(data['bottom'])
-                    bottom_df['Release Date'] = bottom_df['release_date']
-                    bottom_df['Link'] = bottom_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
-                    st.write(bottom_df[['Link', 'Release Date']].to_markdown(index=False))
+                    if not bottom_df.empty:
+                        bottom_df['Release Date'] = bottom_df['release_date']
+                        bottom_df['Link'] = bottom_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
+                        st.write(bottom_df[['Link', 'Release Date']].to_markdown(index=False))
+                    else:
+                        st.warning("No age data available")
             else:
+                logger.error(f"Age list fetch failed: {response.status_code}")
                 st.error("Failed to fetch age list.")
         except Exception as e:
+            logger.exception(f"Error fetching age list: {e}")
             st.error(f"Error: {e}")
 
     with list_tabs[4]:
@@ -154,7 +205,9 @@ def render_lists_page():
         st.write("Difficulty is predicted using a model trained on GameFAQs ratings and Steam tags.")
         
         try:
-            response = requests.get(f"{BACKEND_URL}/lists/difficulty")
+            logger.info("Fetching difficulty list")
+            response = requests.get(f"{BACKEND_URL}/lists/difficulty", timeout=10)
+            logger.info(f"Difficulty list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
                 diff_view = st.selectbox("Select View", ["Games", "Tags"])
@@ -165,22 +218,31 @@ def render_lists_page():
                     with col1:
                         st.write("### Top 50 Most Difficult")
                         top_df = pd.DataFrame(data['top'])
-                        top_df['Difficulty Score'] = top_df['difficulty_predicted'].round(1)
-                        top_df['Link'] = top_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
-                        st.write(top_df[['Link', 'Difficulty Score']].to_markdown(index=False))
+                        if not top_df.empty:
+                            top_df['Difficulty Score'] = top_df['difficulty_predicted'].round(1)
+                            top_df['Link'] = top_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
+                            st.write(top_df[['Link', 'Difficulty Score']].to_markdown(index=False))
+                        else:
+                            st.warning("No difficulty game data available")
                         
                     with col2:
                         st.write("### Top 50 Easiest")
                         bottom_df = pd.DataFrame(data['bottom'])
-                        bottom_df['Difficulty Score'] = bottom_df['difficulty_predicted'].round(1)
-                        bottom_df['Link'] = bottom_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
-                        st.write(bottom_df[['Link', 'Difficulty Score']].to_markdown(index=False))
+                        if not bottom_df.empty:
+                            bottom_df['Difficulty Score'] = bottom_df['difficulty_predicted'].round(1)
+                            bottom_df['Link'] = bottom_df.apply(lambda row: make_md_link(row['name'], row['appid']), axis=1)
+                            st.write(bottom_df[['Link', 'Difficulty Score']].to_markdown(index=False))
+                        else:
+                            st.warning("No difficulty game data available")
                 
-                else: # Tags view
+                else:  # Tags view
                     st.write("### Difficulty Predictors (Tags)")
                     st.write("These tags are the strongest positive and negative predictors of game difficulty in our model.")
                     
-                    impact_df = pd.DataFrame(data['tag_impacts'])
+                    tag_impacts = data.get('tag_impacts', [])
+                    logger.info(f"Difficulty tag impacts: {len(tag_impacts)} tags")
+                    
+                    impact_df = pd.DataFrame(tag_impacts)
                     if not impact_df.empty:
                         impact_df.rename(columns={'tag': 'Tag', 'impact': 'Average Impact'}, inplace=True)
                         c1, c2 = st.columns(2)
@@ -192,9 +254,12 @@ def render_lists_page():
                             st.dataframe(impact_df.tail(20).sort_values('Average Impact', ascending=True), hide_index=True, use_container_width=True)
                     else:
                         st.info("Difficulty prediction data not found on server.")
+                        logger.warning("No tag impacts returned from difficulty endpoint")
             else:
+                logger.error(f"Difficulty list fetch failed: {response.status_code}")
                 st.error("Failed to fetch difficulty list.")
         except Exception as e:
+            logger.exception(f"Error fetching difficulty list: {e}")
             st.error(f"Error: {e}")
 
     with list_tabs[5]:
@@ -204,13 +269,18 @@ def render_lists_page():
         sim_type = st.selectbox("Select Similarity Type", ["Tags", "Semantic"])
         
         try:
+            logger.info(f"Loading similarity data for type: {sim_type}")
             import json
             data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'similarity_lists.json')
+            logger.debug(f"Looking for similarity data at: {data_path}")
+            
             if os.path.exists(data_path):
                 with open(data_path, 'r') as f:
                     sim_data = json.load(f)
+                logger.info(f"Similarity data loaded: keys={list(sim_data.keys())}")
                 
-                display_data = sim_data['tags'] if sim_type == "Tags" else sim_data['semantic']
+                display_data = sim_data.get('tags', []) if sim_type == "Tags" else sim_data.get('semantic', [])
+                logger.info(f"Display data count: {len(display_data)} entries")
                 
                 # Build table
                 rows = []
@@ -223,7 +293,6 @@ def render_lists_page():
                 df = pd.DataFrame(rows, columns=columns)
                 
                 # Custom CSS for visual demarcation
-                # Using a container with a class to avoid leaking styles to other tables
                 st.markdown("""
                 <style>
                 .similarity-table table th:first-child {
@@ -240,6 +309,8 @@ def render_lists_page():
                 st.write(df.to_markdown(index=False))
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
+                logger.warning(f"Similarity data file not found at {data_path}")
                 st.info("Similarity data not found. Please run the precalculation script.")
         except Exception as e:
+            logger.exception(f"Error loading similarity data: {e}")
             st.error(f"Error loading similarity data: {e}")

@@ -6,7 +6,16 @@ import os
 import sys
 import ast
 import random
+import logging
 from lists import render_lists_page
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
 
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -257,6 +266,7 @@ def render_game_card(game, show_debug=False, alpha=0.0, beta=0.0, prompt="", sel
             st.button(USE_SEED_BUTTON.format(game_name=game['name']), key=f"btn_{game['appid']}", on_click=add_seed, args=(game['name'],))
 
 def reset_all_parameters():
+    logger.info("Resetting all parameters to defaults")
     st.session_state.alpha = SEMANTIC_WEIGHT_MULTIPLIER / 2
     st.session_state.beta = TAG_WEIGHT_MULTIPLIER / 2
     st.session_state.quality_pref = 0.5
@@ -275,8 +285,10 @@ def reset_all_parameters():
     st.session_state.prompt = ""
     st.session_state.seed_multiselect = []
     st.session_state.genres_multiselect = []
+    logger.info(f"Parameters reset - alpha={st.session_state.alpha:.3f}, beta={st.session_state.beta:.3f}, quality_pref={st.session_state.quality_pref:.3f}")
 
 def randomize_parameters():
+    logger.info("Randomize button clicked")
     game_list = get_game_list()
     
     # Adjectives for random prompt
@@ -308,6 +320,8 @@ def randomize_parameters():
     else:
         st.session_state.seed_multiselect = []
     
+    logger.info(f"Randomized parameters: alpha={st.session_state.alpha:.3f}, beta={st.session_state.beta:.3f}, quality_pref={st.session_state.quality_pref:.3f}, "
+                f"prompt='{st.session_state.prompt}', seed='{st.session_state.seed_multiselect}'")
     st.toast(f"Randomized! Try: {st.session_state.prompt}")
 
 # Initialize session state defaults
@@ -366,7 +380,9 @@ with tabs[0]:
         st.divider()
 
         alpha = st.slider(SEMANTIC_WEIGHT_LABEL, 0.0, SEMANTIC_WEIGHT_MULTIPLIER, step=SEMANTIC_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, help=SEMANTIC_WEIGHT_HELP, key="alpha")
+        logger.debug(f"Slider alpha changed: {alpha:.3f}")
         beta = st.slider(TAG_WEIGHT_LABEL, 0.0, TAG_WEIGHT_MULTIPLIER, step=TAG_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, help=TAG_WEIGHT_HELP, key="beta")
+        logger.debug(f"Slider beta changed: {beta:.3f}")
 
         st.divider()
 
@@ -379,6 +395,7 @@ with tabs[0]:
             help=QUALITY_PREF_HELP,
             key="quality_pref"
         )
+        logger.debug(f"Slider quality_pref changed: {quality_pref:.3f}")
         col_hated, col_loved = st.columns(2)
         with col_hated: st.caption(QUALITY_HATED_LABEL)
         with col_loved: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{QUALITY_LOVED_LABEL}</div>", unsafe_allow_html=True)
@@ -392,6 +409,7 @@ with tabs[0]:
             help=AGE_PREF_HELP,
             key="age_pref"
         )
+        logger.debug(f"Slider age_pref changed: {age_pref:.3f}")
         col_old, col_new = st.columns(2)
         with col_old: st.caption(AGE_OLD_LABEL)
         with col_new: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{AGE_NEW_LABEL}</div>", unsafe_allow_html=True)
@@ -405,6 +423,7 @@ with tabs[0]:
             help=POP_PREF_HELP,
             key="pop_pref"
         )
+        logger.debug(f"Slider pop_pref changed: {pop_pref:.3f}")
         col_niche, col_main = st.columns(2)
         with col_niche: st.caption(POP_NICHE_LABEL)
         with col_main: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{POP_MAINSTREAM_LABEL}</div>", unsafe_allow_html=True)
@@ -418,6 +437,7 @@ with tabs[0]:
             help=DISC_PREF_HELP,
             key="disc_pref"
         )
+        logger.debug(f"Slider disc_pref changed: {disc_pref:.3f}")
         col_known, col_wild = st.columns(2)
         with col_known: st.caption(DISCOVERY_LABEL_LEFT)
         with col_wild: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{DISCOVERY_LABEL_RIGHT}</div>", unsafe_allow_html=True)
@@ -431,6 +451,7 @@ with tabs[0]:
             help=LENGTH_PREF_HELP,
             key="length_pref"
         )
+        logger.debug(f"Slider length_pref changed: {length_pref:.3f}")
         col_short, col_long = st.columns(2)
         with col_short: st.caption(LENGTH_SHORT_LABEL)
         with col_long: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{LENGTH_LONG_LABEL}</div>", unsafe_allow_html=True)
@@ -444,6 +465,7 @@ with tabs[0]:
             help=DIFFICULTY_PREF_HELP,
             key="difficulty_pref"
         )
+        logger.debug(f"Slider difficulty_pref changed: {difficulty_pref:.3f}")
         col_easy, col_hard = st.columns(2)
         with col_easy: st.caption(DIFFICULTY_EASY_LABEL)
         with col_hard: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{DIFFICULTY_HARD_LABEL}</div>", unsafe_allow_html=True)

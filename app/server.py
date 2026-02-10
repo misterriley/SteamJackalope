@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -10,6 +9,15 @@ import sys
 import re
 import ast
 import gc
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
 
 # Memory Optimization: Limit threads to reduce buffer overhead
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -78,13 +86,14 @@ class DataManager:
     @property
     def model(self):
         if self._model is None:
-            print("Loading SentenceTransformer model (Lazy Load)...")
+            logger.info("Loading SentenceTransformer model (Lazy Load)...")
             from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(
                 MODEL_NAME,
                 backend=SENTENCE_TRANSFORMER_BACKEND,
                 model_kwargs=SENTENCE_TRANSFORMER_MODEL_KWARGS
             )
+            logger.info("SentenceTransformer model loaded successfully")
         return self._model
 
     def clean_release_date(self, date_str):
@@ -114,25 +123,28 @@ class DataManager:
         return pd.to_datetime(s, errors='coerce')
 
     def load_data(self):
-        print("Loading data...")
+        logger.info("Starting data load...")
         
         # 1. Use Memory Mapping for large NumPy arrays
-        # Note: mmap arrays are read-only to prevent accidentally modifying on-disk data
-        # We also cast to float16 to reduce memory when we DO load into RAM
-        
-        # 1. Use Memory Mapping for large NumPy arrays
-        # Note: mmap arrays are read-only to prevent accidentally modifying on-disk data
-        # Embeddings are pre-normalized by the pipeline/tools to allow for direct mmap usage
+        logger.info(f"Loading embeddings_desc_norm from {EMBEDDINGS_DESC_FILE}")
         self.embeddings_desc_norm = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
+        logger.info(f"Embeddings_desc_norm: shape={self.embeddings_desc_norm.shape}, dtype={self.embeddings_desc_norm.dtype}")
+        
+        logger.info(f"Loading embeddings_structural_norm from {EMBEDDINGS_TAG_FILE}")
         self.embeddings_structural_norm = np.load(EMBEDDINGS_TAG_FILE, mmap_mode='r')
+        logger.info(f"Embeddings_structural_norm: shape={self.embeddings_structural_norm.shape}, dtype={self.embeddings_structural_norm.dtype}")
 
         # 2. Memory Map Tag Vectors and Quality Grid
-        # These are large and used for indexing/dot products, mmap is perfect here
+        logger.info(f"Loading tag_vectors from {TAG_VECTORS_FILE}")
         self.tag_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
-        self.quality_grid = np.load(QUALITY_GRID_FILE, mmap_mode='r')
+        logger.info(f"Tag vectors: shape={self.tag_vectors.shape}, dtype={self.tag_vectors.dtype}")
         
-        # 3. Load Metadata with specific columns and types
-        print(f"DEBUG: METADATA_FILE is {METADATA_FILE}")
+        logger.info(f"Loading quality_grid from {QUALITY_GRID_FILE}")
+        self.quality_grid = np.load(QUALITY_GRID_FILE, mmap_mode='r')
+        logger.info(f"Quality grid: shape={self.quality_grid.shape}, dtype={self.quality_grid.dtype}")
+        
+        # 3. Load Metadata
+        logger.info(f"Loading metadata from {METADATA_FILE}")
         needed_cols = [
             'appid', 'name', 'release_date', 'positive', 'negative', 
             'genres', 'tags', 'categories', 'supported_languages',
@@ -142,21 +154,22 @@ class DataManager:
         if 'release_year' in pd.read_parquet(METADATA_FILE, columns=[]).columns:
             needed_cols.append('release_year')
 
-        # Use pyarrow backend for memory efficiency with strings
         try:
-             self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols, dtype_backend='pyarrow')
+            self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols, dtype_backend='pyarrow')
+            logger.info("Metadata loaded with pyarrow backend")
         except Exception as e:
-             print(f"WARNING: Failed to load with pyarrow backend: {e}. Falling back to standard.")
-             self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols)
+            logger.warning(f"Failed to load with pyarrow backend: {e}. Falling back to standard.")
+            self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols)
         
-        # Extract necessary info from large string columns then drop them to save memory
-        # Note: With pyarrow strings, operations are fast.
+        logger.info("Extracting boolean features...")
         self.metadata['is_vr_only'] = self.metadata['categories'].fillna('').astype(str).str.contains('VR Only', case=False).astype(bool)
         self.metadata['is_english'] = self.metadata['supported_languages'].fillna('').astype(str).str.contains('English', case=False).astype(bool)
         self.metadata['is_utility'] = self.metadata['tags'].fillna('').astype(str).str.contains('Utilities', case=False).astype(bool)
         self.metadata.drop(columns=['categories', 'supported_languages'], inplace=True)
+        logger.info(f"Boolean features extracted. Metadata shape: {self.metadata.shape}")
         
         # Optimize metadata types
+        logger.info("Optimizing dtypes...")
         self.metadata['appid'] = self.metadata['appid'].astype(np.int32)
         self.metadata['positive'] = self.metadata['positive'].astype(np.int32)
         self.metadata['negative'] = self.metadata['negative'].astype(np.int32)
@@ -168,18 +181,28 @@ class DataManager:
         self.metadata['difficulty_predicted'] = self.metadata['difficulty_predicted'].astype(np.float32)
         self.metadata['mature_content'] = self.metadata['mature_content'].fillna(0).astype(np.int8)
 
-        # Parse date and convert string columns to categorical to save memory while keeping functionality
-        # We need standard pandas datetime for dt accessor, pyarrow timestamp is tricky with some pandas ops
+        # Parse dates
+        logger.info("Parsing release dates...")
         self.metadata['parsed_date'] = self.metadata['release_date'].apply(self.clean_release_date)
         
-        print(f"DEBUG: Metadata loaded. Rows: {len(self.metadata)}")
+        logger.info(f"Metadata loaded: {len(self.metadata)} rows, {len(self.metadata.columns)} columns")
         
         # 4. Load weights and means
+        logger.info("Loading transformation matrices...")
         self.w_desc = np.load(W_DESC_FILE).astype(np.float16) if os.path.exists(W_DESC_FILE) else None
+        if self.w_desc is not None:
+            logger.info(f"W_desc: shape={self.w_desc.shape}")
         self.w_structural = np.load(W_STRUCTURAL_FILE).astype(np.float16) if os.path.exists(W_STRUCTURAL_FILE) else None
+        if self.w_structural is not None:
+            logger.info(f"W_structural: shape={self.w_structural.shape}")
         self.mean_desc = np.load(MEAN_DESC_FILE).astype(np.float16) if os.path.exists(MEAN_DESC_FILE) else None
+        if self.mean_desc is not None:
+            logger.info(f"Mean_desc: shape={self.mean_desc.shape}")
         self.mean_structural = np.load(MEAN_STRUCTURAL_FILE).astype(np.float16) if os.path.exists(MEAN_STRUCTURAL_FILE) else None
+        if self.mean_structural is not None:
+            logger.info(f"Mean_structural: shape={self.mean_structural.shape}")
 
+        # Release year
         if 'release_year' not in self.metadata.columns:
             self.metadata['release_year'] = self.metadata['parsed_date'].dt.year
             mean_year = self.metadata['release_year'].mean()
@@ -187,25 +210,23 @@ class DataManager:
         else:
             self.metadata['release_year'] = self.metadata['release_year'].fillna(0).astype(np.int16)
         
-        # Load pre-calculated tag vector norms if available to save massive RAM spike
+        # Load pre-calculated tag vector norms
         loaded_norms = False
         if os.path.exists(TAG_NORMS_FILE):
-             print(f"Loading pre-calculated tag norms from {TAG_NORMS_FILE}...")
+             logger.info(f"Loading pre-calculated tag norms from {TAG_NORMS_FILE}...")
              self.tag_vectors_norms = np.load(TAG_NORMS_FILE)
              if len(self.tag_vectors_norms) == len(self.tag_vectors):
                  loaded_norms = True
+                 logger.info(f"Tag norms loaded: shape={self.tag_vectors_norms.shape}")
              else:
-                 print(f"WARNING: Pre-calculated tag norms shape mismatch ({len(self.tag_vectors_norms)} vs {len(self.tag_vectors)}).")
+                 logger.warning(f"Tag norms shape mismatch: {len(self.tag_vectors_norms)} vs {len(self.tag_vectors)}")
         
         if not loaded_norms:
-             print("WARNING: Pre-calculated tag norms not found or mismatched. Computing on the fly (High RAM Usage)...")
-             # Use float32 for computation but avoid creating a full copy if possible? 
-             # No, mmap astype creates copy. We stick to old way if file missing.
+             logger.warning("Computing tag norms on the fly (may cause RAM spike)...")
              self.tag_vectors_norms = np.linalg.norm(self.tag_vectors.astype(np.float32), axis=1).astype(np.float16)
         
-        print("Processing genres...")
-        # Avoid creating a list column (genres_list) to save ~100MB RAM.
-        # We extract unique genres once for the filter list.
+        # Extract genres
+        logger.info("Extracting unique genres...")
         def parse_genres_safe(x):
             if pd.isna(x): return []
             x = str(x)
@@ -217,24 +238,22 @@ class DataManager:
             return [g.strip() for g in x.split(',') if g.strip()]
 
         all_genres_set = set()
-        # Process in chunks or iterate to avoid creating a massive series
         for g_str in self.metadata['genres'].dropna().unique():
             all_genres_set.update(parse_genres_safe(g_str))
         self.all_genres = sorted(list(all_genres_set))
-
-        # print("Loading model...")
-        # self.model = SentenceTransformer(MODEL_NAME)
-        # Lazy load model only when needed to save startup memory
+        logger.info(f"Extracted {len(self.all_genres)} unique genres")
         
         mem_usage = self.metadata.memory_usage(deep=True).sum() / (1024 * 1024)
-        print(f"Metadata loaded. Size in RAM: {mem_usage:.2f} MB")
-        print("Data loaded.")
+        logger.info(f"Metadata RAM size: {mem_usage:.2f} MB")
+        logger.info("Data loading complete.")
 
 data_manager = DataManager()
 
 @app.on_event("startup")
 async def startup_event():
+    logger.info("FastAPI startup event triggered")
     data_manager.load_data()
+    logger.info("DataManager initialization complete")
 
 # --- API Models ---
 
@@ -265,14 +284,21 @@ class RecommendationRequest(BaseModel):
 @app.get("/genres")
 def get_genres():
     """Returns a list of all unique genres available in the dataset."""
-    return data_manager.all_genres
+    logger.info("GET /genres called")
+    genres = data_manager.all_genres
+    logger.debug(f"Returning {len(genres)} genres")
+    return genres
 
 @app.get("/games")
 def get_games():
     """Returns a list of all available game names for the seed selector."""
+    logger.info("GET /games called")
     if data_manager.metadata is None:
-         raise HTTPException(status_code=503, detail="Data not loaded yet")
-    return sorted(data_manager.metadata['name'].fillna("Unknown").tolist())
+        logger.warning("Data not loaded yet when /games called")
+        raise HTTPException(status_code=503, detail="Data not loaded yet")
+    games = sorted(data_manager.metadata['name'].fillna("Unknown").tolist())
+    logger.debug(f"Returning {len(games)} game names")
+    return games
 
 @app.get("/lists/{category}")
 def get_list(category: str, discovery_pref: float = 0.0):
@@ -280,12 +306,15 @@ def get_list(category: str, discovery_pref: float = 0.0):
     Returns top/bottom game lists for various categories (quality, length, popularity, age, difficulty).
     Used by the 'Lists' tab in the frontend.
     """
+    logger.info(f"GET /lists/{category} called with discovery_pref={discovery_pref}")
     if data_manager.metadata is None:
-         raise HTTPException(status_code=503, detail="Data not loaded yet")
+        logger.warning("Data not loaded when /lists endpoint called")
+        raise HTTPException(status_code=503, detail="Data not loaded yet")
     
     metadata = data_manager.metadata
     
     if category == "quality":
+        logger.debug(f"Quality list request: quality_grid shape={data_manager.quality_grid.shape}")
         num_grid_rows = data_manager.quality_grid.shape[0]
         grid_index = int(round(((discovery_pref - (-1.0)) / 2.0) * (num_grid_rows - 1)))
         grid_index = max(0, min(num_grid_rows - 1, grid_index))
@@ -299,20 +328,25 @@ def get_list(category: str, discovery_pref: float = 0.0):
             df['quality_score'] = scores[indices]
             return df[['appid', 'name', 'quality_score']].to_dict(orient='records')
 
+        logger.info(f"Quality list: {len(top_indices)} top, {len(bottom_indices)} bottom")
         return {
             "top": format_quality_list(top_indices),
             "bottom": format_quality_list(bottom_indices)
         }
 
     elif category == "length":
+        logger.debug("Length list request")
         playtime_col = 'estimated_playtime'
         valid = metadata[metadata[playtime_col] > 0].copy()
+        logger.info(f"Games with valid playtime: {len(valid)}")
         
         longest = valid.sort_values(playtime_col, ascending=False).head(50)
-        # Debugging Dota 2 visibility
-        if not longest.empty:
-            print(f"DEBUG: Longest in 'length': {longest.iloc[0]['name']} with {longest.iloc[0][playtime_col]} minutes")
         shortest = valid.sort_values(playtime_col, ascending=True).head(50)
+        
+        if not longest.empty:
+            logger.info(f"Longest: {longest.iloc[0]['name']} ({longest.iloc[0][playtime_col]:.1f} minutes)")
+        if not shortest.empty:
+            logger.info(f"Shortest: {shortest.iloc[0]['name']} ({shortest.iloc[0][playtime_col]:.1f} minutes)")
         
         return {
             "top": longest[['appid', 'name', playtime_col]].rename(columns={playtime_col: 'playtime'}).to_dict(orient='records'),
@@ -320,13 +354,20 @@ def get_list(category: str, discovery_pref: float = 0.0):
         }
 
     elif category == "popularity":
+        logger.debug("Popularity list request")
         if 'total_reviews' not in metadata.columns:
             metadata = metadata.copy()
             metadata['total_reviews'] = metadata['positive'] + metadata['negative']
         
         popular_df = metadata[metadata['total_reviews'] >= 1]
+        logger.info(f"Games with >=1 review: {len(popular_df)}")
         most_pop = popular_df.sort_values('total_reviews', ascending=False).head(50)
         least_pop = popular_df.sort_values('total_reviews', ascending=True).head(50)
+        
+        if not most_pop.empty:
+            logger.info(f"Most popular: {most_pop.iloc[0]['name']} ({most_pop.iloc[0]['total_reviews']:,} reviews)")
+        if not least_pop.empty:
+            logger.info(f"Least popular: {least_pop.iloc[0]['name']} ({least_pop.iloc[0]['total_reviews']:,} reviews)")
         
         return {
             "top": most_pop[['appid', 'name', 'total_reviews']].to_dict(orient='records'),
@@ -334,12 +375,14 @@ def get_list(category: str, discovery_pref: float = 0.0):
         }
 
     elif category == "age":
+        logger.debug("Age list request")
         if os.path.exists(METADATA_FILE):
             build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s')
         else:
             build_time = pd.Timestamp.now()
             
         valid_dates = metadata[metadata['parsed_date'] <= build_time].copy()
+        logger.info(f"Games released before {build_time}: {len(valid_dates)}")
         oldest = valid_dates.sort_values('parsed_date', ascending=True).head(50)
         newest = valid_dates.sort_values('parsed_date', ascending=False).head(50)
         
@@ -349,22 +392,34 @@ def get_list(category: str, discovery_pref: float = 0.0):
         }
 
     elif category == "difficulty":
+        logger.debug("Difficulty list request")
         hardest = metadata.sort_values('difficulty_predicted', ascending=False).head(50)
         easiest = metadata.sort_values('difficulty_predicted', ascending=True).head(50)
+        
+        logger.info(f"Difficulty range: hardest={hardest.iloc[0]['difficulty_predicted'] if not hardest.empty else 'N/A'}, easiest={easiest.iloc[0]['difficulty_predicted'] if not easiest.empty else 'N/A'}")
         
         # Tag predictors
         tag_impacts = []
         pred_file = "data/difficulty_predictions.csv"
+        logger.info(f"Looking for difficulty predictions at: {pred_file}")
         if os.path.exists(pred_file):
-            pred_df = pd.read_csv(pred_file)
-            contrib_cols = [c for c in pred_df.columns if c.startswith('contrib_')]
-            if contrib_cols:
-                for col in contrib_cols:
-                    tag_name = col.replace('contrib_', '').replace('_', ' ').title()
-                    impact = pred_df[pred_df[col] != 0][col].mean()
-                    if not np.isnan(impact):
-                        tag_impacts.append({'tag': tag_name, 'impact': float(impact)})
+            logger.info(f"Found predictions file. Loading...")
+            try:
+                pred_df = pd.read_csv(pred_file)
+                contrib_cols = [c for c in pred_df.columns if c.startswith('contrib_')]
+                logger.info(f"Found {len(contrib_cols)} contribution columns")
+                if contrib_cols:
+                    for col in contrib_cols:
+                        tag_name = col.replace('contrib_', '').replace('_', ' ').title()
+                        impact = pred_df[pred_df[col] != 0][col].mean()
+                        if not np.isnan(impact):
+                            tag_impacts.append({'tag': tag_name, 'impact': float(impact)})
+            except Exception as e:
+                logger.error(f"Error reading difficulty predictions: {e}")
+        else:
+            logger.warning(f"Difficulty predictions file NOT FOUND at {pred_file}")
         
+        logger.info(f"Returning {len(tag_impacts)} tag impacts")
         return {
             "top": hardest[['appid', 'name', 'difficulty_predicted']].to_dict(orient='records'),
             "bottom": easiest[['appid', 'name', 'difficulty_predicted']].to_dict(orient='records'),
@@ -376,11 +431,15 @@ def get_list(category: str, discovery_pref: float = 0.0):
 @app.post("/metadata")
 def get_metadata(request: MetadataRequest):
     """Returns metadata for a specific list of game names."""
+    logger.info(f"POST /metadata called with {len(request.names)} game names")
     if data_manager.metadata is None:
+        logger.error("Data not loaded when /metadata called")
         raise HTTPException(status_code=503, detail="Data not loaded yet")
     
+    logger.debug(f"Requested names: {request.names}")
     metadata = data_manager.metadata
     matches = metadata[metadata['name'].isin(request.names)]
+    logger.info(f"Found {len(matches)} matches out of {len(request.names)} requested")
     
     response_items = []
     for _, game_meta in matches.iterrows():
@@ -402,76 +461,93 @@ def get_metadata(request: MetadataRequest):
             "raw_length": float(raw_length)
         }
         response_items.append(item)
+    logger.info(f"/metadata returning {len(response_items)} items")
     return response_items
 
 @app.post("/recommend")
 def recommend(request: RecommendationRequest):
+    logger.info("POST /recommend called")
     if data_manager.metadata is None:
-         raise HTTPException(status_code=503, detail="Data not loaded yet")
+        logger.error("Data not loaded when /recommend called")
+        raise HTTPException(status_code=503, detail="Data not loaded yet")
 
+    logger.debug(f"Request params: alpha={request.alpha:.3f}, beta={request.beta:.3f}, quality_pref={request.quality_pref:.3f}, "
+                 f"prompt='{request.prompt}', seed_games={request.seed_games}, genres={request.genres}")
+    
     metadata = data_manager.metadata
     
     # Identify seeds
     seed_indices = np.where(metadata['name'].isin(request.seed_games))[0]
+    logger.info(f"Seed games: requested={len(request.seed_games)}, found={len(seed_indices)}")
     seed_appids = metadata.iloc[seed_indices]['appid'].tolist()
-
+    
     # 1. Filtering
     mask = np.ones(len(metadata), dtype=bool)
+    initial_count = np.sum(mask)
     
     if request.remove_vr:
         mask &= ~metadata['is_vr_only'].values
+        vr_removed = initial_count - np.sum(mask)
+        logger.debug(f"VR filter removed {vr_removed} games")
         
     if request.english_only:
         mask &= metadata['is_english'].values
+        eng_removed = initial_count - np.sum(mask) if request.remove_vr else np.sum(~mask)
+        logger.debug(f"English filter removed {eng_removed} games")
     
     if request.remove_nsfw:
         mask &= (metadata['mature_content'] == 0).values
+        nsfw_removed = initial_count - np.sum(mask)
+        logger.debug(f"NSFW filter removed {nsfw_removed} games")
         
         tags = metadata['tags'].fillna('')
         nsfw_tag_mask = tags.apply(lambda x: any(tag in str(x).lower() for tag in NSFW_TAGS) if x else False).values
         mask &= ~nsfw_tag_mask
+        nsfw_tag_removed = initial_count - np.sum(mask)
+        logger.debug(f"NSFW tag filter removed additional {nsfw_tag_removed - nsfw_removed} games")
         
         nsfw_name_mask = metadata['name'].fillna('').str.contains('|'.join(NSFW_NAME_PATTERNS), case=False, na=False).values
         mask &= ~nsfw_name_mask
+        nsfw_name_removed = initial_count - np.sum(mask)
+        logger.debug(f"NSFW name filter removed additional {nsfw_name_removed - nsfw_tag_removed} games")
     
     if request.remove_utilities:
         mask &= ~metadata['is_utility'].values
+        util_removed = initial_count - np.sum(mask)
+        logger.debug(f"Utilities filter removed {util_removed} games")
 
     if request.remove_unreleased:
-        # Dynamic build time check might be overkill, let's assume current time or file time
-        # Using file time for consistency with original logic
         if os.path.exists(METADATA_FILE):
             build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s')
             future_mask = (metadata['parsed_date'] > build_time).fillna(False)
             mask &= ~future_mask.values
+            unreleased_removed = initial_count - np.sum(mask)
+            logger.debug(f"Unreleased filter removed {unreleased_removed} games")
 
     if request.genres:
-        # Optimized genre filtering without list column
-        # Genres are stored as "['Action', 'RPG']" or "Action, RPG"
-        # We check if the string contains the genre.
-        # Note: This might match substrings (e.g. "Action" inside "Reaction"), but genre names are usually distinct.
-        # To be safe, we could regex, but str.contains is faster.
-        # Given the dataset, genre names are standard Steam genres.
-        
-        # Create a combined mask
         genre_mask = np.zeros(len(metadata), dtype=bool)
         for genre in request.genres:
-            # Escape regex chars if any
             escaped_genre = re.escape(genre)
-            # Check if genre exists in the string representation
-            # Simple contains is usually sufficient for standard genres
             genre_mask |= metadata['genres'].fillna('').astype(str).str.contains(escaped_genre, regex=True, case=False).values
-        
         mask &= genre_mask
+        genre_kept = np.sum(mask)
+        logger.debug(f"Genre filter ({request.genres}): {genre_kept} games remaining")
 
     keep_indices = np.where(mask)[0]
+    logger.info(f"After filtering: {len(keep_indices)} games remaining (from {len(metadata)} total)")
     
+    if len(keep_indices) == 0:
+        logger.warning("No games passed filters!")
+        return []
+
     # 2. Semantic Component
     all_semantic_sims = np.zeros(len(metadata))
     
     if request.prompt or seed_appids:
         if request.prompt:
+            logger.debug(f"Encoding prompt: '{request.prompt}'")
             prompt_vec = data_manager.model.encode([request.prompt])[0]
+            logger.debug(f"Prompt vector shape: {prompt_vec.shape}")
             
             p_desc_centered = (prompt_vec - data_manager.mean_desc) if data_manager.mean_desc is not None else prompt_vec
             p_struct_centered = (prompt_vec - data_manager.mean_structural) if data_manager.mean_structural is not None else prompt_vec
@@ -486,12 +562,16 @@ def recommend(request: RecommendationRequest):
             p_desc_norm = norm_vec(p_desc)
             p_struct_norm = norm_vec(p_struct)
             
+            logger.debug("Computing prompt similarities...")
             prompt_desc_sims = np.dot(data_manager.embeddings_desc_norm, p_desc_norm)
             prompt_structural_sims = np.dot(data_manager.embeddings_structural_norm, p_struct_norm)
             
             all_semantic_sims = (prompt_desc_sims + prompt_structural_sims) * SEMANTIC_PROMPT_SEED_BLEND
+            logger.debug(f"Prompt similarities computed. Desc range: [{prompt_desc_sims.min():.4f}, {prompt_desc_sims.max():.4f}], "
+                         f"Structural range: [{prompt_structural_sims.min():.4f}, {prompt_structural_sims.max():.4f}]")
 
         if seed_indices.size > 0:
+            logger.info(f"Computing seed-based semantic similarity with {len(seed_indices)} seed(s)")
             seed_desc_vecs = data_manager.embeddings_desc_norm[seed_indices]
             avg_seed_desc = np.mean(seed_desc_vecs, axis=0)
             sd_mag = np.linalg.norm(avg_seed_desc)
@@ -508,11 +588,14 @@ def recommend(request: RecommendationRequest):
             
             if request.prompt:
                 all_semantic_sims = (all_semantic_sims + seed_combined_sims) * SEMANTIC_PROMPT_SEED_BLEND
+                logger.debug("Combined prompt and seed similarities")
             else:
                 all_semantic_sims = seed_combined_sims
+                logger.debug("Used seed-only similarities")
 
     all_tag_sims = np.zeros(len(metadata))
     if seed_indices.size > 0:
+        logger.debug("Computing tag similarity...")
         tag_seed_vectors = data_manager.tag_vectors[seed_indices]
         combined_tag_query = np.mean(tag_seed_vectors, axis=0)
         tag_q_mag = np.linalg.norm(combined_tag_query)
@@ -522,6 +605,7 @@ def recommend(request: RecommendationRequest):
         denom[denom == 0] = EPSILON
         
         all_tag_sims = dot_products / denom
+        logger.info(f"Tag similarities computed: min={all_tag_sims.min():.4f}, max={all_tag_sims.max():.4f}, mean={all_tag_sims.mean():.4f}")
 
     semantic_sims = all_semantic_sims[keep_indices]
     tag_sims = all_tag_sims[keep_indices]
@@ -530,6 +614,7 @@ def recommend(request: RecommendationRequest):
     num_grid_rows = data_manager.quality_grid.shape[0]
     grid_index = int(round(((request.disc_pref - (-1.0)) / 2.0) * (num_grid_rows - 1)))
     grid_index = max(0, min(num_grid_rows - 1, grid_index))
+    logger.debug(f"Quality grid index: {grid_index} (discovery={request.disc_pref:.3f})")
     
     z_spps = np.clip(data_manager.quality_grid[grid_index][keep_indices], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     
@@ -549,8 +634,15 @@ def recommend(request: RecommendationRequest):
     w_length = LENGTH_WEIGHT_MULTIPLIER * request.length_pref
     w_difficulty = DIFFICULTY_WEIGHT_MULTIPLIER * request.difficulty_pref
 
+    logger.debug(f"Weights: semantic={w_semantic:.2f}, tag={w_tag:.2f}, quality={w_spps:.2f}, "
+                 f"age={w_date:.2f}, pop={w_pop:.2f}, length={w_length:.2f}, difficulty={w_difficulty:.2f}")
+
     z_semantic = np.clip(to_z(semantic_sims), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) if (request.prompt or seed_appids) else np.zeros(len(keep_indices))
     z_tag = np.clip(to_z(tag_sims, ignore_zeros=True), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) if seed_appids else np.zeros(len(keep_indices))
+
+    logger.debug(f"Z-scores before hybrid: semantic mean={z_semantic.mean():.3f} (nz={np.sum(z_semantic != 0)}), "
+                 f"tag mean={z_tag.mean():.3f} (nz={np.sum(z_tag != 0)}), "
+                 f"quality mean={z_spps.mean():.3f}")
 
     final_scores = calculate_hybrid_score(
         z_semantic, w_semantic,
@@ -562,14 +654,19 @@ def recommend(request: RecommendationRequest):
         z_difficulty, w_difficulty
     )
 
+    logger.debug(f"Final scores: min={final_scores.min():.3f}, max={final_scores.max():.3f}, mean={final_scores.mean():.3f}")
+
     # Exclude seeds
     meta_filt = metadata.iloc[keep_indices].copy()
     if seed_appids:
         seed_mask = meta_filt['appid'].isin(seed_appids)
+        seeds_excluded = np.sum(seed_mask)
         final_scores[seed_mask] = -1e12
+        logger.debug(f"Excluded {seeds_excluded} seed games from results")
 
     # 6. Sorting and Result Formatting
     num_to_extract = min(len(final_scores), request.top_k * TOP_K_SORT_MULTIPLIER)
+    logger.info(f"Extracting top {request.top_k} from {num_to_extract} candidates")
     
     if num_to_extract > 0:
         partitioned_indices = np.argpartition(-final_scores, num_to_extract-1)[:num_to_extract]
@@ -577,8 +674,13 @@ def recommend(request: RecommendationRequest):
         subset_names = meta_filt['name'].fillna("").values[partitioned_indices]
         subset_sorted_indices = np.lexsort((subset_names, -subset_scores))
         top_indices = partitioned_indices[subset_sorted_indices[:request.top_k]]
+        
+        if len(top_indices) > 0:
+            top_game = meta_filt.iloc[top_indices[0]]
+            logger.info(f"Top recommendation: {top_game['name']} (score={final_scores[top_indices[0]]:.3f})")
     else:
         top_indices = []
+        logger.warning("No candidates to return")
 
     results = meta_filt.iloc[top_indices].copy()
     
@@ -629,6 +731,7 @@ def recommend(request: RecommendationRequest):
         }
         response_items.append(item)
         
+    logger.info(f"/recommend returning {len(response_items)} results")
     return response_items
 
 if __name__ == "__main__":
