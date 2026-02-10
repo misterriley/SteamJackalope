@@ -17,6 +17,8 @@ echo "Timestamp: $(date)"
 # Pull latest changes
 echo ""
 echo ">>> Pulling from git..."
+# Discard any local changes to this script before pulling (e.g., permission changes)
+git checkout -- deployment/deploy.sh 2>/dev/null || true
 git pull
 
 # Optional: activate virtual environment if it exists
