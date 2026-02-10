@@ -444,7 +444,7 @@ with tabs[0]:
             help=DISC_PREF_HELP,
             key="disc_pref"
         )
-        disc_pref = -disc_pref_raw  # Negate so: left (-1) = Known Quantities, right (+1) = Wild Cards
+        disc_pref = -disc_pref_raw  # Negate so: left (-1) → +1 (Known Quantities), right (+1) → -1 (Wild Cards)
         logger.debug(f"Slider disc_pref changed: raw={disc_pref_raw:.3f}, final={disc_pref:.3f}")
         col_known, col_wild = st.columns(2)
         with col_known: st.caption(DISCOVERY_LABEL_LEFT)
