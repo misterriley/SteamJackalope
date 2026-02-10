@@ -396,6 +396,7 @@ with tabs[0]:
             key="quality_pref"
         )
         logger.debug(f"Slider quality_pref changed: {quality_pref:.3f}")
+        st.write(f"**Slider value: {quality_pref}**")
         col_hated, col_loved = st.columns(2)
         with col_hated: st.caption(QUALITY_HATED_LABEL)
         with col_loved: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{QUALITY_LOVED_LABEL}</div>", unsafe_allow_html=True)
