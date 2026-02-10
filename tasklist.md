@@ -25,6 +25,7 @@
 
 ### Lesser Priority
 
+- [ ] Split the methodology page. One should be "About", which should contain what is now the first part of the Methodology page, and the rest should stay where it is.
 - [ ] The left pane of the page is too long vertically. Place the slider labels to the left of the sliders rather than below them.
 - [ ] Add a copyright notice and a github link (https://github.com/misterriley/SteamJackalope) to the bottom of each page.
 - [ ] The main folder is getting full. Let's move some of the top level files to folders. 

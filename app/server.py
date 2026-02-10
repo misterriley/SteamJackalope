@@ -643,6 +643,19 @@ def recommend(request: RecommendationRequest):
     logger.debug(f"Z-scores before hybrid: semantic mean={z_semantic.mean():.3f} (nz={np.sum(z_semantic != 0)}), "
                  f"tag mean={z_tag.mean():.3f} (nz={np.sum(z_tag != 0)}), "
                  f"quality mean={z_spps.mean():.3f}")
+    
+    # NEW: Log quality weight and z-score distribution to diagnose slider issues
+    logger.info(f"QUALITY ANALYSIS: quality_pref={request.quality_pref:.3f}, w_spps={w_spps:.3f}, "
+                f"z_spps range=[{z_spps.min():.3f}, {z_spps.max():.3f}], mean={z_spps.mean():.3f}, "
+                f"std={z_spps.std():.3f}")
+    # Log the partial contributions for top 10 candidates to see if quality is making a difference
+    if len(keep_indices) > 0 and request.top_k > 0:
+        num_to_show = min(10, len(keep_indices))
+        logger.info(f"Top {num_to_show} candidates quality contribution (z_spps * w_spps):")
+        for i in range(num_to_show):
+            idx = i  # keep_indices are already in order, we'll sort later
+            q_contrib = z_spps[idx] * w_spps
+            logger.info(f"  Candidate {idx}: z_spps={z_spps[idx]:.3f}, w_spps={w_spps:.3f} → contrib={q_contrib:.3f}")
 
     final_scores = calculate_hybrid_score(
         z_semantic, w_semantic,
