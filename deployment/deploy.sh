@@ -28,22 +28,33 @@ fi
 # Restart backend (FastAPI on port 8000)
 echo ""
 echo ">>> Restarting backend server..."
-pkill -f "uvicorn app.server:app" || echo "  No existing backend process found"
-sleep 2
-nohup uvicorn app.server:app --host 127.0.0.1 --port 8000 > deployment/backend.log 2>&1 &
-BACKEND_PID=$!
-echo "  Backend started (PID: $BACKEND_PID, logs: deployment/backend.log)"
+if systemctl is-active --quiet steamjackalope-backend; then
+    echo "  Restarting steamjackalope-backend service..."
+    sudo systemctl restart steamjackalope-backend
+else
+    echo "  Systemd service not active, fallback to pkill and manual start..."
+    pkill -f "uvicorn app.server:app" || echo "  No existing backend process found"
+    sleep 2
+    nohup uvicorn app.server:app --host 127.0.0.1 --port 8000 > deployment/backend.log 2>&1 &
+fi
 
 # Restart frontend (Streamlit)
 echo ""
 echo ">>> Restarting frontend..."
-pkill -f "streamlit run app/app.py" || echo "  No existing frontend process found"
-sleep 2
-nohup streamlit run app/app.py > deployment/frontend.log 2>&1 &
-FRONTEND_PID=$!
-echo "  Frontend started (PID: $FRONTEND_PID, logs: deployment/frontend.log)"
+if systemctl is-active --quiet steamjackalope-frontend; then
+    echo "  Restarting steamjackalope-frontend service..."
+    sudo systemctl restart steamjackalope-frontend
+else
+    echo "  Systemd service not active, fallback to pkill and manual start..."
+    pkill -f "streamlit run app/app.py" || echo "  No existing frontend process found"
+    sleep 2
+    nohup streamlit run app/app.py > deployment/frontend.log 2>&1 &
+fi
 
 echo ""
 echo "=== Deployment complete ==="
+echo "If services were restarted via systemctl, check status with:"
+echo "  sudo systemctl status steamjackalope-backend"
+echo "  sudo systemctl status steamjackalope-frontend"
 echo "Backend: http://127.0.0.1:8000"
 echo "Frontend: http://127.0.0.1:8501 (default Streamlit port)"
