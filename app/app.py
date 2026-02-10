@@ -533,6 +533,9 @@ with tabs[0]:
             "seed_games": selected_games,
             "genres": selected_genres
         }
+        
+        logger.info(f"FRONTEND: Sending payload - quality_pref={quality_pref:.3f}, disc_pref={disc_pref:.3f}, alpha={alpha:.3f}, beta={beta:.3f}")
+        logger.info(f"FRONTEND: Session state - st.session_state.quality_pref={st.session_state.get('quality_pref', 'NOT SET'):.3f}")
 
         try:
             response = requests.post(f"{BACKEND_URL}/recommend", json=payload)
