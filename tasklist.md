@@ -36,8 +36,15 @@
 
 ## Top Priority
 
+- [ ] The website deploys differently locally than it does on its webserver at racknerd. Bugs include sliders not changing the scores of games, the random button not moving the sliders, and the "Tags" view under the difficulty page in Lists saying "Difficulty prediction data not found on server.", and "Similarity data not found. Please run the precalculation script." on the similarity page. Develop a set of print statements to logs that can be used to diagnose these issues on the webpage. 
+
 ### Lesser Priority
 
+- [ ] The main folder is getting full. Let's move some of the top level files to folders. 
+        - [ ] Make a folder for the production data files (e.g., tag_vectors_norms.npy, anything else written by scripts in pipeline). Make sure that everything that reads the production files now gets data from the production files directory. Make sure that tests are not allowed to write to this directory.
+        - [ ] Keep .md and .bat files in place.
+        - [ ] Find appropriate locations for anything else that does not need to be in the top level folder.
+- [ ] Create readme.md files for each directory. 
 - [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)
 - [ ] Create a banner at the top of the page.
         - [ ] Give the name of the website.
