@@ -405,10 +405,11 @@ with tabs[0]:
         with col_loved: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{QUALITY_LOVED_LABEL}</div>", unsafe_allow_html=True)
 
         st.write(AGE_PREF_LABEL)
-        age_pref = st.select_slider(
+        age_pref = st.slider(
             AGE_PREF_LABEL,
-            options=AP_SLIDER_VALUES,
-            format_func=lambda x: "",
+            min_value=AP_SLIDER_MIN,
+            max_value=AP_SLIDER_MAX,
+            step=AP_SLIDER_STEP,
             label_visibility="collapsed",
             help=AGE_PREF_HELP,
             key="age_pref"
@@ -419,10 +420,11 @@ with tabs[0]:
         with col_new: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{AGE_NEW_LABEL}</div>", unsafe_allow_html=True)
 
         st.write(POP_PREF_LABEL)
-        pop_pref = st.select_slider(
+        pop_pref = st.slider(
             POP_SLIDER_LABEL,
-            options=AP_SLIDER_VALUES,
-            format_func=lambda x: "",
+            min_value=AP_SLIDER_MIN,
+            max_value=AP_SLIDER_MAX,
+            step=AP_SLIDER_STEP,
             label_visibility="collapsed",
             help=POP_PREF_HELP,
             key="pop_pref"
@@ -433,24 +435,27 @@ with tabs[0]:
         with col_main: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{POP_MAINSTREAM_LABEL}</div>", unsafe_allow_html=True)
 
         st.write(DISC_PREF_LABEL)
-        disc_pref = st.select_slider(
+        disc_pref_raw = st.slider(
             DISC_SLIDER_LABEL,
-            options=AP_SLIDER_VALUES[::-1],
-            format_func=lambda x: "",
+            min_value=AP_SLIDER_MIN,
+            max_value=AP_SLIDER_MAX,
+            step=AP_SLIDER_STEP,
             label_visibility="collapsed",
             help=DISC_PREF_HELP,
             key="disc_pref"
         )
-        logger.debug(f"Slider disc_pref changed: {disc_pref:.3f}")
+        disc_pref = -disc_pref_raw  # Negate so: left (-1) = Known Quantities, right (+1) = Wild Cards
+        logger.debug(f"Slider disc_pref changed: raw={disc_pref_raw:.3f}, final={disc_pref:.3f}")
         col_known, col_wild = st.columns(2)
         with col_known: st.caption(DISCOVERY_LABEL_LEFT)
         with col_wild: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{DISCOVERY_LABEL_RIGHT}</div>", unsafe_allow_html=True)
 
         st.write(LENGTH_PREF_LABEL)
-        length_pref = st.select_slider(
+        length_pref = st.slider(
             LENGTH_SLIDER_LABEL,
-            options=AP_SLIDER_VALUES,
-            format_func=lambda x: "",
+            min_value=AP_SLIDER_MIN,
+            max_value=AP_SLIDER_MAX,
+            step=AP_SLIDER_STEP,
             label_visibility="collapsed",
             help=LENGTH_PREF_HELP,
             key="length_pref"
@@ -461,10 +466,11 @@ with tabs[0]:
         with col_long: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{LENGTH_LONG_LABEL}</div>", unsafe_allow_html=True)
 
         st.write(DIFFICULTY_PREF_LABEL)
-        difficulty_pref = st.select_slider(
+        difficulty_pref = st.slider(
             DIFFICULTY_SLIDER_LABEL,
-            options=AP_SLIDER_VALUES,
-            format_func=lambda x: "",
+            min_value=AP_SLIDER_MIN,
+            max_value=AP_SLIDER_MAX,
+            step=AP_SLIDER_STEP,
             label_visibility="collapsed",
             help=DIFFICULTY_PREF_HELP,
             key="difficulty_pref"
