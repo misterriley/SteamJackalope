@@ -653,6 +653,16 @@ def recommend(request: RecommendationRequest):
     w_length = LENGTH_WEIGHT_MULTIPLIER * request.length_pref
     w_difficulty = DIFFICULTY_WEIGHT_MULTIPLIER * request.difficulty_pref
 
+    total_weight = (
+        abs(w_semantic) + 
+        abs(w_tag) + 
+        abs(w_spps) + 
+        abs(w_date) + 
+        abs(w_pop) + 
+        abs(w_length) +
+        abs(w_difficulty)
+    )
+
     logger.debug(f"Weights: semantic={w_semantic:.2f}, tag={w_tag:.2f}, quality={w_spps:.2f}, "
                  f"age={w_date:.2f}, pop={w_pop:.2f}, length={w_length:.2f}, difficulty={w_difficulty:.2f}")
 
@@ -700,22 +710,40 @@ def recommend(request: RecommendationRequest):
         logger.debug(f"Excluded {seeds_excluded} seed games from results")
 
     # 6. Sorting and Result Formatting
-    num_to_extract = min(len(final_scores), request.top_k * TOP_K_SORT_MULTIPLIER)
-    logger.info(f"Extracting top {request.top_k} from {num_to_extract} candidates")
-    
-    if num_to_extract > 0:
-        partitioned_indices = np.argpartition(-final_scores, num_to_extract-1)[:num_to_extract]
-        subset_scores = final_scores[partitioned_indices]
-        subset_names = meta_filt['name'].fillna("").values[partitioned_indices]
-        subset_sorted_indices = np.lexsort((subset_names, -subset_scores))
-        top_indices = partitioned_indices[subset_sorted_indices[:request.top_k]]
-        
-        if len(top_indices) > 0:
-            top_game = meta_filt.iloc[top_indices[0]]
-            logger.info(f"Top recommendation: {top_game['name']} (score={final_scores[top_indices[0]]:.3f})")
+    if total_weight < EPSILON:
+        # All weights zero: all non-seed scores equal (0). Return alphabetical order.
+        if seed_appids:
+            non_seed_mask = ~seed_mask
+        else:
+            non_seed_mask = np.ones(len(meta_filt), dtype=bool)
+        if np.any(non_seed_mask):
+            positions = np.where(non_seed_mask)[0]
+            non_seed_names = meta_filt['name'].fillna("").values[non_seed_mask]
+            sorted_name_positions = positions[np.argsort(non_seed_names)]
+            top_indices = sorted_name_positions[:request.top_k]
+            if len(top_indices) > 0:
+                top_game = meta_filt.iloc[top_indices[0]]
+                logger.info(f"Top recommendation (alphabetical): {top_game['name']}")
+        else:
+            top_indices = []
+            logger.warning("No non-seed candidates for alphabetical fallback")
     else:
-        top_indices = []
-        logger.warning("No candidates to return")
+        num_to_extract = min(len(final_scores), request.top_k * TOP_K_SORT_MULTIPLIER)
+        logger.info(f"Extracting top {request.top_k} from {num_to_extract} candidates")
+        
+        if num_to_extract > 0:
+            partitioned_indices = np.argpartition(-final_scores, num_to_extract-1)[:num_to_extract]
+            subset_scores = final_scores[partitioned_indices]
+            subset_names = meta_filt['name'].fillna("").values[partitioned_indices]
+            subset_sorted_indices = np.lexsort((subset_names, -subset_scores))
+            top_indices = partitioned_indices[subset_sorted_indices[:request.top_k]]
+            
+            if len(top_indices) > 0:
+                top_game = meta_filt.iloc[top_indices[0]]
+                logger.info(f"Top recommendation: {top_game['name']} (score={final_scores[top_indices[0]]:.3f})")
+        else:
+            top_indices = []
+            logger.warning("No candidates to return")
 
     results = meta_filt.iloc[top_indices].copy()
     

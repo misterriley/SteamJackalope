@@ -27,6 +27,11 @@
   - Fixed "Difficulty predictions file NOT FOUND" issue by externalizing path and making it absolute
   - Updated `app/server.py` and `app/lists.py` to use standardized constants
 
+- [x] Fixed alphabetical ordering bug when all sliders are set to zero
+  - When total_weight is zero, all non-seed games have equal score; now they are sorted alphabetically.
+  - Added total_weight calculation and conditional branch in /recommend endpoint to bypass argpartition and perform full alphabetical sort.
+  - All unit tests pass (45 passed, 1 skipped).
+
 ## Top Priority
 
 - [ ] Investigate and fix the deployment differences between local and racknerd. Use the newly added logging to diagnose:
