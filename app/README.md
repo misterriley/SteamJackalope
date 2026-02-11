@@ -63,7 +63,7 @@ run_test_env.bat
 ## Architecture Notes
 
 - The backend uses lazy loading: heavy dependencies (SentenceTransformer, torch) only load when text prompts are used
-- All large NumPy arrays are memory-mapped (`mmap_mode='r'`) to keep RAM usage under 512 MB
+- All large NumPy arrays are memory-mapped (`mmap_mode='r'`) to keep RAM usage minimal
 - Metadata uses PyArrow backend for efficient string storage
 - Pre-normalized embeddings enable fast cosine similarity via dot product
 - Caching is used extensively (`st.cache_data` in frontend, custom cache in backend) to avoid redundant operations
