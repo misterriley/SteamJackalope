@@ -14,6 +14,14 @@
   - All logs output to stdout with timestamps and severity levels for production debugging
   - Fixed logging.Stream → logging.StreamHandler in all 3 files
   - All unit tests pass (47 passed, 2 warnings)
+- [x] Fixed performance and stability issues in backend (app/server.py, common/utils.py)
+  - Added caching to `/lists/{category}` endpoints using `lists_cache` dictionary in DataManager
+  - Cache key is `(category, discovery_pref)` to handle different discovery preferences
+  - Added cache HIT/MISS logging for monitoring
+  - Fixed overflow/`std=inf` warnings by using `dtype=np.float64` in mean/std calculations
+  - Fixed pandas compatibility issue in `to_z()` by converting input to numpy array first
+  - Result: Significant latency improvement for Lists tab and random button
+  - All unit tests pass (46 passed, 1 skipped, 2 warnings → all passing)
 
 ## Top Priority
 

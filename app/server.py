@@ -82,6 +82,7 @@ class DataManager:
         self.mean_structural = None
         self._model = None
         self.all_genres = []
+        self.lists_cache = {}
 
     @property
     def model(self):
@@ -311,6 +312,13 @@ def get_list(category: str, discovery_pref: float = 0.0):
         logger.warning("Data not loaded when /lists endpoint called")
         raise HTTPException(status_code=503, detail="Data not loaded yet")
     
+    # Check cache first
+    cache_key = (category, discovery_pref)
+    if cache_key in data_manager.lists_cache:
+        logger.info(f"GET /lists/{category} cache HIT (discovery_pref={discovery_pref})")
+        return data_manager.lists_cache[cache_key]
+    
+    logger.info(f"GET /lists/{category} cache MISS (discovery_pref={discovery_pref})")
     metadata = data_manager.metadata
     
     if category == "quality":
@@ -329,10 +337,12 @@ def get_list(category: str, discovery_pref: float = 0.0):
             return df[['appid', 'name', 'quality_score']].to_dict(orient='records')
 
         logger.info(f"Quality list: {len(top_indices)} top, {len(bottom_indices)} bottom")
-        return {
+        result = {
             "top": format_quality_list(top_indices),
             "bottom": format_quality_list(bottom_indices)
         }
+        data_manager.lists_cache[cache_key] = result
+        return result
 
     elif category == "length":
         logger.debug("Length list request")
@@ -348,10 +358,12 @@ def get_list(category: str, discovery_pref: float = 0.0):
         if not shortest.empty:
             logger.info(f"Shortest: {shortest.iloc[0]['name']} ({shortest.iloc[0][playtime_col]:.1f} minutes)")
         
-        return {
+        result = {
             "top": longest[['appid', 'name', playtime_col]].rename(columns={playtime_col: 'playtime'}).to_dict(orient='records'),
             "bottom": shortest[['appid', 'name', playtime_col]].rename(columns={playtime_col: 'playtime'}).to_dict(orient='records')
         }
+        data_manager.lists_cache[cache_key] = result
+        return result
 
     elif category == "popularity":
         logger.debug("Popularity list request")
@@ -369,10 +381,12 @@ def get_list(category: str, discovery_pref: float = 0.0):
         if not least_pop.empty:
             logger.info(f"Least popular: {least_pop.iloc[0]['name']} ({least_pop.iloc[0]['total_reviews']:,} reviews)")
         
-        return {
+        result = {
             "top": most_pop[['appid', 'name', 'total_reviews']].to_dict(orient='records'),
             "bottom": least_pop[['appid', 'name', 'total_reviews']].to_dict(orient='records')
         }
+        data_manager.lists_cache[cache_key] = result
+        return result
 
     elif category == "age":
         logger.debug("Age list request")
@@ -386,10 +400,12 @@ def get_list(category: str, discovery_pref: float = 0.0):
         oldest = valid_dates.sort_values('parsed_date', ascending=True).head(50)
         newest = valid_dates.sort_values('parsed_date', ascending=False).head(50)
         
-        return {
+        result = {
             "top": newest[['appid', 'name', 'release_date']].to_dict(orient='records'),
             "bottom": oldest[['appid', 'name', 'release_date']].to_dict(orient='records')
         }
+        data_manager.lists_cache[cache_key] = result
+        return result
 
     elif category == "difficulty":
         logger.debug("Difficulty list request")
@@ -420,11 +436,13 @@ def get_list(category: str, discovery_pref: float = 0.0):
             logger.warning(f"Difficulty predictions file NOT FOUND at {pred_file}")
         
         logger.info(f"Returning {len(tag_impacts)} tag impacts")
-        return {
+        result = {
             "top": hardest[['appid', 'name', 'difficulty_predicted']].to_dict(orient='records'),
             "bottom": easiest[['appid', 'name', 'difficulty_predicted']].to_dict(orient='records'),
             "tag_impacts": sorted(tag_impacts, key=lambda x: x['impact'], reverse=True)
         }
+        data_manager.lists_cache[cache_key] = result
+        return result
 
     raise HTTPException(status_code=400, detail="Invalid category")
 
@@ -645,9 +663,12 @@ def recommend(request: RecommendationRequest):
                  f"quality mean={z_spps.mean():.3f}")
     
     # NEW: Log quality weight and z-score distribution to diagnose slider issues
+    # Use float64 to avoid overflow in mean/std with float16 arrays
+    mean_f64 = np.mean(z_spps, dtype=np.float64)
+    std_f64 = np.std(z_spps, dtype=np.float64)
     logger.info(f"QUALITY ANALYSIS: quality_pref={request.quality_pref:.3f}, w_spps={w_spps:.3f}, "
-                f"z_spps range=[{z_spps.min():.3f}, {z_spps.max():.3f}], mean={z_spps.mean():.3f}, "
-                f"std={z_spps.std():.3f}")
+                f"z_spps range=[{z_spps.min():.3f}, {z_spps.max():.3f}], mean={mean_f64:.3f}, "
+                f"std={std_f64:.3f}")
     # Log the partial contributions for top 10 candidates to see if quality is making a difference
     if len(keep_indices) > 0 and request.top_k > 0:
         num_to_show = min(10, len(keep_indices))

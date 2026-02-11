@@ -13,20 +13,23 @@ def to_z(x, ignore_zeros=False):
     Returns:
         np.array: Z-scored data.
     """
+    # Convert to numpy array to ensure dtype parameter works
+    x_array = np.asarray(x)
+    
     if ignore_zeros:
         # Use a small threshold to handle numerical noise in dense/whitened vectors
-        subset = x[np.abs(x) > 1e-5]
+        subset = x_array[np.abs(x_array) > 1e-5]
         if len(subset) == 0:
             # Fallback to non-ignored if everything is near zero
-            subset = x
+            subset = x_array
             
-        mean = np.mean(subset)
-        std = np.std(subset)
+        mean = np.mean(subset, dtype=np.float64)
+        std = np.std(subset, dtype=np.float64)
     else:
-        mean = np.mean(x)
-        std = np.std(x)
+        mean = np.mean(x_array, dtype=np.float64)
+        std = np.std(x_array, dtype=np.float64)
     
-    z = (x - mean) / (std if std > EPSILON else 1.0)
+    z = (x_array - mean) / (std if std > EPSILON else 1.0)
     return z
 
 def calculate_hybrid_score(
