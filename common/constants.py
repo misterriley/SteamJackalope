@@ -1,5 +1,9 @@
 import json
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if it exists
+load_dotenv()
 
 # Backend
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
@@ -69,7 +73,9 @@ USE_TAG_WHITENING = True
 TAG_TRANSFORM_TYPE = 'clr' # 'anscombe', or 'clr', or 'none
 
 # Scraping Constants
-API_KEY = os.getenv("STEAM_API_KEY", "7DFED2D02BD057C12AA22C994885F3C9")
+API_KEY = os.getenv("STEAM_API_KEY")
+if API_KEY is None:
+    raise ValueError("STEAM_API_KEY environment variable must be set. See .env.example for setup instructions.")
 SCRAPE_SLEEP_TIME = 1.0
 SCRAPE_BACKOFF_BASE_DELAY = 5.0
 SCRAPE_BACKOFF_MAX_RETRIES = 5

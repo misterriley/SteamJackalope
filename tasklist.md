@@ -5,40 +5,11 @@
 
 ## Task List
 
-## Recently Completed
+### Recently Completed
 
-- [x] Added comprehensive diagnostic logging to frontend (app/app.py), backend (app/server.py), and Lists page (app/lists.py)
-  - Frontend: slider value changes, random button actions, API request/response cycles
-  - Backend: data loading details, endpoint calls, filtering counts, similarity computations, weight calculations
-  - Lists page: all list endpoint data fetching, file path checks, data validation
-  - All logs output to stdout with timestamps and severity levels for production debugging
-  - Fixed logging.Stream → logging.StreamHandler in all 3 files
-  - All unit tests pass (47 passed, 2 warnings)
-- [x] Fixed performance and stability issues in backend (app/server.py, common/utils.py)
-  - Added caching to `/lists/{category}` endpoints using `lists_cache` dictionary in DataManager
-  - Cache key is `(category, discovery_pref)` to handle different discovery preferences
-  - Added cache HIT/MISS logging for monitoring
-  - Fixed overflow/`std=inf` warnings by using `dtype=np.float64` in mean/std calculations
-  - Fixed pandas compatibility issue in `to_z()` by converting input to numpy array first
-  - Result: Significant latency improvement for Lists tab and random button
-  - All unit tests pass (46 passed, 1 skipped, 2 warnings → all passing)
-- [x] Fixed path resolution issues for data files
-  - Standardized all file paths in `common/constants.py` to use absolute paths based on `ROOT_DIR`
-  - Fixed "Difficulty predictions file NOT FOUND" issue by externalizing path and making it absolute
-  - Updated `app/server.py` and `app/lists.py` to use standardized constants
+- [x] Remove the API key for steam scarping into a private file that doesn't get added to github.
 
-- [x] Fixed alphabetical ordering bug when all sliders are set to zero
-  - When total_weight is zero, all non-seed games have equal score; now they are sorted alphabetically.
-  - Added total_weight calculation and conditional branch in /recommend endpoint to bypass argpartition and perform full alphabetical sort.
-  - All unit tests pass (45 passed, 1 skipped).
-
-## Top Priority
-
-- [ ] Investigate and fix the deployment differences between local and racknerd. Use the newly added logging to diagnose:
->   - Sliders not changing scores
->   - Random button not moving sliders
->   - Difficulty tag impacts showing "not found" (FIXED)
->   - Similarity data showing "not found" (FIXED)
+### Top Priority
 
 ### Lesser Priority
 
@@ -58,9 +29,7 @@
         - [ ] Remove the jackalope icon from the Recommender header. 
         - [ ] Link the secondary pages from a hamburger menu rather than from links at the top of the page. 
 - [ ] Create a quick onboarding for new users. 
-        - [ ] Have prominent text at the top that says "New here? Click the 'Random' button to try out the features!"
         - [ ] Create a guide page with simple instructions for how to use the site. 
-- [ ] Remove the API key for steam scarping into a private file that doesn't get added to github.
 - [ ] New research to do: discriminating between whether a game is liked or not based on playtime.
         - [ ] Pick a game with a large number of reviews.
         - [ ] Load all of the reviews and review times associated with that game.
