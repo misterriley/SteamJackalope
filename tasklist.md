@@ -7,12 +7,12 @@
 
 ### Recently Completed
 
-- [x] Add the short description of the game to the game cards.
-- [x] Split the methodology page into "About" and "Methodology" sections.
+- [x] Create a tool to mimic the random button without going to the website (`tools/generate_random_recommendation.py`).
 
 ### Top Priority
 
 ### Lesser Priority
+
 - [ ] The left pane of the page is too long vertically. Place the slider labels to the left of the sliders rather than below them.
 - [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)
 - [ ] Create a banner at the top of the page.
