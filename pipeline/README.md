@@ -56,9 +56,9 @@ Builds the central metadata parquet file:
 
 Produces Bayesian quality scores across discovery settings:
 
-- Grid of 201 steps from low to high discovery
+- Grid of steps from low to high discovery
 - Pre-normalized z-score transformations
-- Optional distribution pinning for consistency
+- Distribution pinning at extreme values for preventing overflow of z-scores
 - Outputs: `quality_scores_grid.npy`
 
 ### `calculate_regularization.py`
