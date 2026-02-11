@@ -1,6 +1,6 @@
 # SteamJackalope
 
-A sophisticated Steam game recommendation engine that combines semantic search, tag analysis, and Bayesian quality scoring to provide highly relevant game suggestions.
+A Steam game recommendation engine that combines semantic search, tag analysis, and Bayesian quality scoring to provide highly relevant game suggestions.
 
 ## Overview
 
@@ -93,7 +93,6 @@ Combines multiple signals with user-tunable weights:
 
 ### Memory Optimization
 
-- Memory-mapped data files for low RAM usage (<512 MB)
 - FP16 precision for large matrix operations
 - Lazy loading of heavy models (SentenceTransformer)
 
@@ -103,6 +102,7 @@ Combines multiple signals with user-tunable weights:
 - Render deployment configuration
 - Comprehensive test coverage
 - Robust error handling and logging
+- Convenience scripts for Linux deployment
 
 ## Methodology
 
