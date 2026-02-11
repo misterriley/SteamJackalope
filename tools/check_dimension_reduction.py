@@ -2,13 +2,29 @@
 Test script to evaluate variance-based dimensionality reduction for whitening matrices.
 """
 import numpy as np
+import os
+import sys
+
+# Add parent directory to sys.path so we can import common
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from common.constants import (
+    EMBEDDINGS_DESC_FILE, 
+    EMBEDDINGS_TAG_FILE, 
+    W_DESC_FILE, 
+    W_STRUCTURAL_FILE, 
+    MEAN_DESC_FILE, 
+    MEAN_STRUCTURAL_FILE,
+    TAG_VECTORS_FILE,
+    W_TAG_FILE
+)
 
 def analyze_whitening_matrix(filepath, name):
     """Analyze a whitening matrix to determine dimensions needed for 80% variance."""
     W = np.load(filepath).astype(np.float32)
     # The whitening matrix W transforms centered vectors: whitened = centered @ W
     # The covariance of whitened vectors should be identity: W^T @ M_centered @ W = I
-    # To find effective dimensionality, we can look at singular values of W or the covariance
+    # To find effective dimensionality, we can look at the singular values of W or the covariance
     
     # Since W is a square transformation matrix, we can compute the effective dimensionalities
     # by looking at the eigenvalues of the covariance in the whitened space.
@@ -69,22 +85,22 @@ def analyze_embeddings_and_whitening(embeddings_path, W_path, mean_path, name):
 if __name__ == "__main__":
     # Analyze semantic embeddings
     desc_dims = analyze_embeddings_and_whitening(
-        'embeddings_desc.npy',
-        'w_desc.npy',
-        'mean_desc.npy',
+        EMBEDDINGS_DESC_FILE,
+        W_DESC_FILE,
+        MEAN_DESC_FILE,
         'Descriptive Embeddings'
     )
     
     structural_dims = analyze_embeddings_and_whitening(
-        'embeddings_structural.npy',
-        'w_structural.npy',
-        'mean_structural.npy',
+        EMBEDDINGS_TAG_FILE,
+        W_STRUCTURAL_FILE,
+        MEAN_STRUCTURAL_FILE,
         'Structural Embeddings'
     )
     
     # Analyze tag vectors separately
     print(f"\n=== Analyzing Tag Vectors ===")
-    tag_vectors = np.load('steam_tag_vectors.npy').astype(np.float32)
+    tag_vectors = np.load(TAG_VECTORS_FILE).astype(np.float32)
     print(f"Tag vectors shape: {tag_vectors.shape}")
     cov_tags = np.cov(tag_vectors, rowvar=False)
     U, S, Vt = np.linalg.svd(cov_tags)
@@ -95,5 +111,5 @@ if __name__ == "__main__":
     print(f"Dimensions for 95% variance: {np.argmax(cumvar >= 0.95) + 1}")
     
     # Check w_tag
-    w_tag = np.load('w_tag.npy')
+    w_tag = np.load(W_TAG_FILE)
     print(f"\nw_tag.npy shape: {w_tag.shape}, values: {w_tag}")

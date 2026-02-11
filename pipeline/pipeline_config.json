@@ -3,5 +3,18 @@
     "reviews_file": "scraped_reviews.csv",
     "data_dir": "data",
     "clean_games_file": "data/pipeline_games_clean.csv",
-    "checkpoint_interval": 20
+    "checkpoint_interval": 20,
+    "metadata_file": "data/production/metadata.parquet",
+    "embeddings_desc_file": "data/production/embeddings_desc.npy",
+    "embeddings_tag_file": "data/production/embeddings_structural.npy",
+    "tag_vectors_file": "data/production/steam_tag_vectors.npy",
+    "tag_norms_file": "data/production/tag_vectors_norms.npy",
+    "quality_grid_file": "data/production/quality_scores_grid.npy",
+    "w_desc_file": "data/production/w_desc.npy",
+    "w_structural_file": "data/production/w_structural.npy",
+    "mean_desc_file": "data/production/mean_desc.npy",
+    "mean_structural_file": "data/production/mean_structural.npy",
+    "w_tag_file": "data/production/w_tag.npy",
+    "difficulty_preds_file": "data/production/difficulty_predictions.csv",
+    "regularization_json": "data/production/regularization_constants.json"
 }

@@ -20,22 +20,25 @@ DIFFICULTY_WEIGHT_MULTIPLIER = 1.3
 
 # Files
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-EMBEDDINGS_DESC_FILE = os.path.join(ROOT_DIR, "embeddings_desc.npy")
-EMBEDDINGS_TAG_FILE = os.path.join(ROOT_DIR, "embeddings_structural.npy")
-TAG_VECTORS_FILE = os.path.join(ROOT_DIR, "steam_tag_vectors.npy")
-TAG_NORMS_FILE = os.path.join(ROOT_DIR, "tag_vectors_norms.npy")
-QUALITY_GRID_FILE = os.path.join(ROOT_DIR, "quality_scores_grid.npy")
-METADATA_FILE = os.path.join(ROOT_DIR, "metadata.parquet")
-DIFFICULTY_PREDICTIONS_FILE = os.path.join(ROOT_DIR, "difficulty_predictions.csv")
-SIMILARITY_LISTS_FILE = os.path.join(ROOT_DIR, "similarity_lists.json")
-W_DESC_FILE = os.path.join(ROOT_DIR, "w_desc.npy")
-W_STRUCTURAL_FILE = os.path.join(ROOT_DIR, "w_structural.npy")
-MEAN_DESC_FILE = os.path.join(ROOT_DIR, "mean_desc.npy")
-MEAN_STRUCTURAL_FILE = os.path.join(ROOT_DIR, "mean_structural.npy")
-W_TAG_FILE = os.path.join(ROOT_DIR, "w_tag.npy")
+PRODUCTION_DATA_DIR = os.path.join(ROOT_DIR, "data", "production")
+
+# Environment variable overrides for test isolation and flexibility
+EMBEDDINGS_DESC_FILE = os.getenv("STEAM_EMBEDDINGS_DESC_FILE", os.path.join(PRODUCTION_DATA_DIR, "embeddings_desc.npy"))
+EMBEDDINGS_TAG_FILE = os.getenv("STEAM_EMBEDDINGS_TAG_FILE", os.path.join(PRODUCTION_DATA_DIR, "embeddings_structural.npy"))
+TAG_VECTORS_FILE = os.getenv("STEAM_TAG_VECTORS_FILE", os.path.join(PRODUCTION_DATA_DIR, "steam_tag_vectors.npy"))
+TAG_NORMS_FILE = os.getenv("STEAM_TAG_NORMS_FILE", os.path.join(PRODUCTION_DATA_DIR, "tag_vectors_norms.npy"))
+QUALITY_GRID_FILE = os.getenv("STEAM_QUALITY_GRID_FILE", os.path.join(PRODUCTION_DATA_DIR, "quality_scores_grid.npy"))
+METADATA_FILE = os.getenv("STEAM_METADATA_FILE", os.path.join(PRODUCTION_DATA_DIR, "metadata.parquet"))
+DIFFICULTY_PREDICTIONS_FILE = os.getenv("STEAM_DIFFICULTY_PREDICTIONS_FILE", os.path.join(PRODUCTION_DATA_DIR, "difficulty_predictions.csv"))
+SIMILARITY_LISTS_FILE = os.getenv("STEAM_SIMILARITY_LISTS_FILE", os.path.join(PRODUCTION_DATA_DIR, "similarity_lists.json"))
+W_DESC_FILE = os.getenv("STEAM_W_DESC_FILE", os.path.join(PRODUCTION_DATA_DIR, "w_desc.npy"))
+W_STRUCTURAL_FILE = os.getenv("STEAM_W_STRUCTURAL_FILE", os.path.join(PRODUCTION_DATA_DIR, "w_structural.npy"))
+MEAN_DESC_FILE = os.getenv("STEAM_MEAN_DESC_FILE", os.path.join(PRODUCTION_DATA_DIR, "mean_desc.npy"))
+MEAN_STRUCTURAL_FILE = os.getenv("STEAM_MEAN_STRUCTURAL_FILE", os.path.join(PRODUCTION_DATA_DIR, "mean_structural.npy"))
+W_TAG_FILE = os.getenv("STEAM_W_TAG_FILE", os.path.join(PRODUCTION_DATA_DIR, "w_tag.npy"))
 
 # Regularization & Constants
-REGULARIZATION_FILE = "regularization_constants.json"
+REGULARIZATION_FILE = os.getenv("STEAM_REGULARIZATION_JSON", os.path.join(PRODUCTION_DATA_DIR, "regularization_constants.json"))
 if os.path.exists(REGULARIZATION_FILE):
     try:
         with open(REGULARIZATION_FILE, "r") as f:

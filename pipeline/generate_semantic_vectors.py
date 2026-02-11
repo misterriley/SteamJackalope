@@ -15,7 +15,8 @@ from common.constants import (
     EPSILON,
     MODEL_NAME,
     SENTENCE_TRANSFORMER_BACKEND,
-    SENTENCE_TRANSFORMER_MODEL_KWARGS
+    SENTENCE_TRANSFORMER_MODEL_KWARGS,
+    METADATA_FILE
 )
 
 def whiten(vectors, variance_threshold=0.80):
@@ -196,7 +197,7 @@ if __name__ == "__main__":
     parser.add_argument("--reviews", default="scraped_reviews.csv", help="Input reviews CSV file")
     parser.add_argument("--embeddings_desc", default=EMBEDDINGS_DESC_FILE, help="Output .npy file for description embeddings")
     parser.add_argument("--embeddings_tag", default=EMBEDDINGS_TAG_FILE, help="Output .npy file for structural embeddings")
-    parser.add_argument("--metadata", default="metadata.parquet", help="Output .parquet file")
+    parser.add_argument("--metadata", default=METADATA_FILE, help="Output .parquet file")
     parser.add_argument("--w_desc", default=None, help="Output .npy file for desc whitening matrix (default: skip)")
     parser.add_argument("--w_structural", default=None, help="Output .npy file for structural whitening matrix (default: skip)")
     parser.add_argument("--mean_desc", default=None, help="Output .npy file for desc mean vector (default: skip)")

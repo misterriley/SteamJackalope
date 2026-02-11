@@ -7,7 +7,7 @@ import sys
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from common.constants import AP_SLIDER_VALUES, QUALITY_SCORE_S_CONST, QUALITY_SCORE_S_BASE, QUALITY_SCORE_MIN_VOTES_FOR_RELIABLE, QUALITY_SCORE_CLIP, QUALITY_SCORE_PIN_GROUP, PIN_QUALITY_DISTRIBUTION, Z_SCORE_CLAMP_MAX, Z_SCORE_CLAMP_MIN
+from common.constants import AP_SLIDER_VALUES, QUALITY_SCORE_S_CONST, QUALITY_SCORE_S_BASE, QUALITY_SCORE_MIN_VOTES_FOR_RELIABLE, QUALITY_SCORE_CLIP, QUALITY_SCORE_PIN_GROUP, PIN_QUALITY_DISTRIBUTION, Z_SCORE_CLAMP_MAX, Z_SCORE_CLAMP_MIN, METADATA_FILE, QUALITY_GRID_FILE
 
 def generate_quality_grid(metadata_path, output_path):
     """
@@ -127,8 +127,8 @@ def generate_quality_grid(metadata_path, output_path):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Generate quality scores grid.")
-    parser.add_argument("--metadata", default="metadata.parquet", help="Path to metadata.parquet")
-    parser.add_argument("--output", default="quality_scores_grid.npy", help="Output .npy file")
+    parser.add_argument("--metadata", default=METADATA_FILE, help="Path to metadata.parquet")
+    parser.add_argument("--output", default=QUALITY_GRID_FILE, help="Output .npy file")
     args = parser.parse_args()
     
     generate_quality_grid(args.metadata, args.output)

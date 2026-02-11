@@ -7,22 +7,20 @@
 
 ### Recently Completed
 
-- [x] Remove the API key for steam scarping into a private file that doesn't get added to github.
-- [x] Add a copyright notice and a github link (https://github.com/misterriley/SteamJackalope) to the bottom of each page.
-- [x] Fix startup race condition - backend connection errors on first page load
-- [x] Create readme.md files for each directory. The target audience is github users who are looking at the codebase for the first time. Add references to these files to `orientation.md` and `onShutdown.md` so that new agents get information about the structure of each folder and the information about changes gets propagated to those files. 
+- [x] Reorganized production data files into `data/production/` directory
+  - Moved 14 core data files (NumPy arrays, Parquet metadata, JSON/CSV constants)
+  - Updated `common/constants.py` to use new defaults with environment variable overrides for test isolation
+  - Synchronized `pipeline/pipeline_config.json` and all generation scripts with new structure
+  - Updated maintenance tools to resolve paths through centralized constants
+  - Verified: All tests pass (44 passed, 2 skipped)
+  - Verified: Application launches successfully via `run_test_env.bat`
 
 ### Top Priority
-
 
 ### Lesser Priority
 
 - [ ] Split the methodology page. One should be "About", which should contain what is now the first part of the Methodology page, and the rest should stay where it is.
 - [ ] The left pane of the page is too long vertically. Place the slider labels to the left of the sliders rather than below them.
-- [ ] The main folder is getting full. Let's move some of the top level files to folders. 
-        - [ ] Make a folder for the production data files (e.g., tag_vectors_norms.npy, anything else written by scripts in pipeline). Make sure that everything that reads the production files now gets data from the production files directory. Make sure that tests are not allowed to write to this directory.
-        - [ ] Keep .md and .bat files in place.
-        - [ ] Find appropriate locations for anything else that does not need to be in the top level folder.
 - [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)
 - [ ] Create a banner at the top of the page.
         - [ ] Give the name of the website.

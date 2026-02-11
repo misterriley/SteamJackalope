@@ -7,11 +7,11 @@ import sys
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from common.constants import GLOBAL_POSITIVE_RATE
+from common.constants import GLOBAL_POSITIVE_RATE, QUALITY_GRID_FILE, METADATA_FILE
 
 def check_s():
-    grid = np.load('quality_scores_grid.npy')
-    df = pd.read_parquet('metadata.parquet')
+    grid = np.load(QUALITY_GRID_FILE)
+    df = pd.read_parquet(METADATA_FILE)
     df.drop_duplicates(subset=['appid'], inplace=True)
     df.reset_index(drop=True, inplace=True)
     

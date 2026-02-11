@@ -22,7 +22,8 @@ from common.constants import (
     USE_TAG_WHITENING,
     W_TAG_FILE,
     TAG_NORMS_FILE,
-    TAG_TRANSFORM_TYPE
+    TAG_TRANSFORM_TYPE,
+    ROOT_DIR
 )
 
 # Constants
@@ -443,7 +444,17 @@ def whiten(vectors, variance_threshold=0.80):
     # Also return the full projection matrix for query transformation
     return whitened, W
 
-def generate_tag_vectors(csv_path, output_vectors="steam_tag_vectors.npy", output_constants="regularization_constants.json", output_norms=None, w_tag_path=None):
+def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, output_norms=None, w_tag_path=None):
+    # Use defaults from constants if not provided - now pointing to data/production/
+    if output_vectors is None:
+        output_vectors = os.path.join(ROOT_DIR, "data", "production", "steam_tag_vectors.npy")
+    if output_constants is None:
+        output_constants = os.path.join(ROOT_DIR, "data", "production", "regularization_constants.json")
+    if output_norms is None:
+        output_norms = os.path.join(ROOT_DIR, "data", "production", "tag_vectors_norms.npy")
+    if w_tag_path is None:
+        w_tag_path = os.path.join(ROOT_DIR, "data", "production", "w_tag.npy")
+    
     df = load_data(csv_path)
     sparse_counts, tag_to_idx, unique_tags, appids = parse_tags(df)
     
@@ -559,18 +570,24 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Generate tag vectors and calculate constants")
     parser.add_argument("csv", default="data/pipeline_games_clean.csv", nargs='?', help="Path to cleaned games CSV")
-    parser.add_argument("--output", default="steam_tag_vectors.npy", help="Path to output vectors (.npy)")
-    parser.add_argument("--constants", default="regularization_constants.json", help="Path to output constants (.json)")
+    parser.add_argument("--output", default=None, help="Path to output vectors (.npy)")
+    parser.add_argument("--constants", default=None, help="Path to output constants (.json)")
     parser.add_argument("--norms", default=None, help="Path to output norms (.npy)")
     parser.add_argument("--w_tag", default=None, help="Path to output whitening matrix (.npy)")
     args = parser.parse_args()
         
+    # Determine output paths from constants if not provided
+    output_vectors = args.output if args.output else os.path.join(ROOT_DIR, "data", "production", "steam_tag_vectors.npy")
+    output_constants = args.constants if args.constants else os.path.join(ROOT_DIR, "data", "production", "regularization_constants.json")
+    output_norms = args.norms if args.norms else os.path.join(ROOT_DIR, "data", "production", "tag_vectors_norms.npy")
+    w_tag_path = args.w_tag if args.w_tag else os.path.join(ROOT_DIR, "data", "production", "w_tag.npy")
+        
     vectors, appids = generate_tag_vectors(
         args.csv, 
-        output_vectors=args.output, 
-        output_constants=args.constants, 
-        output_norms=args.norms,
-        w_tag_path=args.w_tag
+        output_vectors=output_vectors, 
+        output_constants=output_constants, 
+        output_norms=output_norms,
+        w_tag_path=w_tag_path
     )
     
     searcher = TagSearchEngine(vectors, appids)

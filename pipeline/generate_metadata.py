@@ -8,7 +8,7 @@ from tqdm import tqdm
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from common.constants import PLAYTIME_REGULARIZATION_C, DIFFICULTY_PREDICTIONS_FILE
+from common.constants import PLAYTIME_REGULARIZATION_C, DIFFICULTY_PREDICTIONS_FILE, METADATA_FILE
 from common.utils import to_z
 
 def clean_release_date(date_str):
@@ -90,11 +90,15 @@ def calculate_date_z_scores(df):
     
     return df
 
-def generate_metadata(games_path, reviews_path=None, output_path="metadata.parquet"):
+def generate_metadata(games_path, reviews_path=None, output_path=None):
     if not os.path.exists(games_path):
         print(f"Error: {games_path} not found.")
         return
 
+    # Use constant default if not specified
+    if output_path is None:
+        output_path = METADATA_FILE
+    
     print(f"Loading games data from {games_path}...")
     df = pd.read_csv(games_path)
     
@@ -280,7 +284,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate consolidated metadata for Steam games.")
     parser.add_argument("games", default="scraped_games.csv", nargs='?', help="Path to scraped_games.csv")
     parser.add_argument("reviews", default="scraped_reviews.csv", nargs='?', help="Path to scraped_reviews.csv")
-    parser.add_argument("--output", default="metadata.parquet", help="Output .parquet file")
+    parser.add_argument("--output", default=None, help="Output .parquet file")
     
     args = parser.parse_args()
     
