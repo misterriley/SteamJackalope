@@ -5,6 +5,7 @@ import requests
 import os
 import sys
 import logging
+import time
 
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -13,6 +14,19 @@ from common.constants import (
     BACKEND_URL,
     SIMILARITY_LISTS_FILE
 )
+
+def get_with_retry(url, max_retries=5, delay=1):
+    """Make a GET request with retry on connection errors."""
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, timeout=10)
+            return response
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"Connection error to {url} (attempt {attempt+1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+            else:
+                raise
 
 # Configure logging
 logging.basicConfig(
@@ -54,7 +68,7 @@ def render_lists_page():
         
         try:
             logger.info(f"Fetching quality list with discovery_pref={disc_pref}")
-            response = requests.get(f"{BACKEND_URL}/lists/quality?discovery_pref={disc_pref}", timeout=10)
+            response = get_with_retry(f"{BACKEND_URL}/lists/quality?discovery_pref={disc_pref}", max_retries=5, delay=1)
             logger.info(f"Quality list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
@@ -93,7 +107,7 @@ def render_lists_page():
         
         try:
             logger.info("Fetching length list")
-            response = requests.get(f"{BACKEND_URL}/lists/length", timeout=10)
+            response = get_with_retry(f"{BACKEND_URL}/lists/length", max_retries=5, delay=1)
             logger.info(f"Length list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
@@ -131,7 +145,7 @@ def render_lists_page():
         
         try:
             logger.info("Fetching popularity list")
-            response = requests.get(f"{BACKEND_URL}/lists/popularity", timeout=10)
+            response = get_with_retry(f"{BACKEND_URL}/lists/popularity", max_retries=5, delay=1)
             logger.info(f"Popularity list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
@@ -169,7 +183,7 @@ def render_lists_page():
         
         try:
             logger.info("Fetching age list")
-            response = requests.get(f"{BACKEND_URL}/lists/age", timeout=10)
+            response = get_with_retry(f"{BACKEND_URL}/lists/age", max_retries=5, delay=1)
             logger.info(f"Age list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
@@ -207,7 +221,7 @@ def render_lists_page():
         
         try:
             logger.info("Fetching difficulty list")
-            response = requests.get(f"{BACKEND_URL}/lists/difficulty", timeout=10)
+            response = get_with_retry(f"{BACKEND_URL}/lists/difficulty", max_retries=5, delay=1)
             logger.info(f"Difficulty list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()

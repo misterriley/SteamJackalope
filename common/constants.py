@@ -222,6 +222,11 @@ DEBUG_TOTAL_SUM_LABEL = "**Final Score:**"
 DATA_SOURCE_CAPTION = "Data scraped from Steam. Not affiliated with Valve Corporation."
 ERROR_LOADING_DATA = "Error loading data: {e}"
 
+# Footer
+FOOTER_COPYRIGHT = "© 2025 Steam Jackalope. All rights reserved."
+FOOTER_GITHUB_LINK = "[GitHub](https://github.com/misterriley/SteamJackalope)"
+FOOTER_TEXT = "{copyright} | {github_link}"
+
 # Tabs
 RECOMMENDER_TAB = "Recommender"
 METHODOLOGY_TAB = "Methodology"

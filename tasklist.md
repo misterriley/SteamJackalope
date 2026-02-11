@@ -8,14 +8,17 @@
 ### Recently Completed
 
 - [x] Remove the API key for steam scarping into a private file that doesn't get added to github.
+- [x] Add a copyright notice and a github link (https://github.com/misterriley/SteamJackalope) to the bottom of each page.
+- [x] Fix startup race condition - backend connection errors on first page load
 
 ### Top Priority
+
+- [ ] Fix the lists page - the discovery preference dropdown doesn't seem to be affecting the results at all. The quality scores shown should be different depending on the dropdown selection.
 
 ### Lesser Priority
 
 - [ ] Split the methodology page. One should be "About", which should contain what is now the first part of the Methodology page, and the rest should stay where it is.
 - [ ] The left pane of the page is too long vertically. Place the slider labels to the left of the sliders rather than below them.
-- [ ] Add a copyright notice and a github link (https://github.com/misterriley/SteamJackalope) to the bottom of each page.
 - [ ] The main folder is getting full. Let's move some of the top level files to folders. 
         - [ ] Make a folder for the production data files (e.g., tag_vectors_norms.npy, anything else written by scripts in pipeline). Make sure that everything that reads the production files now gets data from the production files directory. Make sure that tests are not allowed to write to this directory.
         - [ ] Keep .md and .bat files in place.

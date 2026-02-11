@@ -133,8 +133,35 @@ from common.constants import (
 
     TOP_K_DEFAULT,
     TOP_K_MAX,
-    BACKEND_URL
+    BACKEND_URL,
+    FOOTER_TEXT,
+    FOOTER_GITHUB_LINK
 )
+
+# wait for backend to be ready on startup
+def wait_for_backend(max_retries=30, retry_delay=2):
+    """Wait for backend server to become available before rendering the app."""
+    import time
+    for i in range(max_retries):
+        try:
+            response = requests.get(f"{BACKEND_URL}/games", timeout=2)
+            if response.status_code == 200:
+                logger.info(f"Backend ready after {i+1} attempts")
+                return True
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"Backend not ready (attempt {i+1}/{max_retries})")
+        except Exception as e:
+            logger.warning(f"Error checking backend: {e} (attempt {i+1}/{max_retries})")
+        time.sleep(retry_delay)
+    
+    logger.error(f"Backend failed to become ready after {max_retries} attempts")
+    st.error(f"Cannot connect to backend server at {BACKEND_URL}. The backend may not be running.")
+    return False
+
+# Check backend health at startup before rendering UI
+backend_ready = wait_for_backend()
+if not backend_ready:
+    st.stop()
 
 # --- Configuration & Data Loading ---
 st.set_page_config(page_title=APP_TITLE.replace("🎮 ", ""), layout="wide")
@@ -583,3 +610,5 @@ with tabs[0]:
 
 st.divider()
 st.caption(DATA_SOURCE_CAPTION)
+footer_text = FOOTER_TEXT.format(copyright="© 2025 Steam Jackalope", github_link=FOOTER_GITHUB_LINK)
+st.caption(footer_text)
