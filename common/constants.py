@@ -15,18 +15,20 @@ LENGTH_WEIGHT_MULTIPLIER = 0.25
 DIFFICULTY_WEIGHT_MULTIPLIER = 1.3
 
 # Files
-EMBEDDINGS_DESC_FILE = "embeddings_desc.npy"
-EMBEDDINGS_TAG_FILE = "embeddings_structural.npy"
-TAG_VECTORS_FILE = "steam_tag_vectors.npy"
-TAG_NORMS_FILE = "tag_vectors_norms.npy"
-QUALITY_GRID_FILE = "quality_scores_grid.npy"
-# Ensure we use the absolute path or root-relative path for metadata.parquet
-METADATA_FILE = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')), "metadata.parquet")
-W_DESC_FILE = "w_desc.npy"
-W_STRUCTURAL_FILE = "w_structural.npy"
-MEAN_DESC_FILE = "mean_desc.npy"
-MEAN_STRUCTURAL_FILE = "mean_structural.npy"
-W_TAG_FILE = "w_tag.npy"
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+EMBEDDINGS_DESC_FILE = os.path.join(ROOT_DIR, "embeddings_desc.npy")
+EMBEDDINGS_TAG_FILE = os.path.join(ROOT_DIR, "embeddings_structural.npy")
+TAG_VECTORS_FILE = os.path.join(ROOT_DIR, "steam_tag_vectors.npy")
+TAG_NORMS_FILE = os.path.join(ROOT_DIR, "tag_vectors_norms.npy")
+QUALITY_GRID_FILE = os.path.join(ROOT_DIR, "quality_scores_grid.npy")
+METADATA_FILE = os.path.join(ROOT_DIR, "metadata.parquet")
+DIFFICULTY_PREDICTIONS_FILE = os.path.join(ROOT_DIR, "data", "difficulty_predictions.csv")
+SIMILARITY_LISTS_FILE = os.path.join(ROOT_DIR, "data", "similarity_lists.json")
+W_DESC_FILE = os.path.join(ROOT_DIR, "w_desc.npy")
+W_STRUCTURAL_FILE = os.path.join(ROOT_DIR, "w_structural.npy")
+MEAN_DESC_FILE = os.path.join(ROOT_DIR, "mean_desc.npy")
+MEAN_STRUCTURAL_FILE = os.path.join(ROOT_DIR, "mean_structural.npy")
+W_TAG_FILE = os.path.join(ROOT_DIR, "w_tag.npy")
 
 # Regularization & Constants
 REGULARIZATION_FILE = "regularization_constants.json"

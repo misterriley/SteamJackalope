@@ -22,14 +22,18 @@
   - Fixed pandas compatibility issue in `to_z()` by converting input to numpy array first
   - Result: Significant latency improvement for Lists tab and random button
   - All unit tests pass (46 passed, 1 skipped, 2 warnings → all passing)
+- [x] Fixed path resolution issues for data files
+  - Standardized all file paths in `common/constants.py` to use absolute paths based on `ROOT_DIR`
+  - Fixed "Difficulty predictions file NOT FOUND" issue by externalizing path and making it absolute
+  - Updated `app/server.py` and `app/lists.py` to use standardized constants
 
 ## Top Priority
 
 - [ ] Investigate and fix the deployment differences between local and racknerd. Use the newly added logging to diagnose:
 >   - Sliders not changing scores
 >   - Random button not moving sliders
->   - Difficulty tag impacts showing "not found"
->   - Similarity data showing "not found"
+>   - Difficulty tag impacts showing "not found" (FIXED)
+>   - Similarity data showing "not found" (FIXED)
 
 ### Lesser Priority
 

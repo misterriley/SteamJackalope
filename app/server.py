@@ -60,7 +60,8 @@ from common.constants import (
     LENGTH_WEIGHT_MULTIPLIER,
     DIFFICULTY_WEIGHT_MULTIPLIER,
     NSFW_TAGS,
-    NSFW_NAME_PATTERNS
+    NSFW_NAME_PATTERNS,
+    DIFFICULTY_PREDICTIONS_FILE
 )
 from common.utils import to_z, calculate_hybrid_score
 
@@ -416,7 +417,7 @@ def get_list(category: str, discovery_pref: float = 0.0):
         
         # Tag predictors
         tag_impacts = []
-        pred_file = "data/difficulty_predictions.csv"
+        pred_file = DIFFICULTY_PREDICTIONS_FILE
         logger.info(f"Looking for difficulty predictions at: {pred_file}")
         if os.path.exists(pred_file):
             logger.info(f"Found predictions file. Loading...")

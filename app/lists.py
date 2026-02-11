@@ -10,7 +10,8 @@ import logging
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from common.constants import (
-    BACKEND_URL
+    BACKEND_URL,
+    SIMILARITY_LISTS_FILE
 )
 
 # Configure logging
@@ -271,7 +272,7 @@ def render_lists_page():
         try:
             logger.info(f"Loading similarity data for type: {sim_type}")
             import json
-            data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'similarity_lists.json')
+            data_path = SIMILARITY_LISTS_FILE
             logger.debug(f"Looking for similarity data at: {data_path}")
             
             if os.path.exists(data_path):
