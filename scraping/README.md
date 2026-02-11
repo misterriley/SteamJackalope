@@ -25,7 +25,7 @@ Downloads bulk data from Steam's public endpoints:
 
 ### `scrape_steam.py`
 
-Main scraping engine with sophisticated features:
+Main scraping engine with features:
 
 - **Hierarchical Local Cache**: Stores raw responses, archives old data
 - **Exponential Backoff**: Retries failed requests with increasing delays
