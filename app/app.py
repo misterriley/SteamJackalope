@@ -420,108 +420,58 @@ with tabs[0]:
     with st.sidebar:
         st.header(SIDEBAR_HEADER)
         
-        st.button(RESET_BUTTON_LABEL, on_click=reset_all_parameters, use_container_width=True)
-        st.button(RANDOM_BUTTON_LABEL, on_click=randomize_parameters, use_container_width=True)
+        col_reset, col_random = st.columns(2)
+        with col_reset:
+            st.button(RESET_BUTTON_LABEL, on_click=reset_all_parameters, use_container_width=True)
+        with col_random:
+            st.button(RANDOM_BUTTON_LABEL, on_click=randomize_parameters, use_container_width=True)
         st.divider()
 
-        alpha = st.slider(SEMANTIC_WEIGHT_LABEL, 0.0, SEMANTIC_WEIGHT_MULTIPLIER, step=SEMANTIC_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, help=SEMANTIC_WEIGHT_HELP, key="alpha")
+        def compact_slider(label, key, help_text, min_val, max_val, step, left_bound, right_bound, negate=False, show_bounds=True):
+            col_label, col_slider = st.columns([1, 2])
+            with col_label:
+                st.markdown(f"<div style='padding-top: 25px; font-size: 0.9rem; font-weight: bold;'>{label}</div>", unsafe_allow_html=True)
+            with col_slider:
+                val = st.slider(
+                    label,
+                    min_value=min_val,
+                    max_value=max_val,
+                    step=step,
+                    label_visibility="collapsed",
+                    help=help_text,
+                    key=key
+                )
+                if show_bounds:
+                    col_l, col_r = st.columns(2)
+                    with col_l: st.markdown(f"<div style='font-size: 0.7rem; color: gray;'>{left_bound}</div>", unsafe_allow_html=True)
+                    with col_r: st.markdown(f"<div style='text-align: right; font-size: 0.7rem; color: gray;'>{right_bound}</div>", unsafe_allow_html=True)
+            
+            return -val if negate else val
+
+        alpha = compact_slider(SEMANTIC_WEIGHT_LABEL, "alpha", SEMANTIC_WEIGHT_HELP, 0.0, SEMANTIC_WEIGHT_MULTIPLIER, SEMANTIC_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, "0", str(SEMANTIC_WEIGHT_MULTIPLIER), show_bounds=False)
         logger.debug(f"Slider alpha changed: {alpha:.3f}")
-        beta = st.slider(TAG_WEIGHT_LABEL, 0.0, TAG_WEIGHT_MULTIPLIER, step=TAG_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, help=TAG_WEIGHT_HELP, key="beta")
+        beta = compact_slider(TAG_WEIGHT_LABEL, "beta", TAG_WEIGHT_HELP, 0.0, TAG_WEIGHT_MULTIPLIER, TAG_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, "0", str(TAG_WEIGHT_MULTIPLIER), show_bounds=False)
         logger.debug(f"Slider beta changed: {beta:.3f}")
 
         st.divider()
 
-        st.write(QUALITY_PREF_LABEL)
-        quality_pref = st.slider(
-            QUALITY_SLIDER_LABEL,
-            min_value=AP_SLIDER_MIN,
-            max_value=AP_SLIDER_MAX,
-            step=AP_SLIDER_STEP,
-            label_visibility="collapsed",
-            help=QUALITY_PREF_HELP,
-            key="quality_pref"
-        )
-        logger.debug(f"Slider quality_pref changed: {quality_pref:.3f}")
-        st.write(f"**Slider value: {quality_pref}**")
-        col_hated, col_loved = st.columns(2)
-        with col_hated: st.caption(QUALITY_HATED_LABEL)
-        with col_loved: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{QUALITY_LOVED_LABEL}</div>", unsafe_allow_html=True)
+        quality_pref = compact_slider(QUALITY_PREF_LABEL, "quality_pref", QUALITY_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, QUALITY_HATED_LABEL, QUALITY_LOVED_LABEL)
+        logger.debug(f"Slider quality_pref: {quality_pref:.3f}")
 
-        st.write(AGE_PREF_LABEL)
-        age_pref = st.slider(
-            AGE_PREF_LABEL,
-            min_value=AP_SLIDER_MIN,
-            max_value=AP_SLIDER_MAX,
-            step=AP_SLIDER_STEP,
-            label_visibility="collapsed",
-            help=AGE_PREF_HELP,
-            key="age_pref"
-        )
-        logger.debug(f"Slider age_pref changed: {age_pref:.3f}")
-        col_old, col_new = st.columns(2)
-        with col_old: st.caption(AGE_OLD_LABEL)
-        with col_new: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{AGE_NEW_LABEL}</div>", unsafe_allow_html=True)
+        age_pref = compact_slider(AGE_PREF_LABEL, "age_pref", AGE_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, AGE_OLD_LABEL, AGE_NEW_LABEL)
+        logger.debug(f"Slider age_pref: {age_pref:.3f}")
 
-        st.write(POP_PREF_LABEL)
-        pop_pref = st.slider(
-            POP_SLIDER_LABEL,
-            min_value=AP_SLIDER_MIN,
-            max_value=AP_SLIDER_MAX,
-            step=AP_SLIDER_STEP,
-            label_visibility="collapsed",
-            help=POP_PREF_HELP,
-            key="pop_pref"
-        )
-        logger.debug(f"Slider pop_pref changed: {pop_pref:.3f}")
-        col_niche, col_main = st.columns(2)
-        with col_niche: st.caption(POP_NICHE_LABEL)
-        with col_main: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{POP_MAINSTREAM_LABEL}</div>", unsafe_allow_html=True)
+        pop_pref = compact_slider(POP_PREF_LABEL, "pop_pref", POP_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, POP_NICHE_LABEL, POP_MAINSTREAM_LABEL)
+        logger.debug(f"Slider pop_pref: {pop_pref:.3f}")
 
-        st.write(DISC_PREF_LABEL)
-        disc_pref_raw = st.slider(
-            DISC_SLIDER_LABEL,
-            min_value=AP_SLIDER_MIN,
-            max_value=AP_SLIDER_MAX,
-            step=AP_SLIDER_STEP,
-            label_visibility="collapsed",
-            help=DISC_PREF_HELP,
-            key="disc_pref"
-        )
-        disc_pref = -disc_pref_raw  # Negate so: left (-1) → +1 (Known Quantities), right (+1) → -1 (Wild Cards)
-        logger.debug(f"Slider disc_pref changed: raw={disc_pref_raw:.3f}, final={disc_pref:.3f}")
-        col_known, col_wild = st.columns(2)
-        with col_known: st.caption(DISCOVERY_LABEL_LEFT)
-        with col_wild: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{DISCOVERY_LABEL_RIGHT}</div>", unsafe_allow_html=True)
+        disc_pref = compact_slider(DISC_PREF_LABEL, "disc_pref", DISC_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DISCOVERY_LABEL_LEFT, DISCOVERY_LABEL_RIGHT, negate=True)
+        logger.debug(f"Slider disc_pref: {disc_pref:.3f}")
 
-        st.write(LENGTH_PREF_LABEL)
-        length_pref = st.slider(
-            LENGTH_SLIDER_LABEL,
-            min_value=AP_SLIDER_MIN,
-            max_value=AP_SLIDER_MAX,
-            step=AP_SLIDER_STEP,
-            label_visibility="collapsed",
-            help=LENGTH_PREF_HELP,
-            key="length_pref"
-        )
-        logger.debug(f"Slider length_pref changed: {length_pref:.3f}")
-        col_short, col_long = st.columns(2)
-        with col_short: st.caption(LENGTH_SHORT_LABEL)
-        with col_long: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{LENGTH_LONG_LABEL}</div>", unsafe_allow_html=True)
+        length_pref = compact_slider(LENGTH_PREF_LABEL, "length_pref", LENGTH_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, LENGTH_SHORT_LABEL, LENGTH_LONG_LABEL)
+        logger.debug(f"Slider length_pref: {length_pref:.3f}")
 
-        st.write(DIFFICULTY_PREF_LABEL)
-        difficulty_pref = st.slider(
-            DIFFICULTY_SLIDER_LABEL,
-            min_value=AP_SLIDER_MIN,
-            max_value=AP_SLIDER_MAX,
-            step=AP_SLIDER_STEP,
-            label_visibility="collapsed",
-            help=DIFFICULTY_PREF_HELP,
-            key="difficulty_pref"
-        )
-        logger.debug(f"Slider difficulty_pref changed: {difficulty_pref:.3f}")
-        col_easy, col_hard = st.columns(2)
-        with col_easy: st.caption(DIFFICULTY_EASY_LABEL)
-        with col_hard: st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.8rem;'>{DIFFICULTY_HARD_LABEL}</div>", unsafe_allow_html=True)
+        difficulty_pref = compact_slider(DIFFICULTY_PREF_LABEL, "difficulty_pref", DIFFICULTY_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DIFFICULTY_EASY_LABEL, DIFFICULTY_HARD_LABEL)
+        logger.debug(f"Slider difficulty_pref: {difficulty_pref:.3f}")
 
         st.divider()
         remove_vr = st.checkbox(REMOVE_VR_LABEL, help=REMOVE_VR_HELP, key="remove_vr")

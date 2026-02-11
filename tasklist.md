@@ -7,13 +7,13 @@
 
 ### Recently Completed
 
-- [x] Create a tool to mimic the random button without going to the website (`tools/generate_random_recommendation.py`).
+- Optimized sidebar vertical space by refactoring sliders into a compact layout with labels on the left and removing redundant bound labels for semantic/tag match sliders.
 
 ### Top Priority
 
 ### Lesser Priority
 
-- [ ] The left pane of the page is too long vertically. Place the slider labels to the left of the sliders rather than below them.
+
 - [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)
 - [ ] Create a banner at the top of the page.
         - [ ] Give the name of the website.
