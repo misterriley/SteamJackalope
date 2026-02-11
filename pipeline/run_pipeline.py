@@ -13,7 +13,8 @@ from common.constants import (
     W_STRUCTURAL_FILE,
     MEAN_DESC_FILE,
     MEAN_STRUCTURAL_FILE,
-    W_TAG_FILE
+    W_TAG_FILE,
+    DIFFICULTY_PREDICTIONS_FILE
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -122,7 +123,7 @@ def main():
     ])
 
     # 1.5 Generate Difficulty Model
-    difficulty_preds_path = config.get("difficulty_preds_file", "data/difficulty_predictions.csv")
+    difficulty_preds_path = config.get("difficulty_preds_file", DIFFICULTY_PREDICTIONS_FILE)
     gamefaqs_dir = config.get("gamefaqs_dir", "data/GameFAQs")
     run_script(os.path.join(SCRIPT_DIR, "generate_difficulty_model.py"), ["--games", args.games, "--gamefaqs", gamefaqs_dir, "--output", difficulty_preds_path])
 

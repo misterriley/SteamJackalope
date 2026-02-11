@@ -1,0 +1,1246 @@
+{
+  "tags": [
+    {
+      "seed_name": "Counter-Strike 2",
+      "seed_appid": 730,
+      "similar": [
+        {
+          "name": "Counter-Strike: Source",
+          "appid": 240,
+          "similarity": 0.7490390757978407
+        },
+        {
+          "name": "Lightphobe",
+          "appid": 1218470,
+          "similarity": 0.6703311913590911
+        },
+        {
+          "name": "Tom Clancy's Rainbow Six\u00ae Siege X",
+          "appid": 359550,
+          "similarity": 0.6557607715735797
+        },
+        {
+          "name": "Counter-Strike",
+          "appid": 10,
+          "similarity": 0.6460388781291001
+        },
+        {
+          "name": "Counter-Strike: Condition Zero",
+          "appid": 80,
+          "similarity": 0.6415233685947218
+        }
+      ]
+    },
+    {
+      "seed_name": "Terraria",
+      "seed_appid": 105600,
+      "similar": [
+        {
+          "name": "Signs of Life",
+          "appid": 263200,
+          "similarity": 0.9502774533452913
+        },
+        {
+          "name": "Edge of Space",
+          "appid": 238240,
+          "similarity": 0.9406922388699267
+        },
+        {
+          "name": "Dig or Die",
+          "appid": 315460,
+          "similarity": 0.9387050095983438
+        },
+        {
+          "name": "Starbound",
+          "appid": 211820,
+          "similarity": 0.9382871567189607
+        },
+        {
+          "name": "Planet Explorers",
+          "appid": 237870,
+          "similarity": 0.9320212885751408
+        }
+      ]
+    },
+    {
+      "seed_name": "Team Fortress 2",
+      "seed_appid": 440,
+      "similar": [
+        {
+          "name": "Paladins\u00ae",
+          "appid": 444090,
+          "similarity": 0.9528970502090717
+        },
+        {
+          "name": "Dirty Bomb\u00ae",
+          "appid": 333930,
+          "similarity": 0.9521887615660566
+        },
+        {
+          "name": "HIVE: Altenum Wars",
+          "appid": 468330,
+          "similarity": 0.9288981162324684
+        },
+        {
+          "name": "Outburst",
+          "appid": 669710,
+          "similarity": 0.8306134513269033
+        },
+        {
+          "name": "Virus Protocol",
+          "appid": 2072480,
+          "similarity": 0.7824248033878116
+        }
+      ]
+    },
+    {
+      "seed_name": "Black Myth: Wukong",
+      "seed_appid": 2358720,
+      "similar": [
+        {
+          "name": "\u5c0f\u5c0f\u65e0\u5e38 Little Wu Chang",
+          "appid": 1935400,
+          "similarity": 0.7269075749993825
+        },
+        {
+          "name": "The Mooseman",
+          "appid": 574310,
+          "similarity": 0.7233582539576552
+        },
+        {
+          "name": "\u4f0f\u5996\u7ed8\u5377",
+          "appid": 1920820,
+          "similarity": 0.7233081917514504
+        },
+        {
+          "name": "Epiphany!",
+          "appid": 790840,
+          "similarity": 0.6929426325140537
+        },
+        {
+          "name": "\u535c\u5366 / Divination",
+          "appid": 3408480,
+          "similarity": 0.6766779373575474
+        }
+      ]
+    },
+    {
+      "seed_name": "Euro Truck Simulator 2",
+      "seed_appid": 227300,
+      "similar": [
+        {
+          "name": "American Truck Simulator",
+          "appid": 270880,
+          "similarity": 0.8432874366509177
+        },
+        {
+          "name": "Heavy Cargo - The Truck Simulator",
+          "appid": 1474930,
+          "similarity": 0.8301944856788913
+        },
+        {
+          "name": "Truck & Logistics Simulator",
+          "appid": 873840,
+          "similarity": 0.7291382904249591
+        },
+        {
+          "name": "Diesel Railcar Simulator",
+          "appid": 750170,
+          "similarity": 0.7228430622326965
+        },
+        {
+          "name": "Taxi Life: A City Driving Simulator",
+          "appid": 1351240,
+          "similarity": 0.7162333998652876
+        }
+      ]
+    },
+    {
+      "seed_name": "Cyberpunk 2077",
+      "seed_appid": 1091500,
+      "similar": [
+        {
+          "name": "Cloudpunk",
+          "appid": 746850,
+          "similarity": 0.6731182368313893
+        },
+        {
+          "name": "Robabekya",
+          "appid": 3117620,
+          "similarity": 0.6696142961953426
+        },
+        {
+          "name": "Dex",
+          "appid": 269650,
+          "similarity": 0.652058872236917
+        },
+        {
+          "name": "Cyberpoly",
+          "appid": 1987330,
+          "similarity": 0.5544471253783684
+        },
+        {
+          "name": "E.Y.E: Divine Cybermancy",
+          "appid": 91700,
+          "similarity": 0.5434491754432558
+        }
+      ]
+    },
+    {
+      "seed_name": "Baldur's Gate 3",
+      "seed_appid": 1086940,
+      "similar": [
+        {
+          "name": "Tales of Fablecraft",
+          "appid": 2176900,
+          "similarity": 0.9324755879397597
+        },
+        {
+          "name": "Solasta: Crown of the Magister",
+          "appid": 1096530,
+          "similarity": 0.9253182271885753
+        },
+        {
+          "name": "The Iron Oath",
+          "appid": 699330,
+          "similarity": 0.8759469184903426
+        },
+        {
+          "name": "Lawless Lands",
+          "appid": 880130,
+          "similarity": 0.8703842517953337
+        },
+        {
+          "name": "Low Magic Age",
+          "appid": 576770,
+          "similarity": 0.8649448551389365
+        }
+      ]
+    },
+    {
+      "seed_name": "Among Us",
+      "seed_appid": 945360,
+      "similar": [
+        {
+          "name": "Imposters: Countdown",
+          "appid": 1445370,
+          "similarity": 0.9659770461759035
+        },
+        {
+          "name": "Bunny Game",
+          "appid": 2180890,
+          "similarity": 0.9425253137254926
+        },
+        {
+          "name": "Among Us 3D: VR",
+          "appid": 1849900,
+          "similarity": 0.9345521564937928
+        },
+        {
+          "name": "Deep Dark Space",
+          "appid": 2541520,
+          "similarity": 0.9241404749408603
+        },
+        {
+          "name": "Suspect Enemy",
+          "appid": 1671330,
+          "similarity": 0.9240089991129364
+        }
+      ]
+    },
+    {
+      "seed_name": "Portal 2",
+      "seed_appid": 620,
+      "similar": [
+        {
+          "name": "ChromaGun",
+          "appid": 408650,
+          "similarity": 0.7721435275875401
+        },
+        {
+          "name": "Suicide Guy VR",
+          "appid": 1316760,
+          "similarity": 0.7387952090734607
+        },
+        {
+          "name": "DEPLOYMENT",
+          "appid": 755980,
+          "similarity": 0.707197861988584
+        },
+        {
+          "name": "Beam",
+          "appid": 1067430,
+          "similarity": 0.6778922023172004
+        },
+        {
+          "name": "Suicide Guy",
+          "appid": 303610,
+          "similarity": 0.6243558100189869
+        }
+      ]
+    },
+    {
+      "seed_name": "Borderlands 2",
+      "seed_appid": 49520,
+      "similar": [
+        {
+          "name": "Borderlands: The Pre-Sequel",
+          "appid": 261640,
+          "similarity": 0.8723108523058731
+        },
+        {
+          "name": "OUTRIDERS",
+          "appid": 680420,
+          "similarity": 0.7334294354438431
+        },
+        {
+          "name": "Reincarnation in Another World",
+          "appid": 3554750,
+          "similarity": 0.7131260239265295
+        },
+        {
+          "name": "Borderlands 3",
+          "appid": 397540,
+          "similarity": 0.6972369955764497
+        },
+        {
+          "name": "Space Killer",
+          "appid": 2653860,
+          "similarity": 0.6802108500000198
+        }
+      ]
+    },
+    {
+      "seed_name": "Undertale",
+      "seed_appid": 391540,
+      "similar": [
+        {
+          "name": "OneShot",
+          "appid": 420530,
+          "similarity": 0.7480628813958657
+        },
+        {
+          "name": "Welcome to Bummertown",
+          "appid": 925520,
+          "similarity": 0.6682270323622683
+        },
+        {
+          "name": "The Hex",
+          "appid": 510420,
+          "similarity": 0.6590698982892818
+        },
+        {
+          "name": "Everlasting Summer",
+          "appid": 331470,
+          "similarity": 0.6138754620027198
+        },
+        {
+          "name": "OMORI",
+          "appid": 1150690,
+          "similarity": 0.5656279057253796
+        }
+      ]
+    },
+    {
+      "seed_name": "Tomb Raider Game of the Year",
+      "seed_appid": 203160,
+      "similar": [
+        {
+          "name": "Chip's Challenge 1",
+          "appid": 346850,
+          "similarity": 0.8407479649941971
+        },
+        {
+          "name": "Kao the Kangaroo",
+          "appid": 1370140,
+          "similarity": 0.8365264148533429
+        },
+        {
+          "name": "Rise of the Triad",
+          "appid": 217140,
+          "similarity": 0.8297633366799717
+        },
+        {
+          "name": "Cube Blast Match",
+          "appid": 452870,
+          "similarity": 0.829465550159398
+        },
+        {
+          "name": "Thief",
+          "appid": 239160,
+          "similarity": 0.8280586499950928
+        }
+      ]
+    },
+    {
+      "seed_name": "Monster Hunter Wilds",
+      "seed_appid": 2246340,
+      "similar": [
+        {
+          "name": "MONSTER HUNTER RISE",
+          "appid": 1446780,
+          "similarity": 0.7708720279375938
+        },
+        {
+          "name": "theHunter Classic",
+          "appid": 253710,
+          "similarity": 0.7675345737700564
+        },
+        {
+          "name": "Toukiden 2",
+          "appid": 551730,
+          "similarity": 0.7154780719026139
+        },
+        {
+          "name": "Toukiden: Kiwami",
+          "appid": 363130,
+          "similarity": 0.7129082806725956
+        },
+        {
+          "name": "Hunting Unlimited\u2122 2008",
+          "appid": 12530,
+          "similarity": 0.7081667041012036
+        }
+      ]
+    },
+    {
+      "seed_name": "Warhammer 40,000: Space Marine 2",
+      "seed_appid": 2183900,
+      "similar": [
+        {
+          "name": "Warhammer 40,000: Space Marine - Anniversary Edition",
+          "appid": 55150,
+          "similarity": 0.9639306420065298
+        },
+        {
+          "name": "Warhammer 40,000: Dawn of War II - Anniversary Edition",
+          "appid": 15620,
+          "similarity": 0.9629623892830801
+        },
+        {
+          "name": "Space Hulk: Deathwing Enhanced Edition",
+          "appid": 816090,
+          "similarity": 0.9599164204794303
+        },
+        {
+          "name": "Warhammer 40,000: Chaos Gate - Daemonhunters",
+          "appid": 1611910,
+          "similarity": 0.9474005827289987
+        },
+        {
+          "name": "Space Hulk: Tactics",
+          "appid": 492230,
+          "similarity": 0.9460057648834493
+        }
+      ]
+    },
+    {
+      "seed_name": "FOR HONOR\u2122",
+      "seed_appid": 304390,
+      "similar": [
+        {
+          "name": "Chivalry: Medieval Warfare",
+          "appid": 219640,
+          "similarity": 0.8504939292648341
+        },
+        {
+          "name": "MORDHAU",
+          "appid": 629760,
+          "similarity": 0.6781454037415662
+        },
+        {
+          "name": "Chivalry 2",
+          "appid": 1824220,
+          "similarity": 0.6397356179420877
+        },
+        {
+          "name": "LEGIE",
+          "appid": 426050,
+          "similarity": 0.6362344777311676
+        },
+        {
+          "name": "Crusaders: Thy Kingdom Come",
+          "appid": 24410,
+          "similarity": 0.634452839287953
+        }
+      ]
+    },
+    {
+      "seed_name": "Inscryption",
+      "seed_appid": 1092790,
+      "similar": [
+        {
+          "name": "Card Detective",
+          "appid": 2308670,
+          "similarity": 0.6298195937724549
+        },
+        {
+          "name": "Griftlands",
+          "appid": 601840,
+          "similarity": 0.5922375243552972
+        },
+        {
+          "name": "Demon's Mirror",
+          "appid": 1600910,
+          "similarity": 0.5804910824823136
+        },
+        {
+          "name": "Out Of Hands",
+          "appid": 1839810,
+          "similarity": 0.5705542698883147
+        },
+        {
+          "name": "Kamifuda",
+          "appid": 1937720,
+          "similarity": 0.5687740496896755
+        }
+      ]
+    },
+    {
+      "seed_name": "Oxygen Not Included",
+      "seed_appid": 457140,
+      "similar": [
+        {
+          "name": "Founders' Fortune",
+          "appid": 1104330,
+          "similarity": 0.8556098384055701
+        },
+        {
+          "name": "Colony Survival",
+          "appid": 366090,
+          "similarity": 0.8380525656936758
+        },
+        {
+          "name": "Planetbase",
+          "appid": 403190,
+          "similarity": 0.8237895087865077
+        },
+        {
+          "name": "TFM: The First Men",
+          "appid": 700820,
+          "similarity": 0.8220519857276146
+        },
+        {
+          "name": "Space Haven",
+          "appid": 979110,
+          "similarity": 0.7975151421307967
+        }
+      ]
+    },
+    {
+      "seed_name": "Total War: WARHAMMER II",
+      "seed_appid": 594570,
+      "similar": [
+        {
+          "name": "Total War: WARHAMMER",
+          "appid": 364360,
+          "similarity": 0.9859543517900841
+        },
+        {
+          "name": "Mordheim: City of the Damned",
+          "appid": 276810,
+          "similarity": 0.9072061892868016
+        },
+        {
+          "name": "Total War: WARHAMMER III",
+          "appid": 1142710,
+          "similarity": 0.9000408848416978
+        },
+        {
+          "name": "Warhammer Age of Sigmar: Storm Ground",
+          "appid": 1233590,
+          "similarity": 0.8995158305043286
+        },
+        {
+          "name": "Blood Bowl: Chaos Edition",
+          "appid": 216890,
+          "similarity": 0.8989578219562501
+        }
+      ]
+    },
+    {
+      "seed_name": "Metro 2033 Redux",
+      "seed_appid": 286690,
+      "similar": [
+        {
+          "name": "Metro: Last Light Redux",
+          "appid": 287390,
+          "similarity": 0.9824336804651314
+        },
+        {
+          "name": "ALEPH",
+          "appid": 2665180,
+          "similarity": 0.8280970561253274
+        },
+        {
+          "name": "The 39 Steps",
+          "appid": 234940,
+          "similarity": 0.7789470850431168
+        },
+        {
+          "name": "I Have No Mouth, and I Must Scream",
+          "appid": 245390,
+          "similarity": 0.7780871355071964
+        },
+        {
+          "name": "Beast Quest",
+          "appid": 707060,
+          "similarity": 0.7770472173459968
+        }
+      ]
+    },
+    {
+      "seed_name": "Poppy Playtime",
+      "seed_appid": 1721470,
+      "similar": [
+        {
+          "name": "Garten of Banban",
+          "appid": 2232840,
+          "similarity": 0.6722372483300746
+        },
+        {
+          "name": "Babba Yagga: Woodboy",
+          "appid": 1835310,
+          "similarity": 0.6659526258789343
+        },
+        {
+          "name": "Garten of Banban 7",
+          "appid": 2693060,
+          "similarity": 0.6642704629023912
+        },
+        {
+          "name": "Garten of Banban 4",
+          "appid": 2383120,
+          "similarity": 0.6609560065496157
+        },
+        {
+          "name": "MUZY",
+          "appid": 2742150,
+          "similarity": 0.6597101329563145
+        }
+      ]
+    }
+  ],
+  "semantic": [
+    {
+      "seed_name": "Counter-Strike 2",
+      "seed_appid": 730,
+      "similar": [
+        {
+          "name": "Tom Clancy's Rainbow Six\u00ae Siege X",
+          "appid": 359550,
+          "similarity": 0.6535755395889282
+        },
+        {
+          "name": "Lightphobe",
+          "appid": 1218470,
+          "similarity": 0.5920947790145874
+        },
+        {
+          "name": "Counter-Strike: Source",
+          "appid": 240,
+          "similarity": 0.5146852731704712
+        },
+        {
+          "name": "Splitgate",
+          "appid": 677620,
+          "similarity": 0.50745689868927
+        },
+        {
+          "name": "ShootMania Storm",
+          "appid": 229870,
+          "similarity": 0.46922630071640015
+        }
+      ]
+    },
+    {
+      "seed_name": "Terraria",
+      "seed_appid": 105600,
+      "similar": [
+        {
+          "name": "Starbound",
+          "appid": 211820,
+          "similarity": 0.756429135799408
+        },
+        {
+          "name": "Tinkerlands",
+          "appid": 2617700,
+          "similarity": 0.7153668403625488
+        },
+        {
+          "name": "Necesse",
+          "appid": 1169040,
+          "similarity": 0.7151919007301331
+        },
+        {
+          "name": "2D?!",
+          "appid": 2825780,
+          "similarity": 0.7030985951423645
+        },
+        {
+          "name": "Edge of Space",
+          "appid": 238240,
+          "similarity": 0.6998518705368042
+        }
+      ]
+    },
+    {
+      "seed_name": "Team Fortress 2",
+      "seed_appid": 440,
+      "similar": [
+        {
+          "name": "Dirty Bomb\u00ae",
+          "appid": 333930,
+          "similarity": 0.5862499475479126
+        },
+        {
+          "name": "Paladins\u00ae",
+          "appid": 444090,
+          "similarity": 0.5129408836364746
+        },
+        {
+          "name": "Aphelion Headhunters",
+          "appid": 2372440,
+          "similarity": 0.49089986085891724
+        },
+        {
+          "name": "Marvel Rivals",
+          "appid": 2767030,
+          "similarity": 0.4795095920562744
+        },
+        {
+          "name": "Tom Clancy's Rainbow Six\u00ae Siege X",
+          "appid": 359550,
+          "similarity": 0.47136741876602173
+        }
+      ]
+    },
+    {
+      "seed_name": "Black Myth: Wukong",
+      "seed_appid": 2358720,
+      "similar": [
+        {
+          "name": "God of War Ragnar\u00f6k",
+          "appid": 2322010,
+          "similarity": 0.5525060296058655
+        },
+        {
+          "name": "The First Berserker: Khazan",
+          "appid": 2680010,
+          "similarity": 0.5009995102882385
+        },
+        {
+          "name": "Pascal's Wager: Definitive Edition",
+          "appid": 1456650,
+          "similarity": 0.4942823052406311
+        },
+        {
+          "name": "Sheba: A New Dawn",
+          "appid": 1682820,
+          "similarity": 0.47983986139297485
+        },
+        {
+          "name": "Mortal Shell",
+          "appid": 1110910,
+          "similarity": 0.4680907130241394
+        }
+      ]
+    },
+    {
+      "seed_name": "Euro Truck Simulator 2",
+      "seed_appid": 227300,
+      "similar": [
+        {
+          "name": "Heavy Cargo - The Truck Simulator",
+          "appid": 1474930,
+          "similarity": 0.6653393507003784
+        },
+        {
+          "name": "American Truck Simulator",
+          "appid": 270880,
+          "similarity": 0.6416676044464111
+        },
+        {
+          "name": "Bus Driver",
+          "appid": 302080,
+          "similarity": 0.578693687915802
+        },
+        {
+          "name": "Game Store Simulator",
+          "appid": 2598930,
+          "similarity": 0.5663301348686218
+        },
+        {
+          "name": "Euro Truck Simulator",
+          "appid": 232010,
+          "similarity": 0.5126126408576965
+        }
+      ]
+    },
+    {
+      "seed_name": "Cyberpunk 2077",
+      "seed_appid": 1091500,
+      "similar": [
+        {
+          "name": "Robabekya",
+          "appid": 3117620,
+          "similarity": 0.5760771632194519
+        },
+        {
+          "name": "Deus Ex: The Fall",
+          "appid": 258180,
+          "similarity": 0.5295834541320801
+        },
+        {
+          "name": "Deus Ex: Game of the Year Edition",
+          "appid": 6910,
+          "similarity": 0.5180492997169495
+        },
+        {
+          "name": "E.Y.E: Divine Cybermancy",
+          "appid": 91700,
+          "similarity": 0.4918540120124817
+        },
+        {
+          "name": "Deus Ex: Mankind Divided",
+          "appid": 337000,
+          "similarity": 0.4767472445964813
+        }
+      ]
+    },
+    {
+      "seed_name": "Baldur's Gate 3",
+      "seed_appid": 1086940,
+      "similar": [
+        {
+          "name": "Solasta: Crown of the Magister",
+          "appid": 1096530,
+          "similarity": 0.732689619064331
+        },
+        {
+          "name": "Lawless Lands",
+          "appid": 880130,
+          "similarity": 0.5129684209823608
+        },
+        {
+          "name": "Neverwinter Nights: Enhanced Edition",
+          "appid": 704450,
+          "similarity": 0.4953119456768036
+        },
+        {
+          "name": "Baldur's Gate II: Enhanced Edition",
+          "appid": 257350,
+          "similarity": 0.47567227482795715
+        },
+        {
+          "name": "Tales of Fablecraft",
+          "appid": 2176900,
+          "similarity": 0.46943414211273193
+        }
+      ]
+    },
+    {
+      "seed_name": "Among Us",
+      "seed_appid": 945360,
+      "similar": [
+        {
+          "name": "Imposters: Countdown",
+          "appid": 1445370,
+          "similarity": 0.8540197610855103
+        },
+        {
+          "name": "Among Us 3D: VR",
+          "appid": 1849900,
+          "similarity": 0.6623634099960327
+        },
+        {
+          "name": "Suspect Enemy",
+          "appid": 1671330,
+          "similarity": 0.6091858148574829
+        },
+        {
+          "name": "Where is Paradise ?",
+          "appid": 1746620,
+          "similarity": 0.5444309711456299
+        },
+        {
+          "name": "Among Us 3D",
+          "appid": 3168600,
+          "similarity": 0.5373035073280334
+        }
+      ]
+    },
+    {
+      "seed_name": "Portal 2",
+      "seed_appid": 620,
+      "similar": [
+        {
+          "name": "Suicide Guy VR",
+          "appid": 1316760,
+          "similarity": 0.6885513663291931
+        },
+        {
+          "name": "Suicide Guy",
+          "appid": 303610,
+          "similarity": 0.5589509010314941
+        },
+        {
+          "name": "ThinkExplosive",
+          "appid": 2540550,
+          "similarity": 0.5377585887908936
+        },
+        {
+          "name": "Portal",
+          "appid": 400,
+          "similarity": 0.5367656946182251
+        },
+        {
+          "name": "ChromaGun",
+          "appid": 408650,
+          "similarity": 0.5284314155578613
+        }
+      ]
+    },
+    {
+      "seed_name": "Borderlands 2",
+      "seed_appid": 49520,
+      "similar": [
+        {
+          "name": "Borderlands: The Pre-Sequel",
+          "appid": 261640,
+          "similarity": 0.7668534517288208
+        },
+        {
+          "name": "Borderlands Game of the Year Enhanced",
+          "appid": 729040,
+          "similarity": 0.6871079802513123
+        },
+        {
+          "name": "Tiny Tina's Wonderlands",
+          "appid": 1286680,
+          "similarity": 0.5235134959220886
+        },
+        {
+          "name": "EVERSPACE\u2122 2",
+          "appid": 1128920,
+          "similarity": 0.5197142958641052
+        },
+        {
+          "name": "Tiny Tina's Assault on Dragon Keep: A Wonderlands One-shot Adventure",
+          "appid": 1712840,
+          "similarity": 0.5164539813995361
+        }
+      ]
+    },
+    {
+      "seed_name": "Undertale",
+      "seed_appid": 391540,
+      "similar": [
+        {
+          "name": "Unlucky Seven",
+          "appid": 579120,
+          "similarity": 0.6028331518173218
+        },
+        {
+          "name": "Faith of Fate",
+          "appid": 1095750,
+          "similarity": 0.5572572350502014
+        },
+        {
+          "name": "Welcome to Bummertown",
+          "appid": 925520,
+          "similarity": 0.5310931205749512
+        },
+        {
+          "name": "The Hex",
+          "appid": 510420,
+          "similarity": 0.45056402683258057
+        },
+        {
+          "name": "Purrfect Date - Visual Novel/Dating Simulator",
+          "appid": 520600,
+          "similarity": 0.40752750635147095
+        }
+      ]
+    },
+    {
+      "seed_name": "Tomb Raider Game of the Year",
+      "seed_appid": 203160,
+      "similar": [
+        {
+          "name": "Rise of the Tomb Raider\u2122",
+          "appid": 391220,
+          "similarity": 0.5997345447540283
+        },
+        {
+          "name": "Bionic Commando",
+          "appid": 21670,
+          "similarity": 0.561481237411499
+        },
+        {
+          "name": "Tomb Raider: Underworld",
+          "appid": 8140,
+          "similarity": 0.55376797914505
+        },
+        {
+          "name": "Unearthed: Trail of Ibn Battuta - Episode 1 - Gold Edition",
+          "appid": 263680,
+          "similarity": 0.5191298723220825
+        },
+        {
+          "name": "Tomb Raider: Anniversary",
+          "appid": 8000,
+          "similarity": 0.5116665363311768
+        }
+      ]
+    },
+    {
+      "seed_name": "Monster Hunter Wilds",
+      "seed_appid": 2246340,
+      "similar": [
+        {
+          "name": "Shining Resonance Refrain",
+          "appid": 809890,
+          "similarity": 0.43033692240715027
+        },
+        {
+          "name": "Dragon Age\u2122 Inquisition",
+          "appid": 1222690,
+          "similarity": 0.420479953289032
+        },
+        {
+          "name": "Furries & Scalies & Bears OH MY! 2: Return to Kale Bay",
+          "appid": 1349170,
+          "similarity": 0.3918468654155731
+        },
+        {
+          "name": "ELDEN RING",
+          "appid": 1245620,
+          "similarity": 0.38159745931625366
+        },
+        {
+          "name": "Aron's Adventure",
+          "appid": 1013910,
+          "similarity": 0.35611990094184875
+        }
+      ]
+    },
+    {
+      "seed_name": "Warhammer 40,000: Space Marine 2",
+      "seed_appid": 2183900,
+      "similar": [
+        {
+          "name": "Warhammer 40,000: Chaos Gate - Daemonhunters",
+          "appid": 1611910,
+          "similarity": 0.8267543315887451
+        },
+        {
+          "name": "Warhammer 40,000: Space Marine - Anniversary Edition",
+          "appid": 55150,
+          "similarity": 0.8264776468276978
+        },
+        {
+          "name": "Warhammer 40,000: Dawn of War II - Anniversary Edition",
+          "appid": 15620,
+          "similarity": 0.7915061712265015
+        },
+        {
+          "name": "Space Hulk: Deathwing Enhanced Edition",
+          "appid": 816090,
+          "similarity": 0.780614972114563
+        },
+        {
+          "name": "Warhammer 40,000: Inquisitor - Martyr",
+          "appid": 527430,
+          "similarity": 0.7653968930244446
+        }
+      ]
+    },
+    {
+      "seed_name": "FOR HONOR\u2122",
+      "seed_appid": 304390,
+      "similar": [
+        {
+          "name": "MORDHAU",
+          "appid": 629760,
+          "similarity": 0.5955036878585815
+        },
+        {
+          "name": "Chivalry: Medieval Warfare",
+          "appid": 219640,
+          "similarity": 0.5168938636779785
+        },
+        {
+          "name": "Boreal Blade",
+          "appid": 598780,
+          "similarity": 0.48454099893569946
+        },
+        {
+          "name": "Predecessor",
+          "appid": 961200,
+          "similarity": 0.4449295401573181
+        },
+        {
+          "name": "Kingshunt",
+          "appid": 922620,
+          "similarity": 0.43875735998153687
+        }
+      ]
+    },
+    {
+      "seed_name": "Inscryption",
+      "seed_appid": 1092790,
+      "similar": [
+        {
+          "name": "Stray Path",
+          "appid": 2531940,
+          "similarity": 0.44687318801879883
+        },
+        {
+          "name": "MY DIRECT DAMAG 7 TRILLION",
+          "appid": 3073470,
+          "similarity": 0.4218732416629791
+        },
+        {
+          "name": "Mission Critical",
+          "appid": 1006460,
+          "similarity": 0.4133632779121399
+        },
+        {
+          "name": "Deckline",
+          "appid": 3481320,
+          "similarity": 0.41260844469070435
+        },
+        {
+          "name": "THE AWKWARD STEVE DUOLOGY",
+          "appid": 536770,
+          "similarity": 0.40438538789749146
+        }
+      ]
+    },
+    {
+      "seed_name": "Oxygen Not Included",
+      "seed_appid": 457140,
+      "similar": [
+        {
+          "name": "Planetbase",
+          "appid": 403190,
+          "similarity": 0.7456648349761963
+        },
+        {
+          "name": "The Spatials",
+          "appid": 346420,
+          "similarity": 0.6765114665031433
+        },
+        {
+          "name": "The Final Earth 2",
+          "appid": 1180130,
+          "similarity": 0.6631604433059692
+        },
+        {
+          "name": "Avian Colony",
+          "appid": 3018320,
+          "similarity": 0.6513042449951172
+        },
+        {
+          "name": "Ratopia",
+          "appid": 2244130,
+          "similarity": 0.6430939435958862
+        }
+      ]
+    },
+    {
+      "seed_name": "Total War: WARHAMMER II",
+      "seed_appid": 594570,
+      "similar": [
+        {
+          "name": "Total War: WARHAMMER",
+          "appid": 364360,
+          "similarity": 0.7062080502510071
+        },
+        {
+          "name": "Total War: THREE KINGDOMS",
+          "appid": 779340,
+          "similarity": 0.49848613142967224
+        },
+        {
+          "name": "Warhammer: End Times - Vermintide",
+          "appid": 235540,
+          "similarity": 0.404102087020874
+        },
+        {
+          "name": "Total War: WARHAMMER III",
+          "appid": 1142710,
+          "similarity": 0.39369457960128784
+        },
+        {
+          "name": "Warhammer: Vermintide 2",
+          "appid": 552500,
+          "similarity": 0.3914939761161804
+        }
+      ]
+    },
+    {
+      "seed_name": "Metro 2033 Redux",
+      "seed_appid": 286690,
+      "similar": [
+        {
+          "name": "Metro: Last Light Redux",
+          "appid": 287390,
+          "similarity": 0.9100449681282043
+        },
+        {
+          "name": "Metro Exodus",
+          "appid": 412020,
+          "similarity": 0.6400136947631836
+        },
+        {
+          "name": "DOOM Eternal",
+          "appid": 782330,
+          "similarity": 0.47520238161087036
+        },
+        {
+          "name": "RAGE",
+          "appid": 9200,
+          "similarity": 0.42568063735961914
+        },
+        {
+          "name": "ALEPH",
+          "appid": 2665180,
+          "similarity": 0.41133761405944824
+        }
+      ]
+    },
+    {
+      "seed_name": "Poppy Playtime",
+      "seed_appid": 1721470,
+      "similar": [
+        {
+          "name": "Babba Yagga: Woodboy",
+          "appid": 1835310,
+          "similarity": 0.7585147619247437
+        },
+        {
+          "name": "Bobos FunZone",
+          "appid": 2703720,
+          "similarity": 0.6266855001449585
+        },
+        {
+          "name": "Leenie Boog",
+          "appid": 1572420,
+          "similarity": 0.5810058116912842
+        },
+        {
+          "name": "revere",
+          "appid": 1956330,
+          "similarity": 0.5651394724845886
+        },
+        {
+          "name": "The Backrooms: Lost Tape",
+          "appid": 1926620,
+          "similarity": 0.47630155086517334
+        }
+      ]
+    }
+  ]
+}

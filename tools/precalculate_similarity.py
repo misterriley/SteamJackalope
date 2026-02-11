@@ -12,7 +12,8 @@ from common.constants import (
     TAG_VECTORS_FILE,
     METADATA_FILE,
     DOT_PRODUCT_LAMBDA,
-    EPSILON
+    EPSILON,
+    SIMILARITY_LISTS_FILE
 )
 
 def precalculate_similarity_lists():
@@ -117,10 +118,9 @@ def precalculate_similarity_lists():
         'semantic': results_semantic
     }
     
-    output_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'similarity_lists.json')
-    with open(output_path, 'w') as f:
+    with open(SIMILARITY_LISTS_FILE, 'w') as f:
         json.dump(output, f, indent=2)
-    print(f"Results saved to {output_path}")
+    print(f"Results saved to {SIMILARITY_LISTS_FILE}")
 
 if __name__ == "__main__":
     precalculate_similarity_lists()

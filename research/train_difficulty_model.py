@@ -3,9 +3,12 @@ import numpy as np
 import ast
 import os
 import re
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from scipy.stats import norm
 from sklearn.linear_model import LinearRegression
 from tqdm import tqdm
+from common.constants import DIFFICULTY_PREDICTIONS_FILE
 
 def rank_int(y):
     """Rank-Based Inverse Normal Transformation."""
@@ -200,8 +203,8 @@ def main():
     # Final clamped prediction
     output_df['difficulty_predicted_clamped'] = np.clip(preds, 1.0, 5.0)
     
-    output_df.to_csv('data/difficulty_predictions.csv', index=False)
-    print(f"Detailed predictions saved to data/difficulty_predictions.csv")
+    output_df.to_csv(DIFFICULTY_PREDICTIONS_FILE, index=False)
+    print(f"Detailed predictions saved to {DIFFICULTY_PREDICTIONS_FILE}")
 
 if __name__ == "__main__":
     main()

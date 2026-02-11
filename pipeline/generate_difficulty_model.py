@@ -9,6 +9,9 @@ from sklearn.linear_model import LinearRegression
 from tqdm import tqdm
 from bs4 import BeautifulSoup
 import argparse
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from common.constants import DIFFICULTY_PREDICTIONS_FILE
 
 # Roman to Arabic numeral mapping
 ROMAN_MAP = {
@@ -115,7 +118,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--games", default="data/pipeline_games_clean.csv")
     parser.add_argument("--gamefaqs", default="data/GameFAQs")
-    parser.add_argument("--output", default="data/difficulty_predictions.csv")
+    parser.add_argument("--output", default=DIFFICULTY_PREDICTIONS_FILE)
     args = parser.parse_args()
 
     print("Step 1: Parsing Data...")

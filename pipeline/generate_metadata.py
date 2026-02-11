@@ -8,7 +8,7 @@ from tqdm import tqdm
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from common.constants import PLAYTIME_REGULARIZATION_C
+from common.constants import PLAYTIME_REGULARIZATION_C, DIFFICULTY_PREDICTIONS_FILE
 from common.utils import to_z
 
 def clean_release_date(date_str):
@@ -229,7 +229,7 @@ def generate_metadata(games_path, reviews_path=None, output_path="metadata.parqu
     df['pop_z'] = to_z(log_rev)
 
     # --- Process Difficulty ---
-    difficulty_preds_path = "data/difficulty_predictions.csv"
+    difficulty_preds_path = DIFFICULTY_PREDICTIONS_FILE
     if os.path.exists(difficulty_preds_path):
         print("Integrating difficulty predictions...")
         try:
