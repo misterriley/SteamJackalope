@@ -9,6 +9,19 @@ This project is a Steam game recommendation engine that combines semantic search
 
 ## Repository Overview
 
+For detailed documentation of each directory, see the individual README files:
+- `app/README.md` - Backend and frontend application code
+- `common/README.md` - Shared utilities and constants
+- `pipeline/README.md` - Data processing and artifact generation
+- `scraping/README.md` - Steam data collection scripts
+- `research/README.md` - Experimental and analytical scripts
+- `tests/README.md` - Automated test suite
+- `tools/README.md` - Debugging and maintenance utilities
+- `deployment/README.md` - Deployment configurations
+- `data/README.md` - Intermediate data files
+
+### Key Components
+
 - `app/server.py`: The backend FastAPI server that handles data loading and hybrid score calculations. Start with `python -m uvicorn app.server:app --host 127.0.0.1 --port 8000`.
 - `app/app.py`: The frontend Streamlit UI that communicates with the backend server. Start with `streamlit run app/app.py`.
 - `run_test_env.bat`: A convenience batch file to launch both the server and frontend for local testing.
@@ -19,7 +32,7 @@ This project is a Steam game recommendation engine that combines semantic search
 - `pipeline/calculate_regularization.py`: Script to derive data-driven regularization constants.
 - `common/utils.py`: Shared utility functions (z-scoring, hybrid score calculation).
 - `methodology.md`: Detailed explanation of the statistical and machine learning techniques used. Note: `app.py` renders this by splitting at `![` to inject `st.image` calls, so image placement should follow this pattern. Note that this file is intended for human viewers of the website, so it should not be a place where notes about debugging or information related to internal workings of the app of statistical pipeline should go. Those types of notes should be put into `orientation.md`. 
-- `data/`: Contains processed data files, including tag vectors and quality scores.
+- `data/`: Contains intermediate data files (see `data/README.md`). Production artifacts (embeddings, tag vectors, metadata, quality scores) are stored in the root directory.
 - `scraping/scrape_from_start.bat`: Convenience script to start scraping from the beginning (archives existing data).
 - `scraping/scrape_from_last_checkpoint.bat`: Convenience script to resume scraping from the last checkpoint.
 - `research/`: Contains experimental scripts and data analysis notebooks.

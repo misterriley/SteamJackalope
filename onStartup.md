@@ -1,41 +1,14 @@
 
-## Instructions for New Workers
+# Instructions for New Workers
 
-When you start working on this repository, please follow these steps:
+## Workflow
+
+When starting work on this repository, please follow these steps:
 
 0.  **Pull from Github**
 1.  **Get oriented:** Read `orientation.md` for general information. Read `methodology.md` to understand the statistical backbone of the process. Do that now before completing any other steps. You have permission to proceed with this task. 
-2.  **Set up Environment Variables:**
-    
-    **Option A: Using a .env file (Recommended for development)**
-    
-    a. Copy `.env.example` to `.env` in the repository root:
-       ```bash
-       copy .env.example .env
-       ```
-    
-    b. Open `.env` in a text editor and replace `your_steam_web_api_key_here` with your actual Steam API key.
-    
-    c. The Python code will automatically load the `.env` file if you use `python-dotenv` (install with `pip install python-dotenv`). If not using `python-dotenv`, you'll need to set the environment variable manually before running Python scripts (see Option B).
-    
-    **Option B: Setting Environment Variable in Windows**
-    
-    **For the current terminal session only:**
-    ```cmd
-    set STEAM_API_KEY=your_actual_api_key_here
-    ```
-    
-    **To set it permanently (user-level):**
-    ```cmd
-    setx STEAM_API_KEY "your_actual_api_key_here"
-    ```
-    Note: You'll need to restart your terminal/IDE after using `setx`.
-    
-    **In VS Code:** You can also add environment variables to the `.env` file and VS Code will load them automatically for the integrated terminal. Use the `Python: Terminal Activate Environment` command to reload.
-    
-    **For deployment (Render/Cloud):** Set the `STEAM_API_KEY` in the service's environment variables configuration panel.
-3.  **Check for Tasks:** Read `tasklist.md`. If there are available tasks, pick one that matches your capabilities. If it needs to be broken into discrete steps for proper execution, then write the steps for that task into `tasklist.md` and finish. If it can be executed in total, then execute it, and then remove it from `tasklist.md` (or mark it as complete if preferred, but the current instruction is to remove it).
-4.  **Check for Ideas:** If there are no specific tasks to complete, read `ideas.md`. Pick one item from the list, make a plan for how to complete it, and break it down into actionable tasks. Put the tasks in `tasklist.md` along with any information needed to complete the tasks successfully. 
+2.  **Check for Tasks:** Read `tasklist.md`. If there are available tasks, pick one that matches your capabilities. If it needs to be broken into discrete steps for proper execution, then write the steps for that task into `tasklist.md` and finish. If it can be executed in total, then execute it, and then remove it from `tasklist.md` (or mark it as complete if preferred, but the current instruction is to remove it).
+3.  **Check for Ideas:** If there are no specific tasks to complete, read `ideas.md`. Pick one item from the list, make a plan for how to complete it, and break it down into actionable tasks. Put the tasks in `tasklist.md` along with any information needed to complete the tasks successfully. 
 4.  **Propose New Tasks:** If you identify ways to improve the project's code quality, performance, or organization, add them as new tasks to `tasklist.md`.    
 5.  **Update Files:** If you discover new information about the project's structure, dependencies, or undocumented features that would be helpful for future contributors, add that information to `onStartup.md`, `orientation.md`, `methodology.md`, `ideas.md`, or `onShutdown.md` as appropriate.
 6.  **Troubleshooting:** 

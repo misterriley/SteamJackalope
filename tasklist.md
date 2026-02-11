@@ -10,10 +10,10 @@
 - [x] Remove the API key for steam scarping into a private file that doesn't get added to github.
 - [x] Add a copyright notice and a github link (https://github.com/misterriley/SteamJackalope) to the bottom of each page.
 - [x] Fix startup race condition - backend connection errors on first page load
+- [x] Create readme.md files for each directory. The target audience is github users who are looking at the codebase for the first time. Add references to these files to `orientation.md` and `onShutdown.md` so that new agents get information about the structure of each folder and the information about changes gets propagated to those files. 
 
 ### Top Priority
 
-- [ ] Fix the lists page - the discovery preference dropdown doesn't seem to be affecting the results at all. The quality scores shown should be different depending on the dropdown selection.
 
 ### Lesser Priority
 
@@ -23,7 +23,6 @@
         - [ ] Make a folder for the production data files (e.g., tag_vectors_norms.npy, anything else written by scripts in pipeline). Make sure that everything that reads the production files now gets data from the production files directory. Make sure that tests are not allowed to write to this directory.
         - [ ] Keep .md and .bat files in place.
         - [ ] Find appropriate locations for anything else that does not need to be in the top level folder.
-- [ ] Create readme.md files for each directory. 
 - [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)
 - [ ] Create a banner at the top of the page.
         - [ ] Give the name of the website.
