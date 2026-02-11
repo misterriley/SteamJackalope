@@ -39,8 +39,10 @@ from common.constants import (
     
     APP_TITLE,
     APP_HEADER,
+    ABOUT_TAB,
     METHODOLOGY_TAB,
     RECOMMENDER_TAB,
+    ABOUT_ERROR,
     METHODOLOGY_ERROR,
     SIDEBAR_HEADER,
     SEMANTIC_WEIGHT_LABEL,
@@ -211,6 +213,11 @@ def render_game_card(game, show_debug=False, alpha=0.0, beta=0.0, prompt="", sel
                 release_display = RELEASE_DATE_UNKNOWN_TEXT
             st.write(f"{RELEASE_DATE_LABEL} {release_display}")
 
+            # Display short description if available
+            short_desc = game.get('short_description', '')
+            if short_desc and str(short_desc).strip():
+                st.write(f"**Description:** {short_desc}")
+
             if game.get('estimated_playtime'):
                 hours = game['estimated_playtime'] / 60.0
                 st.write(f"{ESTIMATED_LENGTH_LABEL} {hours:.1f} hours")
@@ -357,19 +364,28 @@ def randomize_parameters():
 if "alpha" not in st.session_state:
     reset_all_parameters()
 
-# Methodology Loading
+# Page Content Loading
+try:
+    with open("about.md", "r", encoding="utf-8") as f:
+        about_text = f.read()
+except FileNotFoundError:
+    about_text = ABOUT_ERROR
+
 try:
     with open("methodology.md", "r", encoding="utf-8") as f:
         methodology_text = f.read()
 except FileNotFoundError:
     methodology_text = METHODOLOGY_ERROR
 
-tabs = st.tabs([RECOMMENDER_TAB, "Lists", METHODOLOGY_TAB])
+tabs = st.tabs([RECOMMENDER_TAB, "Lists", ABOUT_TAB, METHODOLOGY_TAB])
 
 with tabs[1]:
     render_lists_page()
 
 with tabs[2]:
+    st.markdown(about_text)
+
+with tabs[3]:
     parts = methodology_text.split("![")
     st.markdown(parts[0]) 
     

@@ -232,8 +232,10 @@ FOOTER_TEXT = "{copyright} | {github_link}"
 
 # Tabs
 RECOMMENDER_TAB = "Recommender"
+ABOUT_TAB = "About"
 METHODOLOGY_TAB = "Methodology"
 METHODOLOGY_ERROR = "Methodology file not found."
+ABOUT_ERROR = "About file not found."
 
 # Text
 APP_IMAGE_TEXT = """

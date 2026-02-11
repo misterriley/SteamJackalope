@@ -7,19 +7,12 @@
 
 ### Recently Completed
 
-- [x] Reorganized production data files into `data/production/` directory
-  - Moved 14 core data files (NumPy arrays, Parquet metadata, JSON/CSV constants)
-  - Updated `common/constants.py` to use new defaults with environment variable overrides for test isolation
-  - Synchronized `pipeline/pipeline_config.json` and all generation scripts with new structure
-  - Updated maintenance tools to resolve paths through centralized constants
-  - Verified: All tests pass (44 passed, 2 skipped)
-  - Verified: Application launches successfully via `run_test_env.bat`
+- [x] Add the short description of the game to the game cards.
+- [x] Split the methodology page into "About" and "Methodology" sections.
 
 ### Top Priority
 
 ### Lesser Priority
-
-- [ ] Split the methodology page. One should be "About", which should contain what is now the first part of the Methodology page, and the rest should stay where it is.
 - [ ] The left pane of the page is too long vertically. Place the slider labels to the left of the sliders rather than below them.
 - [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)
 - [ ] Create a banner at the top of the page.
@@ -38,6 +31,5 @@
         - [ ] Test weighting based on the inverse of the rates of positive and negative reviews to combat unbalanced data.
         - [ ] Generate a global prior (equally weighted per game, not per rating) and run a simulation study.
         - [ ] Find the best combination of prior and game data for predicting outcomes in small sythetic games. 
-- [ ] Add the short description of the game to the game cards.
 - [ ] Display image files linked in the download data on the game cards if it can be done without expanding memory footprint too much.
 - [ ] Generate a changelog and link it as a page on the website. Make updating the changelog one of the tasks on onShutdown.md.

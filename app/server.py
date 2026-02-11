@@ -126,6 +126,7 @@ class DataManager:
 
     def load_data(self):
         logger.info("Starting data load...")
+        import pyarrow.parquet as pq
         
         # 1. Use Memory Mapping for large NumPy arrays
         logger.info(f"Loading embeddings_desc_norm from {EMBEDDINGS_DESC_FILE}")
@@ -147,18 +148,32 @@ class DataManager:
         
         # 3. Load Metadata
         logger.info(f"Loading metadata from {METADATA_FILE}")
+        # Determine which columns are actually available using pyarrow for speed
+        try:
+            schema = pq.read_schema(METADATA_FILE)
+            available_cols = schema.names
+        except:
+            available_cols = []
+
         needed_cols = [
             'appid', 'name', 'release_date', 'positive', 'negative', 
             'genres', 'tags', 'categories', 'supported_languages',
             'mature_content', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z',
             'estimated_playtime', 'difficulty_predicted'
         ]
-        if 'release_year' in pd.read_parquet(METADATA_FILE, columns=[]).columns:
+        # Only request short_description if it exists
+        if 'short_description' in available_cols:
+            needed_cols.insert(2, 'short_description')  # Insert after name
+            logger.info("Found short_description in metadata")
+        else:
+            logger.warning("short_description NOT found in metadata")
+
+        if 'release_year' in available_cols:
             needed_cols.append('release_year')
 
         try:
             self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols, dtype_backend='pyarrow')
-            logger.info("Metadata loaded with pyarrow backend")
+            logger.info(f"Metadata loaded with pyarrow backend. Columns: {self.metadata.columns.tolist()}")
         except Exception as e:
             logger.warning(f"Failed to load with pyarrow backend: {e}. Falling back to standard.")
             self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols)
@@ -469,6 +484,7 @@ def get_metadata(request: MetadataRequest):
             "appid": int(game_meta['appid']),
             "name": str(game_meta['name']),
             "release_date": str(game_meta['release_date']),
+            "short_description": str(game_meta['short_description']) if 'short_description' in game_meta and pd.notna(game_meta['short_description']) else "",
             "release_year": int(game_meta['release_year']) if pd.notna(game_meta['release_year']) else 0,
             "estimated_playtime": float(game_meta['estimated_playtime']) if pd.notna(game_meta['estimated_playtime']) else 0.0,
             "difficulty_predicted": float(game_meta['difficulty_predicted']) if pd.notna(game_meta['difficulty_predicted']) else 0.0,
@@ -755,10 +771,15 @@ def recommend(request: RecommendationRequest):
         raw_pop = game_meta['positive'] + game_meta['negative']
         raw_length = game_meta['estimated_playtime'] / 60.0
         
+        desc = ""
+        if 'short_description' in game_meta and pd.notna(game_meta['short_description']):
+            desc = str(game_meta['short_description'])
+        
         item = {
             "appid": int(game_meta['appid']),
             "name": str(game_meta['name']),
             "release_date": str(game_meta['release_date']),
+            "short_description": desc,
             "release_year": int(game_meta['release_year']) if pd.notna(game_meta['release_year']) else 0,
             "estimated_playtime": float(game_meta['estimated_playtime']) if pd.notna(game_meta['estimated_playtime']) else 0.0,
             "difficulty_predicted": float(game_meta['difficulty_predicted']) if pd.notna(game_meta['difficulty_predicted']) else 0.0,
