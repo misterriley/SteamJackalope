@@ -37,6 +37,7 @@ For detailed documentation of each directory, see the individual README files:
 - `scraping/scrape_from_last_checkpoint.bat`: Convenience script to resume scraping from the last checkpoint.
 - `research/`: Contains experimental scripts and data analysis notebooks.
 - `common/common_adjectives.txt`: A curated list of common English adjectives used for the "Random" button functionality.
+- `tools/generate_random_recommendation.py`: A CLI tool for generating Discord-ready recommendations using randomized parameters and high discovery.
 
 ## Current Project Status
 

@@ -54,6 +54,21 @@ Verifies the quality scores grid structure and consistency. Can check for alignm
 
 Helper for looking up game metadata by name or appid. Useful for debugging mismatches between datasets.
 
+### `generate_random_recommendation.py`
+
+CLI tool to generate a random game recommendation. Mimics the "Surprise Me" (Random) button in the UI:
+
+- Generates random weights and preferences
+- Uses high discovery (wild cards)
+- Formats output for easy Discord sharing
+- Requires the backend server to be running
+
+Run with:
+
+```bash
+python tools/generate_random_recommendation.py
+```
+
 ## When to Use These Tools
 
 - **Debugging vector issues**: Use `interrogate_vectors.py` to examine distributions and spot anomalies
