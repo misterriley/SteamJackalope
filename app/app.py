@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -7,6 +6,7 @@ import sys
 import ast
 import random
 import logging
+import base64
 from lists import render_lists_page
 
 # Configure logging
@@ -166,7 +166,15 @@ if not backend_ready:
     st.stop()
 
 # --- Configuration & Data Loading ---
-st.set_page_config(page_title=APP_TITLE.replace("🎮 ", ""), layout="wide")
+st.set_page_config(page_title="Steam Jackalope v0.0.1", layout="wide")
+
+# --- Session State for Navigation ---
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Recommender"
+
+def navigate_to(page_name):
+    st.session_state.current_page = page_name
+    st.rerun()
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_game_list():
@@ -187,9 +195,6 @@ def get_genre_list():
     except:
         pass
     return []
-
-# --- UI Layout ---
-st.title(APP_TITLE)
 
 def add_seed(game_name):
     if "seed_multiselect" not in st.session_state:
@@ -364,69 +369,188 @@ def randomize_parameters():
 if "alpha" not in st.session_state:
     reset_all_parameters()
 
-# Page Content Loading
-try:
-    with open("about.md", "r", encoding="utf-8") as f:
-        about_text = f.read()
-except FileNotFoundError:
-    about_text = ABOUT_ERROR
+# --- CUSTOM CSS FOR STICKY HEADER ---
+st.markdown("""
+    <style>
+        /* 1. HIDE the default Streamlit Header & Decoration */
+        header[data-testid="stHeader"] {
+            display: none;
+        }
+        div[data-testid="stDecoration"] {
+            display: none;
+        }
 
-try:
-    with open("methodology.md", "r", encoding="utf-8") as f:
-        methodology_text = f.read()
-except FileNotFoundError:
-    methodology_text = METHODOLOGY_ERROR
+        /* 2. PUSH CONTENT DOWN */
+        .block-container {
+            padding-top: 100px !important; 
+            padding-bottom: 2rem;
+        }
 
-tabs = st.tabs([RECOMMENDER_TAB, "Lists", ABOUT_TAB, METHODOLOGY_TAB])
+        /* 3. STICKY HEADER BACKGROUND (Pure HTML) */
+        /* This ID matches the div we create in markdown below */
+        #custom-header-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 80px;
+            background-color: #E6E6FA; /* Light Purple */
+            border-bottom: 2px solid #4B0082;
+            z-index: 999990; /* High z-index */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
 
-with tabs[1]:
+        /* 4. FLOAT THE HAMBURGER MENU */
+        /* We target the specific container where we put the popover */
+        div[data-testid="stVerticalBlock"] > div:has(div#menu-marker) {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 999999; /* Higher than the background bar */
+            width: auto !important;
+        }
+
+        /* 5. STYLE THE BUTTON to blend in */
+        [data-testid="stPopover"] > button {
+            color: #4B0082;
+            border-color: #4B0082;
+            background-color: transparent;
+            font-weight: bold;
+        }
+        [data-testid="stPopover"] > button:hover {
+            border-color: #4B0082;
+            color: white;
+            background-color: #4B0082;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- HEADER IMPLEMENTATION ---
+
+# 1. VISUAL HEADER (HTML ONLY) - Spans full width
+img_b64 = ""
+img_path = "assets/jackalopeVR.jpg"
+if os.path.exists(img_path):
+    with open(img_path, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode()
+
+logo_html = f'<img src="data:image/jpeg;base64,{img_b64}" style="height: 50px; border-radius: 50%; border: 2px solid #4B0082;">' if img_b64 else ""
+
+st.markdown(f"""
+    <div id="custom-header-bar">
+        <div style="
+            display: flex; 
+            align-items: center; 
+            justify-content: flex-start;
+            height: 100%;
+            padding-left: 80px; /* Space for the floating hamburger */
+            gap: 15px;
+        ">
+            {logo_html}
+            <h1 style="color: #4B0082; margin: 0; font-size: 1.8rem; font-family: sans-serif; padding-bottom: 0;">Steam Jackalope v0.0.1 (pre-pre-alpha)</h1>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
+# 2. FUNCTIONAL MENU (Streamlit Widget) - Floated via CSS
+# We put this in a container with a marker so our CSS can find it and lift it out of flow
+with st.container():
+    st.markdown('<div id="menu-marker"></div>', unsafe_allow_html=True)
+    with st.popover("☰", use_container_width=False):
+        if st.button("Recommender", use_container_width=True):
+            navigate_to("Recommender")
+        if st.button("Lists", use_container_width=True):
+            navigate_to("Lists")
+        if st.button("About", use_container_width=True):
+            navigate_to("About")
+        if st.button("Methodology", use_container_width=True):
+            navigate_to("Methodology")
+
+# --- PAGE CONTENT ROUTING ---
+
+# 1. LISTS PAGE
+if st.session_state.current_page == "Lists":
     render_lists_page()
 
-with tabs[2]:
-    st.markdown(about_text)
+# 2. ABOUT PAGE
+elif st.session_state.current_page == "About":
+    try:
+        with open("about.md", "r", encoding="utf-8") as f:
+            st.markdown(f.read())
+    except FileNotFoundError:
+        st.error(ABOUT_ERROR)
 
-with tabs[3]:
-    parts = methodology_text.split("![")
-    st.markdown(parts[0]) 
+# 3. METHODOLOGY PAGE
+elif st.session_state.current_page == "Methodology":
+    try:
+        with open("methodology.md", "r", encoding="utf-8") as f:
+            methodology_text = f.read()
+            parts = methodology_text.split("![")
+            st.markdown(parts[0]) 
+            for part in parts[1:]:
+                label_end = part.find("](")
+                path_end = part.find(")")
+                label = part[:label_end]
+                path = part[label_end+2:path_end]
+                rest = part[path_end+1:]
+                if os.path.exists(path):
+                    st.image(path, caption=label)
+                else:
+                    st.warning(f"Image not found: {path}")
+                st.markdown(rest)
+    except FileNotFoundError:
+        st.error(METHODOLOGY_ERROR)
+
+# 4. RECOMMENDER PAGE (Default)
+else:
+    # Restored Title/Version Text
+    st.markdown(APP_TITLE)
     
-    for part in parts[1:]:
-        label_end = part.find("](")
-        path_end = part.find(")")
-        
-        label = part[:label_end]
-        path = part[label_end+2:path_end]
-        rest = part[path_end+1:]
-        
-        if os.path.exists(path):
-            if "cosine" in path.lower():
-                st.image(path, caption=label, width=400)
-            else:
-                st.image(path, caption=label)
+    # Intro Text
+    st.write(APP_IMAGE_TEXT)
+
+    # --- 1. MAIN INPUT SECTION ---
+    col1, col2, col3 = st.columns([1, 1, 1])
+
+    with col1:
+        prompt = st.text_input(PROMPT_LABEL, placeholder=PROMPT_PLACEHOLDER, help=PROMPT_HELP, key="prompt")
+
+    with col2:
+        game_list = get_game_list()
+        if game_list is None:
+            st.warning(f"Connecting to backend server at {BACKEND_URL}...")
+            selected_games = st.multiselect(SEED_LABEL, options=[], disabled=True)
+            st.cache_data.clear()
         else:
-            st.warning(f"Image not found: {path}")
-            
-        st.markdown(rest)
+            selected_games = st.multiselect(
+                SEED_LABEL, 
+                options=game_list, 
+                key="seed_multiselect",
+                help=SEED_HELP
+            )
 
-with tabs[0]:
-    st.markdown(APP_HEADER)
+    with col3:
+        genre_list = get_genre_list()
+        selected_genres = st.multiselect(
+            GENRE_FILTER_LABEL,
+            options=genre_list,
+            help=GENRE_FILTER_HELP,
+            key="genres_multiselect"
+        )
     
-    col_img, col_txt = st.columns([1, 4])
-    with col_img:
-        if os.path.exists("assets/jackalopeVR.jpg"):
-            st.image("assets/jackalopeVR.jpg", use_container_width=True)
-    with col_txt:
-        st.write(APP_IMAGE_TEXT)
+    st.divider()
 
-    with st.sidebar:
-        st.header(SIDEBAR_HEADER)
+    # --- 2. BUTTONS ---
+    col_reset, col_random = st.columns(2)
+    with col_reset:
+        st.button(RESET_BUTTON_LABEL, on_click=reset_all_parameters, use_container_width=True)
+    with col_random:
+        st.button(RANDOM_BUTTON_LABEL, on_click=randomize_parameters, use_container_width=True)
+
+    # --- 3. SEARCH OPTIONS CARD ---
+    with st.expander("Search Options", expanded=False):
         
-        col_reset, col_random = st.columns(2)
-        with col_reset:
-            st.button(RESET_BUTTON_LABEL, on_click=reset_all_parameters, use_container_width=True)
-        with col_random:
-            st.button(RANDOM_BUTTON_LABEL, on_click=randomize_parameters, use_container_width=True)
-        st.divider()
-
+        # Slider Helper Function
         def compact_slider(label, key, help_text, min_val, max_val, step, left_bound, right_bound, negate=False, show_bounds=True):
             col_label, col_slider = st.columns([1, 2])
             with col_label:
@@ -448,74 +572,54 @@ with tabs[0]:
             
             return -val if negate else val
 
-        alpha = compact_slider(SEMANTIC_WEIGHT_LABEL, "alpha", SEMANTIC_WEIGHT_HELP, 0.0, SEMANTIC_WEIGHT_MULTIPLIER, SEMANTIC_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, "0", str(SEMANTIC_WEIGHT_MULTIPLIER), show_bounds=False)
-        logger.debug(f"Slider alpha changed: {alpha:.3f}")
-        beta = compact_slider(TAG_WEIGHT_LABEL, "beta", TAG_WEIGHT_HELP, 0.0, TAG_WEIGHT_MULTIPLIER, TAG_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, "0", str(TAG_WEIGHT_MULTIPLIER), show_bounds=False)
-        logger.debug(f"Slider beta changed: {beta:.3f}")
+        # Arrange Sliders in 2 Columns
+        slider_col1, slider_col2 = st.columns(2, gap="medium")
+
+        with slider_col1:
+            alpha = compact_slider(SEMANTIC_WEIGHT_LABEL, "alpha", SEMANTIC_WEIGHT_HELP, 0.0, SEMANTIC_WEIGHT_MULTIPLIER, SEMANTIC_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, "0", str(SEMANTIC_WEIGHT_MULTIPLIER), show_bounds=False)
+            logger.debug(f"Slider alpha changed: {alpha:.3f}")
+            
+            beta = compact_slider(TAG_WEIGHT_LABEL, "beta", TAG_WEIGHT_HELP, 0.0, TAG_WEIGHT_MULTIPLIER, TAG_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, "0", str(TAG_WEIGHT_MULTIPLIER), show_bounds=False)
+            logger.debug(f"Slider beta changed: {beta:.3f}")
+
+            quality_pref = compact_slider(QUALITY_PREF_LABEL, "quality_pref", QUALITY_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, QUALITY_HATED_LABEL, QUALITY_LOVED_LABEL)
+            logger.debug(f"Slider quality_pref: {quality_pref:.3f}")
+
+            age_pref = compact_slider(AGE_PREF_LABEL, "age_pref", AGE_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, AGE_OLD_LABEL, AGE_NEW_LABEL)
+            logger.debug(f"Slider age_pref: {age_pref:.3f}")
+
+        with slider_col2:
+            pop_pref = compact_slider(POP_PREF_LABEL, "pop_pref", POP_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, POP_NICHE_LABEL, POP_MAINSTREAM_LABEL)
+            logger.debug(f"Slider pop_pref: {pop_pref:.3f}")
+
+            disc_pref = compact_slider(DISC_PREF_LABEL, "disc_pref", DISC_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DISCOVERY_LABEL_LEFT, DISCOVERY_LABEL_RIGHT, negate=True)
+            logger.debug(f"Slider disc_pref: {disc_pref:.3f}")
+
+            length_pref = compact_slider(LENGTH_PREF_LABEL, "length_pref", LENGTH_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, LENGTH_SHORT_LABEL, LENGTH_LONG_LABEL)
+            logger.debug(f"Slider length_pref: {length_pref:.3f}")
+
+            difficulty_pref = compact_slider(DIFFICULTY_PREF_LABEL, "difficulty_pref", DIFFICULTY_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DIFFICULTY_EASY_LABEL, DIFFICULTY_HARD_LABEL)
+            logger.debug(f"Slider difficulty_pref: {difficulty_pref:.3f}")
 
         st.divider()
-
-        quality_pref = compact_slider(QUALITY_PREF_LABEL, "quality_pref", QUALITY_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, QUALITY_HATED_LABEL, QUALITY_LOVED_LABEL)
-        logger.debug(f"Slider quality_pref: {quality_pref:.3f}")
-
-        age_pref = compact_slider(AGE_PREF_LABEL, "age_pref", AGE_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, AGE_OLD_LABEL, AGE_NEW_LABEL)
-        logger.debug(f"Slider age_pref: {age_pref:.3f}")
-
-        pop_pref = compact_slider(POP_PREF_LABEL, "pop_pref", POP_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, POP_NICHE_LABEL, POP_MAINSTREAM_LABEL)
-        logger.debug(f"Slider pop_pref: {pop_pref:.3f}")
-
-        disc_pref = compact_slider(DISC_PREF_LABEL, "disc_pref", DISC_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DISCOVERY_LABEL_LEFT, DISCOVERY_LABEL_RIGHT, negate=True)
-        logger.debug(f"Slider disc_pref: {disc_pref:.3f}")
-
-        length_pref = compact_slider(LENGTH_PREF_LABEL, "length_pref", LENGTH_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, LENGTH_SHORT_LABEL, LENGTH_LONG_LABEL)
-        logger.debug(f"Slider length_pref: {length_pref:.3f}")
-
-        difficulty_pref = compact_slider(DIFFICULTY_PREF_LABEL, "difficulty_pref", DIFFICULTY_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DIFFICULTY_EASY_LABEL, DIFFICULTY_HARD_LABEL)
-        logger.debug(f"Slider difficulty_pref: {difficulty_pref:.3f}")
-
-        st.divider()
-        remove_vr = st.checkbox(REMOVE_VR_LABEL, help=REMOVE_VR_HELP, key="remove_vr")
-        english_only = st.checkbox(ENGLISH_ONLY_LABEL, help=ENGLISH_ONLY_HELP, key="english_only")
-        remove_nsfw = st.checkbox(REMOVE_NSFW_LABEL, help=REMOVE_NSFW_HELP, key="remove_nsfw")
-        remove_utilities = st.checkbox(REMOVE_UTILITIES_LABEL, help=REMOVE_UTILITIES_HELP, key="remove_utilities")
-        remove_unreleased = st.checkbox(REMOVE_UNRELEASED_LABEL, help=REMOVE_UNRELEASED_HELP, key="remove_unreleased")
         
-        st.divider()
-        debug_mode = st.checkbox(DEBUG_MODE_LABEL, help=DEBUG_MODE_HELP, key="debug_mode")
-        top_k = st.number_input(TOP_K_LABEL, 1, TOP_K_MAX, help=TOP_K_HELP, key="top_k")
+        # Filters & Checkboxes in 3 Columns
+        filter_col1, filter_col2, filter_col3 = st.columns(3)
+        
+        with filter_col1:
+            remove_vr = st.checkbox(REMOVE_VR_LABEL, help=REMOVE_VR_HELP, key="remove_vr")
+            english_only = st.checkbox(ENGLISH_ONLY_LABEL, help=ENGLISH_ONLY_HELP, key="english_only")
+            remove_nsfw = st.checkbox(REMOVE_NSFW_LABEL, help=REMOVE_NSFW_HELP, key="remove_nsfw")
+        
+        with filter_col2:
+            remove_utilities = st.checkbox(REMOVE_UTILITIES_LABEL, help=REMOVE_UTILITIES_HELP, key="remove_utilities")
+            remove_unreleased = st.checkbox(REMOVE_UNRELEASED_LABEL, help=REMOVE_UNRELEASED_HELP, key="remove_unreleased")
+            debug_mode = st.checkbox(DEBUG_MODE_LABEL, help=DEBUG_MODE_HELP, key="debug_mode")
 
-    # Input section
-    col1, col2, col3 = st.columns([1, 1, 1])
+        with filter_col3:
+            top_k = st.number_input(TOP_K_LABEL, 1, TOP_K_MAX, help=TOP_K_HELP, key="top_k")
 
-    with col1:
-        prompt = st.text_input(PROMPT_LABEL, placeholder=PROMPT_PLACEHOLDER, help=PROMPT_HELP, key="prompt")
-
-    with col2:
-        game_list = get_game_list()
-        if game_list is None:
-            st.warning(f"Connecting to backend server at {BACKEND_URL}...")
-            # If we couldn't get the list, don't show the multiselect yet or show it empty
-            selected_games = st.multiselect(SEED_LABEL, options=[], disabled=True)
-            # Clear cache so it retries on next interaction
-            st.cache_data.clear()
-        else:
-            selected_games = st.multiselect(
-                SEED_LABEL, 
-                options=game_list, 
-                key="seed_multiselect",
-                help=SEED_HELP
-            )
-
-    with col3:
-        genre_list = get_genre_list()
-        selected_genres = st.multiselect(
-            GENRE_FILTER_LABEL,
-            options=genre_list,
-            help=GENRE_FILTER_HELP,
-            key="genres_multiselect"
-        )
-
-    # Search Logic
+    # --- 4. SEARCH LOGIC ---
     with st.spinner(UPDATING_RESULTS_TEXT):
         payload = {
             "alpha": alpha,
@@ -538,7 +642,6 @@ with tabs[0]:
         }
         
         logger.info(f"FRONTEND: Sending payload - quality_pref={quality_pref:.3f}, disc_pref={disc_pref:.3f}, alpha={alpha:.3f}, beta={beta:.3f}")
-        logger.info(f"FRONTEND: Session state - st.session_state.quality_pref={st.session_state.get('quality_pref', 'NOT SET'):.3f}")
 
         try:
             response = requests.post(f"{BACKEND_URL}/recommend", json=payload)
