@@ -9,6 +9,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
+pip install -r requirements.txt
+
 echo Killing any existing backend/frontend processes...
 rem Kill processes on port 8000 (backend)
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000') do (
