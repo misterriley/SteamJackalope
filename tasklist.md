@@ -14,16 +14,11 @@
 
 ### Lesser Priority
 
-
-- [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha, if that's a thing)
-- [ ] Create a banner at the top of the page.
-        - [ ] Give the name of the website.
-        - [ ] Make it a pretty color, maybe a light purple.
-        - [ ] Use the jackalope icon.
-        - [ ] Remove the jackalope icon from the Recommender header. 
-        - [ ] Link the secondary pages from a hamburger menu rather than from links at the top of the page. 
+- [ ] Make game cards on website same color as banner (light purple) with black font. Make Search Options card yellow with black font. Buttons should be teal with a black font.
+- [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha).
 - [ ] Create a quick onboarding for new users. 
         - [ ] Create a guide page with simple instructions for how to use the site. 
+        - [ ] Link it in the same way the other pages are linked, in the hamburger menu.
 - [ ] New research to do: discriminating between whether a game is liked or not based on playtime.
         - [ ] Pick a game with a large number of reviews.
         - [ ] Load all of the reviews and review times associated with that game.

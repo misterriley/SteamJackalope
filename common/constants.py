@@ -101,7 +101,7 @@ QUALITY_SCORE_PIN_GROUP = 500
 PIN_QUALITY_DISTRIBUTION = True
 
 # Constants for UI and Logic
-APP_TITLE = "### First time here? Press \"Surprise Me (Random)\" to get started! Then open the search options to refine your preferences." # Markdown format
+APP_TITLE = "### First time here? Press \"Surprise Me (Random)\" to get started! Then open Search Options to refine your preferences." # Markdown format
 LOADING_APP_TEXT = "Loading massive neural networks..."
 UPDATING_RESULTS_TEXT = "Thinking..."
 TOP_RECOMMENDATIONS_HEADER = "Top {top_k} Recommendations"

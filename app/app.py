@@ -447,7 +447,7 @@ st.markdown(f"""
             gap: 15px;
         ">
             {logo_html}
-            <h1 style="color: #4B0082; margin: 0; font-size: 1.8rem; font-family: sans-serif; padding-bottom: 0;">Steam Jackalope v0.0.1 (pre-pre-alpha)</h1>
+            <h1 style="color: #4B0082; margin: 0; font-size: 1.8rem; font-family: sans-serif; padding-bottom: 0;">Steam Jackalope</h1>
         </div>
     </div>
 """, unsafe_allow_html=True)
