@@ -26,6 +26,9 @@ if [ -d "venv" ]; then
     source venv/bin/activate
 fi
 
+pip install --upgrade pip
+pip install -r requirements.txt
+
 # Determine if we need sudo prefix
 SUDO_CMD=""
 if [ "$(id -u)" -ne 0 ]; then
