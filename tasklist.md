@@ -7,13 +7,11 @@
 
 ### Recently Completed
 
-- Optimized sidebar vertical space by refactoring sliders into a compact layout with labels on the left and removing redundant bound labels for semantic/tag match sliders.
-- Successfully configured Git LFS and pushed all data/production files to GitHub, including CSV, NPY, PARQUET, and JSON files with proper large file storage tracking.
-
 ### Top Priority
 
 ### Lesser Priority
 
+- [ ] Maintain a consistent session state so that switching between pages does not lose slider settings, seeds, etc.
 - [ ] Make game cards on website same color as banner (light purple) with black font. Make Search Options card yellow with black font. Buttons should be teal with a black font.
 - [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha).
 - [ ] Create a quick onboarding for new users. 
