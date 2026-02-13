@@ -136,6 +136,7 @@ from common.constants import (
     TOP_K_DEFAULT,
     TOP_K_MAX,
     BACKEND_URL,
+    BUILD_VERSION,
     FOOTER_TEXT,
     FOOTER_GITHUB_LINK
 )
@@ -166,7 +167,7 @@ if not backend_ready:
     st.stop()
 
 # --- Configuration & Data Loading ---
-st.set_page_config(page_title="Steam Jackalope v0.0.1", layout="wide")
+st.set_page_config(page_title=f"Steam Jackalope {BUILD_VERSION}", layout="wide")
 
 # --- Session State for Navigation ---
 if "current_page" not in st.session_state:
@@ -204,6 +205,13 @@ def add_seed(game_name):
     if game_name not in current_seeds:
         current_seeds.append(game_name)
         st.session_state.seed_multiselect = current_seeds
+
+def remove_seed(game_name):
+    if "seed_multiselect" in st.session_state:
+        current_seeds = list(st.session_state.seed_multiselect)
+        if game_name in current_seeds:
+            current_seeds.remove(game_name)
+            st.session_state.seed_multiselect = current_seeds
 
 def render_game_card(game, show_debug=False, alpha=0.0, beta=0.0, prompt="", selected_games=None, is_seed=False):
     score_display = f" (Score: {game['weighted_score']:.2f})" if 'weighted_score' in game else ""
@@ -554,7 +562,7 @@ else:
         def compact_slider(label, key, help_text, min_val, max_val, step, left_bound, right_bound, negate=False, show_bounds=True):
             col_label, col_slider = st.columns([1, 2])
             with col_label:
-                st.markdown(f"<div style='padding-top: 25px; font-size: 0.9rem; font-weight: bold;'>{label}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='padding-top: 20px; font-size: 0.9rem; font-weight: bold;'>{label}</div>", unsafe_allow_html=True)
             with col_slider:
                 val = st.slider(
                     label,
@@ -577,29 +585,19 @@ else:
 
         with slider_col1:
             alpha = compact_slider(SEMANTIC_WEIGHT_LABEL, "alpha", SEMANTIC_WEIGHT_HELP, 0.0, SEMANTIC_WEIGHT_MULTIPLIER, SEMANTIC_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, "0", str(SEMANTIC_WEIGHT_MULTIPLIER), show_bounds=False)
-            logger.debug(f"Slider alpha changed: {alpha:.3f}")
+            st.markdown("<hr style='margin: 10px 0; opacity: 0.3;'>", unsafe_allow_html=True)
             
-            beta = compact_slider(TAG_WEIGHT_LABEL, "beta", TAG_WEIGHT_HELP, 0.0, TAG_WEIGHT_MULTIPLIER, TAG_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, "0", str(TAG_WEIGHT_MULTIPLIER), show_bounds=False)
-            logger.debug(f"Slider beta changed: {beta:.3f}")
-
             quality_pref = compact_slider(QUALITY_PREF_LABEL, "quality_pref", QUALITY_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, QUALITY_HATED_LABEL, QUALITY_LOVED_LABEL)
-            logger.debug(f"Slider quality_pref: {quality_pref:.3f}")
-
             age_pref = compact_slider(AGE_PREF_LABEL, "age_pref", AGE_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, AGE_OLD_LABEL, AGE_NEW_LABEL)
-            logger.debug(f"Slider age_pref: {age_pref:.3f}")
+            pop_pref = compact_slider(POP_PREF_LABEL, "pop_pref", POP_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, POP_NICHE_LABEL, POP_MAINSTREAM_LABEL)
 
         with slider_col2:
-            pop_pref = compact_slider(POP_PREF_LABEL, "pop_pref", POP_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, POP_NICHE_LABEL, POP_MAINSTREAM_LABEL)
-            logger.debug(f"Slider pop_pref: {pop_pref:.3f}")
+            beta = compact_slider(TAG_WEIGHT_LABEL, "beta", TAG_WEIGHT_HELP, 0.0, TAG_WEIGHT_MULTIPLIER, TAG_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, "0", str(TAG_WEIGHT_MULTIPLIER), show_bounds=False)
+            st.markdown("<hr style='margin: 10px 0; opacity: 0.3;'>", unsafe_allow_html=True)
 
             disc_pref = compact_slider(DISC_PREF_LABEL, "disc_pref", DISC_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DISCOVERY_LABEL_LEFT, DISCOVERY_LABEL_RIGHT, negate=True)
-            logger.debug(f"Slider disc_pref: {disc_pref:.3f}")
-
             length_pref = compact_slider(LENGTH_PREF_LABEL, "length_pref", LENGTH_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, LENGTH_SHORT_LABEL, LENGTH_LONG_LABEL)
-            logger.debug(f"Slider length_pref: {length_pref:.3f}")
-
             difficulty_pref = compact_slider(DIFFICULTY_PREF_LABEL, "difficulty_pref", DIFFICULTY_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DIFFICULTY_EASY_LABEL, DIFFICULTY_HARD_LABEL)
-            logger.debug(f"Slider difficulty_pref: {difficulty_pref:.3f}")
 
         st.divider()
         
@@ -657,7 +655,13 @@ else:
                         if seed_resp.status_code == 200:
                             seed_results = seed_resp.json()
                             for seed_game in seed_results:
-                                render_game_card(seed_game, is_seed=True)
+                                col_remove, col_card = st.columns([1, 15])
+                                with col_remove:
+                                    st.markdown("<div style='padding-top: 5px;'>", unsafe_allow_html=True)
+                                    st.button("✖", key=f"remove_{seed_game['appid']}", on_click=remove_seed, args=(seed_game['name'],), help="Remove from seeds")
+                                    st.markdown("</div>", unsafe_allow_html=True)
+                                with col_card:
+                                    render_game_card(seed_game, is_seed=True)
                         st.divider()
                     except:
                         pass
@@ -679,5 +683,5 @@ else:
 
 st.divider()
 st.caption(DATA_SOURCE_CAPTION)
-footer_text = FOOTER_TEXT.format(copyright="© 2025 Steam Jackalope", github_link=FOOTER_GITHUB_LINK)
+footer_text = FOOTER_TEXT.format(copyright=f"© 2025 Steam Jackalope {BUILD_VERSION}", github_link=FOOTER_GITHUB_LINK)
 st.caption(footer_text)

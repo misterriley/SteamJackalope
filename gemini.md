@@ -1,0 +1,50 @@
+# Gemini Project Guide: SteamJackalope
+
+This document serves as a condensed reference for Gemini instances working on this repository. It synthesizes critical operational knowledge from `onStartup.md`, `orientation.md`, and `onShutdown.md`.
+
+## 🚀 Quick Start Workflow
+1.  **Orient**: Read `orientation.md` (architecture) and `methodology.md` (math/stats).
+2.  **Sync**: Ensure you are working with the latest artifacts. Production data (`metadata.parquet`, `.npy` files) should be in the root and synchronized.
+3.  **Tasking**: Check `tasklist.md` for active tasks. If empty, check `ideas.md` to propose new ones.
+4.  **Environment**: 
+    *   Backend: `python -m uvicorn app.server:app --host 127.0.0.1 --port 8000`
+    *   Frontend: `streamlit run app/app.py`
+    *   Convenience: Use `run_test_env.bat` to launch both.
+
+## 🏗️ Architecture & Tech Stack
+*   **Decoupled Design**: FastAPI Backend (`app/server.py`) + Streamlit Frontend (`app/app.py`).
+*   **Data Storage**: Metadata in `metadata.parquet` (root). Vectors in `.npy` files.
+*   **Memory Optimization (CRITICAL)**: Target < 512MB RAM (Render tier).
+    *   Use `mmap_mode='r'` for all large NumPy arrays.
+    *   Lazy-load `torch` and `SentenceTransformer` only when needed (e.g., text prompts).
+    *   Use `float16` for storage but `float64` for statistical calculations (`mean`, `std`) to avoid overflow.
+*   **Vectorization**: Use `numpy` for all scoring and similarity logic. Avoid Python loops in the hot path.
+
+## ⚠️ Critical Constraints & Gotchas
+*   **Artifact Synchronization**: All `.npy` files and `metadata.parquet` must have matching row counts and ordering, derived from `data/pipeline_games_clean.csv`.
+*   **Path Management**: `common/constants.py` is the single source of truth for paths and magic numbers. Use environment variables (e.g., `STEAM_METADATA_FILE`) to override for tests.
+*   **Parquet Schema**: Use `pyarrow.parquet.read_schema(file).names` to check columns without loading data.
+*   **Tag Vectors**: Use PCA-ZCA whitening to prevent similarity explosion. `TAG_VECTOR_K` requires LOD imputation in its solver loop.
+*   **Scraping**: Requires `STEAM_API_KEY`. Uses a hierarchical local cache outside the repo.
+
+## 🧪 Testing & Quality
+*   **Runner**: Use `run_all_tests.bat` (wraps `pytest`).
+*   **Isolation**: Never modify production artifacts during tests. Use temporary files or environment overrides.
+*   **Logging**: Ensure all new functionality includes informative logging.
+
+## 🏁 Shutdown Protocol (Before finishing a session)
+1.  **Update Docs**: If you changed logic, update `methodology.md` and `orientation.md`.
+2.  **Clean Up**: Remove temporary files. Ensure no `>>>>+++ REPLACE` markers remain.
+3.  **Externalize**: Move any new magic numbers/paths to `constants.py`.
+4.  **Verify**: Run the full test suite.
+5.  **Commit**: Group changes logically with a "why-focused" message. Do not push.
+6.  **Tasklist**: Move completed tasks to "Recently Completed" in `tasklist.md`.
+
+## 📂 Directory Map
+*   `app/`: UI and Server logic.
+*   `pipeline/`: Data processing and artifact generation.
+*   `common/`: Constants and shared utilities.
+*   `scraping/`: Steam data collection.
+*   `research/`: Statistical analysis and experimental scripts.
+*   `tests/`: Automated test suite.
+*   `data/`: Intermediate data (Source of truth: `pipeline_games_clean.csv`).

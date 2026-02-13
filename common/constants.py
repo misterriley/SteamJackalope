@@ -7,6 +7,7 @@ load_dotenv()
 
 # Backend
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+BUILD_VERSION = "0.0.1-pre-alpha"
 
 # Weights & Multipliers
 ABG_NOTCHES_ON_SLIDER = 10
