@@ -81,3 +81,12 @@ The system allows real-time filtering for **Genres**, VR-Only titles, English la
 The "Lists" page provides a curated view of the Steam library's extremes, including the highest and lowest quality games, the longest and shortest experiences, and predicted difficulty rankings. These lists utilize the same Bayesian models and predictive analytics used in the recommendation engine, providing transparency into how different games are positioned within our statistical model.
 
 The "Lists" page also includes a **Similarity Analysis** tab. This tool identifies popular yet diverse seed games (tag similarity < 0.2) and displays their most similar matches based on both tag and semantic embeddings. This provides a direct look at the engine's core similarity logic, demonstrating how it handles both categorical (tag-based) and stylistic (semantic) matches for well-known titles.
+
+## 10. Playtime-Sentiment Correlation
+To understand how player engagement relates to satisfaction, we utilize a **Kernel Smoothing** model to analyze the relationship between playtime and review sentiment (positive vs. negative). This allows us to estimate the probability that a player will enjoy a game based on how long they have played it.
+
+- **Lognormal Kernel:** We use a Gaussian kernel in log-space to measure similarity between playtimes. This accounts for the fact that the difference between 1 hour and 2 hours is more significant than the difference between 100 and 101 hours.
+- **Leave-One-Out Prediction:** For each review in a game's history, we estimate its probability of being positive by taking a weighted vote of all *other* reviews for that game. Reviews from players with similar playtimes carry the most weight.
+- **Bayesian Regularization:** To handle timeframes with few reviews, we apply Bayesian smoothing, pulling the predicted probability toward the global average positive review rate (0.80).
+- **Optimization:** The model's smoothing bandwidth ($\gamma$) and regularization strength ($s$) were globally optimized using a parallelized grid search over a diverse sample of thousands of games. We maximized the total log-likelihood (cross-entropy) of the historical review data to find the parameters that best generalize across the Steam library.
+- **Usage:** This model reveals patterns such as "early quitters" (negative reviews at low playtime) vs. "burnout" (negative reviews at extremely high playtime), providing deeper insights into the player experience beyond a single aggregate score.
