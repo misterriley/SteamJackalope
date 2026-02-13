@@ -8,11 +8,12 @@ This document serves as a condensed reference for Gemini instances working on th
 3.  **Tasking**: Check `tasklist.md` for active tasks. If empty, check `ideas.md` to propose new ones.
 4.  **Environment**: 
     *   Backend: `python -m uvicorn app.server:app --host 127.0.0.1 --port 8000`
-    *   Frontend: `streamlit run app/app.py`
-    *   Convenience: Use `run_test_env.bat` to launch both.
+    *   Frontend (Modern): `cd frontend; npm run dev`
+    *   Frontend (Legacy): `streamlit run app/app.py`
+    *   Convenience: Use `run_test_env.bat` to launch both backend and modern frontend.
 
 ## 🏗️ Architecture & Tech Stack
-*   **Decoupled Design**: FastAPI Backend (`app/server.py`) + Streamlit Frontend (`app/app.py`).
+*   **Decoupled Design**: FastAPI Backend (`app/server.py`) + Modern React 19 Frontend (`frontend/`) or Legacy Streamlit Frontend (`app/app.py`).
 *   **Data Storage**: Metadata in `metadata.parquet` (root). Vectors in `.npy` files.
 *   **Memory Optimization (CRITICAL)**: Target < 512MB RAM (Render tier).
     *   Use `mmap_mode='r'` for all large NumPy arrays.

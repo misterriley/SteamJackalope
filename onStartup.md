@@ -6,7 +6,10 @@
 When starting work on this repository, please follow these steps:
 
 0.  **Pull from Github**
-1.  **Get oriented:** Read `orientation.md` for general information. Read `methodology.md` to understand the statistical backbone of the process. Do that now before completing any other steps. You have permission to proceed with this task. 
+1.  **Environment Setup:**
+    - Backend: `pip install -r requirements.txt`
+    - Frontend: `cd frontend; npm install`
+2.  **Get oriented:** Read `orientation.md` for general information. Read `methodology.md` to understand the statistical backbone of the process. Do that now before completing any other steps. You have permission to proceed with this task. 
 2.  **Check for Tasks:** Read `tasklist.md`. If there are available tasks, pick one that matches your capabilities. If it needs to be broken into discrete steps for proper execution, then write the steps for that task into `tasklist.md` and finish. If it can be executed in total, then execute it, and then remove it from `tasklist.md` (or mark it as complete if preferred, but the current instruction is to remove it).
 3.  **Check for Ideas:** If there are no specific tasks to complete, read `ideas.md`. Pick one item from the list, make a plan for how to complete it, and break it down into actionable tasks. Put the tasks in `tasklist.md` along with any information needed to complete the tasks successfully. 
 4.  **Propose New Tasks:** If you identify ways to improve the project's code quality, performance, or organization, add them as new tasks to `tasklist.md`.    

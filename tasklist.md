@@ -7,11 +7,15 @@
 
 ### Recently Completed
 
+- [x] Implement modern React 19 frontend with Vite, Tailwind CSS v4, and Lucide icons.
+- [x] Add About and Methodology pages with markdown rendering (KaTeX support for math).
+- [x] Integrate high-fidelity Discover icon and favicon from jackalopeVR assets.
+- [x] Enhance game cards with dynamic genre/tag displays, NSFW blurring, and seed game distinctions.
+- [x] Add difficulty tag analysis and refined statistical displays in Lists view.
+- [x] Implement real-time autocomplete for seed game selection.
+- [x] Add build versioning system for deployment tracking.
+- [x] Fix math rendering and paragraph spacing in methodology markdown.
 - [x] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-alpha) with an automated build count (+build.N).
-- [x] Make the sliders line up vertically with the labels.
-- [x] Put semantic match and tag match sliders at the head of the two columns, have a spacer or a light line separating them from the other six.
-- [x] Have an x-out button on seed games directly to the left of the card where the seed game is displayed.
-- [x] Maintain a consistent session state so that switching between pages does not lose slider settings, seeds, etc.
 
 ### Top Priority
 

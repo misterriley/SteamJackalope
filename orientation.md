@@ -10,7 +10,8 @@ This project is a Steam game recommendation engine that combines semantic search
 ## Repository Overview
 
 For detailed documentation of each directory, see the individual README files:
-- `app/README.md` - Backend and frontend application code
+- `app/README.md` - Backend and legacy frontend application code
+- `frontend/README.md` - Modern React + TypeScript frontend
 - `common/README.md` - Shared utilities and constants
 - `pipeline/README.md` - Data processing and artifact generation
 - `scraping/README.md` - Steam data collection scripts
@@ -23,8 +24,9 @@ For detailed documentation of each directory, see the individual README files:
 ### Key Components
 
 - `app/server.py`: The backend FastAPI server that handles data loading and hybrid score calculations. Start with `python -m uvicorn app.server:app --host 127.0.0.1 --port 8000`.
-- `app/app.py`: The frontend Streamlit UI that communicates with the backend server. Start with `streamlit run app/app.py`.
-- `run_test_env.bat`: A convenience batch file to launch both the server and frontend for local testing.
+- `frontend/`: Modern React 19 + TypeScript + Vite + Tailwind CSS v4 frontend. Located in the `frontend/` directory. Start with `cd frontend; npm run dev`.
+- `app/app.py`: Legacy frontend Streamlit UI that communicates with the backend server. Start with `streamlit run app/app.py`.
+- `run_test_env.bat`: A convenience batch file to launch both the server and the modern frontend for local testing.
 - `run_all_tests.bat`: A convenience batch file to run the full test suite using `pytest`.
 - `pipeline/run_pipeline.py`: Orchestrates the data processing pipeline (tags -> semantic vectors -> metadata -> quality scores). Uses `pipeline/pipeline_config.json` for path and interval settings.
 - `pipeline/pipeline_config.json`: Configuration file for `run_pipeline.py` defaults.
@@ -45,10 +47,10 @@ For detailed documentation of each directory, see the individual README files:
 - `scraping/scrape_steam.py` uses direct **Storefront Scraping** (HTML/Embedded JSON) to retrieve high-fidelity user tags and metadata, bypassing age gates with specific cookies. It includes robust error handling, exponential backoff, and a **Hierarchical Local Cache** with historical archiving to prevent redundant downloads. Review counts are prioritized from **English** sources to better reflect the perspective of the target audience, falling back to global counts if no English reviews are available.
 - `scraping/get_steam_appids.py` retrieves the full list of Steam AppIDs. It includes an automatic fallback to the public `ISteamApps/GetAppList/v2` endpoint if the primary `IStoreService` API call fails (e.g., due to an invalid API key).
 - The pipeline is functional but could benefit from better progress monitoring.
-- **Client/Server Architecture:** The project uses a decoupled architecture where heavy data loading and vector computations are performed by a FastAPI backend (`app/server.py`), while a lightweight Streamlit frontend (`app/app.py`) provides the UI. This ensures fast load times for the web interface and enables better scalability.
-- **Metadata Retrieval:** The backend provides a `/metadata` endpoint to retrieve full metadata for specific games by name, enabling the frontend to display detailed game cards for user-selected seeds independently of the recommendation results.
-- **Genre Filtering:** The backend provides a `/genres` endpoint to retrieve a unique list of genres. The recommendation engine supports multi-genre filtering (OR logic) by applying a mask to the metadata before scoring.
-- **Performance Optimization:** The backend caches pre-normalized embedding matrices and metadata. Similarity scores and hybrid calculations are vectorized using `numpy`. Genres are pre-parsed into lists during startup to ensure fast filtering. The frontend uses `st.cache_data` to minimize redundant API calls for static data like the game and genre lists. **Server-side caching** is implemented for the `/lists` endpoints (e.g., quality, popularity) to avoid redundant sorting of the entire metadata catalog, significantly reducing latency for these components.
+- **Client/Server Architecture:** The project uses a decoupled architecture where heavy data loading and vector computations are performed by a FastAPI backend (`app/server.py`), while a modern React frontend (`frontend/`) or a legacy Streamlit UI (`app/app.py`) provides the interface.
+- **Metadata and Search:** The backend provides `/metadata`, `/genres`, `/games/search`, and `/games/random` endpoints. `/games/search` enables fast autocomplete for seed game selection.
+- **Frontend Features:** The modern frontend includes real-time filtering, weight contribution visualization, NSFW blurring, and dedicated pages for About and Methodology rendered from markdown with KaTeX math support.
+- **Networking:** `127.0.0.1` is preferred over `localhost` for local backend connectivity on Windows to avoid latency and connection issues.
 - **Memory Footprint Optimization**: The backend server is optimized to run under 512 MB to support cloud deployment on platforms like Render (Starter tier). 
     - **Memory Mapping**: All large NumPy arrays (`embeddings_desc.npy`, `embeddings_structural.npy`, `tag_vectors`, `quality_grid`) now utilize `mmap_mode='r'`. This allows the OS to page data in and out as needed, keeping the active Resident Set Size (RSS) low.
     - **Pre-Normalization**: Semantic embeddings are pre-normalized to unit length.

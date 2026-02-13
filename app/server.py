@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import pandas as pd
@@ -66,6 +67,15 @@ from common.constants import (
 from common.utils import to_z, calculate_hybrid_score
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Data Loading ---
 
@@ -182,6 +192,20 @@ class DataManager:
         self.metadata['is_vr_only'] = self.metadata['categories'].fillna('').astype(str).str.contains('VR Only', case=False).astype(bool)
         self.metadata['is_english'] = self.metadata['supported_languages'].fillna('').astype(str).str.contains('English', case=False).astype(bool)
         self.metadata['is_utility'] = self.metadata['tags'].fillna('').astype(str).str.contains('Utilities', case=False).astype(bool)
+        
+        logger.info("Identifying NSFW games...")
+        # Start with mature_content flag
+        self.metadata['is_nsfw'] = (self.metadata['mature_content'] > 0).values
+        
+        # Check tags
+        tags_lower = self.metadata['tags'].fillna('').astype(str).str.lower()
+        nsfw_tag_mask = tags_lower.apply(lambda x: any(tag in x for tag in NSFW_TAGS))
+        self.metadata['is_nsfw'] |= nsfw_tag_mask.values
+        
+        # Check names
+        nsfw_name_mask = self.metadata['name'].fillna('').str.contains('|'.join(NSFW_NAME_PATTERNS), case=False, na=False)
+        self.metadata['is_nsfw'] |= nsfw_name_mask.values
+        
         self.metadata.drop(columns=['categories', 'supported_languages'], inplace=True)
         logger.info(f"Boolean features extracted. Metadata shape: {self.metadata.shape}")
         
@@ -313,9 +337,32 @@ def get_games():
     if data_manager.metadata is None:
         logger.warning("Data not loaded yet when /games called")
         raise HTTPException(status_code=503, detail="Data not loaded yet")
-    games = sorted(data_manager.metadata['name'].fillna("Unknown").tolist())
-    logger.debug(f"Returning {len(games)} game names")
+    # Limiting to 1000 for safety, though frontend should use /search
+    games = sorted(data_manager.metadata['name'].fillna("Unknown").head(1000).tolist())
     return games
+
+@app.get("/games/search")
+def search_games(q: str = "", limit: int = 50):
+    """Returns game names matching the query string."""
+    if data_manager.metadata is None:
+        raise HTTPException(status_code=503, detail="Data not loaded yet")
+    
+    if not q or len(q) < 2:
+        # Return empty or top games if query is too short
+        return []
+        
+    mask = data_manager.metadata['name'].str.contains(re.escape(q), case=False, na=False)
+    matches = data_manager.metadata[mask]['name'].head(limit).tolist()
+    return sorted(matches)
+
+@app.get("/games/random")
+def get_random_game():
+    """Returns a random game name from the dataset."""
+    if data_manager.metadata is None:
+        raise HTTPException(status_code=503, detail="Data not loaded yet")
+    
+    random_game = data_manager.metadata.sample(n=1).iloc[0]['name']
+    return str(random_game)
 
 @app.get("/lists/{category}")
 def get_list(category: str, discovery_pref: float = 0.0):
@@ -492,6 +539,7 @@ def get_metadata(request: MetadataRequest):
             "negative": int(game_meta['negative']),
             "genres": game_meta['genres'],
             "tags": game_meta['tags'],
+            "is_nsfw": bool(game_meta['is_nsfw']),
             "raw_pop": int(raw_pop),
             "raw_length": float(raw_length)
         }
@@ -529,22 +577,6 @@ def recommend(request: RecommendationRequest):
         mask &= metadata['is_english'].values
         eng_removed = initial_count - np.sum(mask) if request.remove_vr else np.sum(~mask)
         logger.debug(f"English filter removed {eng_removed} games")
-    
-    if request.remove_nsfw:
-        mask &= (metadata['mature_content'] == 0).values
-        nsfw_removed = initial_count - np.sum(mask)
-        logger.debug(f"NSFW filter removed {nsfw_removed} games")
-        
-        tags = metadata['tags'].fillna('')
-        nsfw_tag_mask = tags.apply(lambda x: any(tag in str(x).lower() for tag in NSFW_TAGS) if x else False).values
-        mask &= ~nsfw_tag_mask
-        nsfw_tag_removed = initial_count - np.sum(mask)
-        logger.debug(f"NSFW tag filter removed additional {nsfw_tag_removed - nsfw_removed} games")
-        
-        nsfw_name_mask = metadata['name'].fillna('').str.contains('|'.join(NSFW_NAME_PATTERNS), case=False, na=False).values
-        mask &= ~nsfw_name_mask
-        nsfw_name_removed = initial_count - np.sum(mask)
-        logger.debug(f"NSFW name filter removed additional {nsfw_name_removed - nsfw_tag_removed} games")
     
     if request.remove_utilities:
         mask &= ~metadata['is_utility'].values
@@ -787,6 +819,7 @@ def recommend(request: RecommendationRequest):
             "negative": int(game_meta['negative']),
             "genres": game_meta['genres'], 
             "tags": game_meta['tags'],     
+            "is_nsfw": bool(game_meta['is_nsfw']),
             
             "weighted_score": float(final_scores[idx]),
             "semantic_match": float(semantic_sims[idx]),

@@ -1,0 +1,68 @@
+export interface GameMetadata {
+  appid: number;
+  name: string;
+  release_date: string;
+  short_description: string;
+  release_year: number;
+  estimated_playtime: number;
+  difficulty_predicted: number;
+  positive: number;
+  negative: number;
+  genres: string;
+  tags: string;
+  is_nsfw?: boolean;
+  raw_pop?: number;
+  raw_length?: number;
+  weighted_score?: number;
+  semantic_match?: number;
+  tag_match?: number;
+  rating?: number;
+  
+  // Debug components
+  z_semantic?: number;
+  w_semantic?: number;
+  z_tag?: number;
+  w_tag?: number;
+  z_spps?: number;
+  w_spps?: number;
+  z_date?: number;
+  w_date?: number;
+  z_pop?: number;
+  w_pop?: number;
+  z_length?: number;
+  w_length?: number;
+  z_difficulty?: number;
+  w_difficulty?: number;
+
+  // Fields for lists
+  quality_score?: number;
+  total_reviews?: number;
+  playtime?: number;
+}
+
+export interface RecommendationRequest {
+  alpha: number;
+  beta: number;
+  quality_pref: number;
+  age_pref: number;
+  pop_pref: number;
+  disc_pref: number;
+  length_pref: number;
+  difficulty_pref: number;
+  remove_vr: boolean;
+  english_only: boolean;
+  remove_nsfw: boolean;
+  remove_utilities: boolean;
+  remove_unreleased: boolean;
+  top_k: number;
+  prompt: string;
+  seed_games: string[];
+  genres: string[];
+  debug?: boolean;
+}
+
+export interface ListResponse {
+  top: Partial<GameMetadata>[];
+  bottom: Partial<GameMetadata>[];
+  tag_impacts?: { tag: string; impact: number }[];
+}
