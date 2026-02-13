@@ -9,12 +9,11 @@
 
 ### Top Priority
 
-- [ ] Make game cards on website same color as banner (light purple) with black font. Make Search Options card yellow with black font. Buttons should be teal with a black font.
+
 
 ### Lesser Priority
 
 - [ ] Maintain a consistent session state so that switching between pages does not lose slider settings, seeds, etc.
-
 - [ ] Have an x-out button on seed games directly to the left of the card where the seed game is displayed.
 - [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha).
 - [ ] Create a quick onboarding for new users. 
@@ -22,3 +21,4 @@
         - [ ] Link it in the same way the other pages are linked, in the hamburger menu.
 - [ ] Display image files linked in the download data on the game cards if it can be done without expanding memory footprint too much.
 - [ ] Generate a changelog and link it as a page on the website. Make updating the changelog one of the tasks on onShutdown.md.
+- [ ] Once per day, scrape the steam most played list (https://store.steampowered.com/charts/mostplayed). Restrict the "surprise me" button's selections to be from this list. 
