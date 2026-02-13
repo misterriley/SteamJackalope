@@ -7,14 +7,16 @@
 
 ### Recently Completed
 
+- [x] Difficulty values of 0 aren't displaying in the game cards.
+
 ### Top Priority
+
 
 ### Lesser Priority
 
-- [ ] Zeros in the game cards are displaying weirdly.
 - [ ] Maintain a consistent session state so that switching between pages does not lose slider settings, seeds, etc.
 - [ ] Make game cards on website same color as banner (light purple) with black font. Make Search Options card yellow with black font. Buttons should be teal with a black font.
-- [ ] Have an x-out button on seed games directly next to the card where the seed game is displayed.
+- [ ] Have an x-out button on seed games directly to the left of the card where the seed game is displayed.
 - [ ] Add a build versioning system for me to keep track of where we're at in the deployment cycle. Current version is 0.0.1 (pre-pre-alpha).
 - [ ] Create a quick onboarding for new users. 
         - [ ] Create a guide page with simple instructions for how to use the site. 

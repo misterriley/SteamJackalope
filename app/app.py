@@ -223,11 +223,11 @@ def render_game_card(game, show_debug=False, alpha=0.0, beta=0.0, prompt="", sel
             if short_desc and str(short_desc).strip():
                 st.write(f"**Description:** {short_desc}")
 
-            if game.get('estimated_playtime'):
+            if game.get('estimated_playtime') is not None:
                 hours = game['estimated_playtime'] / 60.0
                 st.write(f"{ESTIMATED_LENGTH_LABEL} {hours:.1f} hours")
             
-            if game.get('difficulty_predicted'):
+            if game.get('difficulty_predicted') is not None:
                 st.write(f"{DIFFICULTY_SCORE_LABEL} {game['difficulty_predicted']:.1f}")
 
             pos = int(game['positive'])
