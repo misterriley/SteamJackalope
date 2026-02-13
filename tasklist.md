@@ -9,8 +9,6 @@
 
 ### Top Priority
 
-
-
 ### Lesser Priority
 
 - [ ] Maintain a consistent session state so that switching between pages does not lose slider settings, seeds, etc.
@@ -21,4 +19,7 @@
         - [ ] Link it in the same way the other pages are linked, in the hamburger menu.
 - [ ] Display image files linked in the download data on the game cards if it can be done without expanding memory footprint too much.
 - [ ] Generate a changelog and link it as a page on the website. Make updating the changelog one of the tasks on onShutdown.md.
-- [ ] Once per day, scrape the steam most played list (https://store.steampowered.com/charts/mostplayed). Restrict the "surprise me" button's selections to be from this list. 
+- [ ] Once per day, scrape the steam most played list (https://store.steampowered.com/charts/mostplayed). Restrict the "surprise me" button's selections to be from this list.
+- [ ] Stop doing the lazy loading of the transformers.
+- [ ] Make the sliders line up vertically with the labels.
+- [ ] Put semantic match and tag match sliders at the head of the two columns, have a spacer or a light line separating them from the other six.
