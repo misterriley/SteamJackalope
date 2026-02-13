@@ -33,3 +33,15 @@ sample_games.csv
 .pytest_cache/
 .coverage
 htmlcov/
+research/playtime_curve_115300.png
+research/playtime_curve_201270.png
+research/playtime_curve_900883.png
+research/playtime_curve_1021210.png
+research/playtime_curve_1931180.png
+research/playtime_curve_1934570.png
+research/playtime_curve_2001070.png
+research/playtime_curve_2238470.png
+research/playtime_curve_2274620.png
+research/playtime_curve_2995920.png
+research/playtime_analysis/playtime_sentiment_201270.png
+research/playtime_analysis/predictions_201270.csv
