@@ -12,6 +12,11 @@
 - [x] Put semantic match and tag match sliders at the head of the two columns, have a spacer or a light line separating them from the other six.
 - [x] Have an x-out button on seed games directly to the left of the card where the seed game is displayed.
 - [x] Maintain a consistent session state so that switching between pages does not lose slider settings, seeds, etc.
+
+### Top Priority
+
+### Lesser Priority
+
 - [ ] Create a quick onboarding for new users. 
         - [ ] Create a guide page with simple instructions for how to use the site. 
         - [ ] Link it in the same way the other pages are linked, in the hamburger menu.
