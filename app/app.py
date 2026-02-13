@@ -655,11 +655,9 @@ else:
                         if seed_resp.status_code == 200:
                             seed_results = seed_resp.json()
                             for seed_game in seed_results:
-                                col_remove, col_card = st.columns([1, 15])
+                                col_remove, col_card = st.columns([1, 15], vertical_alignment="center")
                                 with col_remove:
-                                    st.markdown("<div style='padding-top: 5px;'>", unsafe_allow_html=True)
                                     st.button("✖", key=f"remove_{seed_game['appid']}", on_click=remove_seed, args=(seed_game['name'],), help="Remove from seeds")
-                                    st.markdown("</div>", unsafe_allow_html=True)
                                 with col_card:
                                     render_game_card(seed_game, is_seed=True)
                         st.divider()
