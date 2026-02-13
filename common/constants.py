@@ -7,20 +7,18 @@ load_dotenv()
 
 # Backend
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
-BUILD_VERSION = "0.0.1-pre-alpha"
 
-# Weights & Multipliers
-ABG_NOTCHES_ON_SLIDER = 10
-SEMANTIC_WEIGHT_MULTIPLIER = 1.0
-TAG_WEIGHT_MULTIPLIER = 1.0
-QUALITY_WEIGHT_MULTIPLIER = 4.0
-AGE_WEIGHT_MULTIPLIER = 1.4
-POPULARITY_WEIGHT_MULTIPLIER = 1.0
-LENGTH_WEIGHT_MULTIPLIER = 0.25
-DIFFICULTY_WEIGHT_MULTIPLIER = 1.3
-
-# Files
+# Build Versioning
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+BUILD_VERSION_BASE = "0.0.1-pre-alpha"
+BUILD_COUNT_FILE = os.path.join(ROOT_DIR, "build_count.json")
+try:
+    with open(BUILD_COUNT_FILE, "r") as f:
+        _bc_data = json.load(f)
+        BUILD_COUNT = _bc_data.get("build_count", 0)
+except:
+    BUILD_COUNT = 0
+BUILD_VERSION = f"{BUILD_VERSION_BASE}+build.{BUILD_COUNT}"
 PRODUCTION_DATA_DIR = os.path.join(ROOT_DIR, "data", "production")
 
 # Environment variable overrides for test isolation and flexibility
