@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import pandas as pd
@@ -851,6 +853,25 @@ def recommend(request: RecommendationRequest):
     logger.info(f"/recommend returning {len(response_items)} results")
     return response_items
 
+# --- Static File Serving ---
+# Serve the React frontend build files if they exist
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist'))
+if os.path.exists(frontend_dist):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        # If the path looks like a file (has an extension), try to serve it from dist
+        file_path = os.path.join(frontend_dist, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        
+        # Otherwise, serve index.html for SPA routing (React Router etc.)
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
+else:
+    logger.warning(f"Frontend dist directory not found at {frontend_dist}. API only mode.")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+            

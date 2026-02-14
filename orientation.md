@@ -60,6 +60,9 @@ For detailed documentation of each directory, see the individual README files:
     - **Metadata Optimization**: Uses `pyarrow` backend for efficient string storage and avoids creating Python list objects for genres/tags where possible.
     - **Thread Limiting**: `OMP_NUM_THREADS` and related variables are set to `1` to prevent excessive buffer allocation by linear algebra libraries.
 - **Improved Debug Mode:** The recommender's game cards now feature a comprehensive debug section. It provides a full breakdown of the hybrid score calculation, including raw values, z-scores, and both slider and hard-coded weights for every component.
+- **Unified Server (FastAPI Static Serving)**: The backend FastAPI server is configured to serve the modern React frontend's production build (`frontend/dist`) as a fallback for non-API routes. This enables a single-process deployment (Unified Server) where both the API and the UI are available on the same port (e.g., port 8000 in production). 
+- **Linux Shell Scripts**: Re-created Linux shell script equivalents (`.sh`) for all core Windows workflows (`.bat`), including `run_all_tests.sh`, `run_test_env.sh`, and scraping scripts, ensuring cross-platform development parity.
+- **UI Stability & The "Single Card Bug"**: A known rendering failure where the recommendation grid collapses to a single card has been identified. This is triggered by `display: flex` on the `body` tag in `index.css` (which interferes with React's grid rendering) and by React key collisions. The fix involves ensuring `body` does not use flexbox and that all grid items use unique, persistent keys (like `appid`).
 
 - **Deployment**: The project is configured for deployment on **Render** using a single-container architecture (FastAPI backend + Streamlit frontend).
     - `Dockerfile`: Configured to run both services, binding Streamlit to the `$PORT` environment variable.

@@ -14,7 +14,11 @@ When starting work on this repository, please follow these steps:
 3.  **Check for Ideas:** If there are no specific tasks to complete, read `ideas.md`. Pick one item from the list, make a plan for how to complete it, and break it down into actionable tasks. Put the tasks in `tasklist.md` along with any information needed to complete the tasks successfully. 
 4.  **Propose New Tasks:** If you identify ways to improve the project's code quality, performance, or organization, add them as new tasks to `tasklist.md`.    
 5.  **Update Files:** If you discover new information about the project's structure, dependencies, or undocumented features that would be helpful for future contributors, add that information to `onStartup.md`, `orientation.md`, `methodology.md`, `ideas.md`, or `onShutdown.md` as appropriate.
-6.  **Troubleshooting:** 
+6.  **Cross-Platform Usage:**
+    - **Windows:** Use `.bat` scripts (e.g., `run_test_env.bat`, `run_all_tests.bat`).
+    - **Linux:** Use `.sh` scripts (e.g., `run_test_env.sh`, `run_all_tests.sh`). Ensure they are executable (`chmod +x *.sh`).
+    - **Deployment:** The `Dockerfile` is the primary way to deploy to Linux/Render. It handles building the React frontend and serving it via the FastAPI backend.
+7.  **Troubleshooting:** 
     *   Be aware that legacy scripts in `old/` may cause conflicts with `pytest` collection if they share module names with files in `tests/`. If tests fail to collect, check for naming collisions.
     *   **Whitening Instability**: If tag similarities between disparate games explode again, check if the whitening process in `pipeline/generate_tag_vectors.py` is correctly dropping singular dimensions (thresholding).
 

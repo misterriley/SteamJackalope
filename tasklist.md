@@ -7,6 +7,9 @@
 
 ### Recently Completed
 
+- [x] Establish cross-platform Linux compatibility (sh scripts, multi-stage Docker).
+- [x] Enable Unified Server (FastAPI serving React build fallback).
+- [x] Fix "Single Card Bug" (UI rendering stability and CSS cleanup).
 - [x] Implement modern React 19 frontend with Vite, Tailwind CSS v4, and Lucide icons.
 - [x] Add About and Methodology pages with markdown rendering (KaTeX support for math).
 - [x] Integrate high-fidelity Discover icon and favicon from jackalopeVR assets.

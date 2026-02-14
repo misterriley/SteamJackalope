@@ -1,7 +1,13 @@
-# Use an official Python runtime as a parent image
-FROM python:3.10-slim-bookworm
+# Stage 1: Build the React frontend
+FROM node:20-slim AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
 
-# Set the working directory in the container
+# Stage 2: Build the FastAPI backend
+FROM python:3.10-slim-bookworm
 WORKDIR /app
 
 # Suppress the "Running pip as the 'root' user" warning
@@ -13,23 +19,20 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the current directory contents into the container at /app
-COPY . .
-
-# Install any needed packages specified in requirements.txt
+# Copy backend requirements and install
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Render uses the PORT environment variable to define the port the service should listen on.
-# We will use this for the Streamlit frontend. 
-# FastAPI will run internally on port 8000.
+# Copy the rest of the application
+COPY . .
+
+# Copy the built frontend from Stage 1
+COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+
+# Render uses the PORT environment variable.
+# FastAPI will run on this port.
 EXPOSE 8000
 
-# Create a startup script to run both servers
-# We bind Streamlit to the PORT env var and FastAPI to localhost
-RUN echo '#!/bin/bash\n\
-python -m uvicorn app.server:app --host 127.0.0.1 --port 8000 & \n\
-streamlit run app/app.py --server.port ${PORT:-8501} --server.address 0.0.0.0\n\
-' > /app/start.sh && chmod +x /app/start.sh
-
-# Run the startup script
-CMD ["/app/start.sh"]
+# Start the FastAPI server
+# We use ${PORT:-8000} to respect Render's dynamic port assignment
+CMD ["sh", "-c", "python -m uvicorn app.server:app --host 0.0.0.0 --port ${PORT:-8000}"]
