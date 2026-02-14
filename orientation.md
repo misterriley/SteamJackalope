@@ -28,7 +28,12 @@ For detailed documentation of each directory, see the individual README files:
 - `app/app.py`: Legacy frontend Streamlit UI that communicates with the backend server. Start with `streamlit run app/app.py`.
 - `run_test_env.bat`: A convenience batch file to launch both the server and the modern frontend for local testing.
 - `run_all_tests.bat`: A convenience batch file to run the full test suite using `pytest`.
+- `onPush.md`: Guidelines for updating the changelog and maintaining versioning before pushing to the remote repository.
 - `pipeline/run_pipeline.py`: Orchestrates the data processing pipeline (tags -> semantic vectors -> metadata -> quality scores). Uses `pipeline/pipeline_config.json` for path and interval settings.
+
+### Push Workflow (`onPush.md`)
+
+The `onPush.md` file serves as a protocol for all contributors. Before pushing changes to the remote, you MUST review the commit history since the last push and update `CHANGELOG.md`. This ensures that all algorithmic, UI, and deployment changes are properly documented and surfaced to the user via the website's Changelog view.
 - `pipeline/pipeline_config.json`: Configuration file for `run_pipeline.py` defaults.
 - `common/constants.py`: Centralized configuration and hyperparameters. Loads from `pipeline/regularization_constants.json` if present.
 - `pipeline/calculate_regularization.py`: Script to derive data-driven regularization constants.
