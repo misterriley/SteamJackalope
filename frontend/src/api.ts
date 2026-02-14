@@ -1,7 +1,9 @@
 import axios from 'axios';
 import type { GameMetadata, RecommendationRequest, ListResponse } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+// In production, we serve from the same domain, so use relative paths.
+// In development (Vite dev server), we fallback to port 8000.
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8000' : '');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
