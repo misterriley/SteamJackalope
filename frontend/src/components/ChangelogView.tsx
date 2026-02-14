@@ -6,8 +6,9 @@ const CHANGELOG_MD = String.raw`# Changelog
 All notable changes to the Steam Jackalope project will be documented in this file.
 
 ## 2026-02-14
-### Build 10
-### Version 0.0.1-pre-alpha+build.10
+### Build 11
+### Version 0.0.1-pre-alpha+build.11
+- **Documentation**: Integrated \`onPush.md\` into \`orientation.md\`, \`onShutdown.md\`, and \`gemini.md\` for better onboarding.
 - **UI**: Added a "Changelog" link to the header in both modern and legacy frontends.
 - **Documentation**: Established a new versioning and changelog protocol, including \`onPush.md\` and automated build increments.
 - **Tooling**: Refactored \`generate_random_recommendation.py\` output to a multiline, labeled format optimized for Discord sharing.
