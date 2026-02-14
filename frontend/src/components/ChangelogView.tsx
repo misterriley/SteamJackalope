@@ -9,8 +9,8 @@ All notable changes to the Steam Jackalope project will be documented in this fi
 ### Build 10
 ### Version 0.0.1-pre-alpha+build.10
 - **UI**: Added a "Changelog" link to the header in both modern and legacy frontends.
-- **Documentation**: Established a new versioning and changelog protocol, including `onPush.md` and automated build increments.
-- **Tooling**: Refactored `generate_random_recommendation.py` output to a multiline, labeled format optimized for Discord sharing.
+- **Documentation**: Established a new versioning and changelog protocol, including \`onPush.md\` and automated build increments.
+- **Tooling**: Refactored \`generate_random_recommendation.py\` output to a multiline, labeled format optimized for Discord sharing.
 - **Algorithm**: Updated difficulty display to a 10-point scale for more granular feedback in CLI recommendations.
 
 ## 2026-02-13
@@ -20,7 +20,7 @@ All notable changes to the Steam Jackalope project will be documented in this fi
 - **Architecture**: Implemented a Unified Server architecture where FastAPI serves both the API and the production frontend build from a single process.
 - **UI**: Added "About" and "Methodology" pages with KaTeX support for mathematical formulas.
 - **UI**: Improved seed game management with removal buttons and better grid alignment.
-- **Deployment**: Added automated Linux deployment scripts (`deploy.sh`) for unified server management.
+- **Deployment**: Added automated Linux deployment scripts (\`deploy.sh\`) for unified server management.
 
 ## 2026-02-12
 - **Algorithm**: Optimized playtime sentiment analysis using full vectorization and parallelized global parameter optimization ($\gamma \approx 0.51$).
@@ -39,7 +39,7 @@ All notable changes to the Steam Jackalope project will be documented in this fi
 - **UI**: Added "Debug Mode" to game cards, providing a full breakdown of z-scores and weight contributions for transparency.
 
 ## 2026-02-09
-- **Performance**: Migrated to quantized ONNX transformer models (`all-MiniLM-L6-v2`), reducing RAM usage and increasing inference speed.
+- **Performance**: Migrated to quantized ONNX transformer models (\`all-MiniLM-L6-v2\`), reducing RAM usage and increasing inference speed.
 - **Performance**: Converted large production artifacts to float16 precision, reducing the memory footprint by 50%.
 - **Algorithm**: Applied dimensionality reduction to whitening matrices to optimize cache performance and reduce noise in high-dimensional similarities.
 
