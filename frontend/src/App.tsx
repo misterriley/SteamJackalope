@@ -5,6 +5,7 @@ import RecommendationsView from './components/RecommendationsView';
 import ListsView from './components/ListsView';
 import AboutView from './components/AboutView';
 import MethodologyView from './components/MethodologyView';
+import ChangelogView from './components/ChangelogView';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('recommend');
@@ -15,6 +16,7 @@ function App() {
       case 'lists': return <ListsView />;
       case 'about': return <AboutView />;
       case 'methodology': return <MethodologyView />;
+      case 'changelog': return <ChangelogView />;
       default: return <RecommendationsView />;
     }
   };

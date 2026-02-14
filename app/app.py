@@ -473,6 +473,8 @@ with st.container():
             navigate_to("About")
         if st.button("Methodology", use_container_width=True):
             navigate_to("Methodology")
+        if st.button("Changelog", use_container_width=True):
+            navigate_to("Changelog")
 
 # --- PAGE CONTENT ROUTING ---
 
@@ -509,7 +511,15 @@ elif st.session_state.current_page == "Methodology":
     except FileNotFoundError:
         st.error(METHODOLOGY_ERROR)
 
-# 4. RECOMMENDER PAGE (Default)
+# 4. CHANGELOG PAGE
+elif st.session_state.current_page == "Changelog":
+    try:
+        with open("CHANGELOG.md", "r", encoding="utf-8") as f:
+            st.markdown(f.read())
+    except FileNotFoundError:
+        st.error("Changelog file not found.")
+
+# 5. RECOMMENDER PAGE (Default)
 else:
     # Restored Title/Version Text
     st.markdown(APP_TITLE)

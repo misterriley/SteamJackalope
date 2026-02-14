@@ -1,7 +1,7 @@
 import React from 'react';
-import { Sparkles, BarChart2, Github, Info, BookOpen } from 'lucide-react';
+import { Sparkles, BarChart2, Github, Info, BookOpen, History } from 'lucide-react';
 
-export type TabType = 'recommend' | 'lists' | 'about' | 'methodology';
+export type TabType = 'recommend' | 'lists' | 'about' | 'methodology' | 'changelog';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -71,12 +71,24 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
             </button>
           </nav>
 
-          <div className="hidden sm:flex items-center gap-4">
+          <div className="flex items-center gap-0.5 sm:gap-4">
+             <button
+              onClick={() => onTabChange('changelog')}
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                activeTab === 'changelog'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+              }`}
+             >
+              <History size={16} />
+              <span className="hidden sm:inline">Changelog</span>
+             </button>
              <a 
               href="https://github.com/misterriley/SteamJackalope" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors p-2 rounded-lg hover:bg-secondary/50"
+              title="View on GitHub"
              >
               <Github size={20} />
              </a>
