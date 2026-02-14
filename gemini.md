@@ -34,12 +34,13 @@ This document serves as a condensed reference for Gemini instances working on th
 *   **Logging**: Ensure all new functionality includes informative logging.
 
 ## 🏁 Shutdown Protocol (Before finishing a session)
-1.  **Update Docs**: If you changed logic, update `methodology.md` and `orientation.md`.
-2.  **Clean Up**: Remove temporary files. Ensure no `>>>>+++ REPLACE` markers remain.
-3.  **Externalize**: Move any new magic numbers/paths to `constants.py`.
-4.  **Verify**: Run the full test suite.
-5.  **Commit**: Group changes logically with a "why-focused" message. Do not push.
-6.  **Tasklist**: Move completed tasks to "Recently Completed" in `tasklist.md`.
+1.  **Update Docs**: If you changed logic, update `methodology.md`, `orientation.md`, and potentially `onPush.md`.
+2.  **Changelog**: Review `onPush.md` and update `CHANGELOG.md` with your changes (Algorithm, UI, or Deployment).
+3.  **Clean Up**: Remove temporary files. Ensure no `>>>>+++ REPLACE` markers remain.
+4.  **Externalize**: Move any new magic numbers/paths to `constants.py`.
+5.  **Verify**: Run the full test suite.
+6.  **Commit**: Group changes logically with a "why-focused" message. Do not push.
+7.  **Tasklist**: Move completed tasks to "Recently Completed" in `tasklist.md`.
 
 ## 📂 Directory Map
 *   `app/`: UI and Server logic.
@@ -49,3 +50,4 @@ This document serves as a condensed reference for Gemini instances working on th
 *   `research/`: Statistical analysis and experimental scripts.
 *   `tests/`: Automated test suite.
 *   `data/`: Intermediate data (Source of truth: `pipeline_games_clean.csv`).
+*   `root/`: Contains `onPush.md` (Push Protocol) and `CHANGELOG.md`.
