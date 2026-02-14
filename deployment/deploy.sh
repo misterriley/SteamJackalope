@@ -59,8 +59,7 @@ kill_port() {
 # Clear ports before starting
 echo ""
 echo ">>> Pre-deployment: Ensuring ports are free..."
-kill_port 8000 "backend"
-kill_port 8501 "frontend"
+kill_port 8000 "unified-server"
 
 # Stop any existing systemd services to prevent conflicts
 echo ""
@@ -77,28 +76,29 @@ pkill -f "uvicorn app.server:app" 2>/dev/null || true
 pkill -f "streamlit run app/app.py" 2>/dev/null || true
 sleep 1
 
-# Start backend
+# Build Frontend
 echo ""
-echo ">>> Starting backend server..."
-nohup uvicorn app.server:app --host 0.0.0.0 --port 8000 > deployment/backend.log 2>&1 &
-BACKEND_PID=$!
-echo "  Backend started (PID: $BACKEND_PID, logs: deployment/backend.log)"
-sleep 2
+echo ">>> Building React frontend..."
+cd frontend
+if [ ! -d "node_modules" ]; then
+    echo "  Installing node dependencies..."
+    npm install
+fi
+npm run build
+cd ..
 
-# Start frontend
+# Start unified server
 echo ""
-echo ">>> Starting frontend..."
-nohup streamlit run app/app.py --server.port 8501 --server.address 0.0.0.0 --server.enableCORS false > deployment/frontend.log 2>&1 &
-FRONTEND_PID=$!
-echo "  Frontend started (PID: $FRONTEND_PID, logs: deployment/frontend.log)"
+echo ">>> Starting unified server (FastAPI)..."
+nohup uvicorn app.server:app --host 0.0.0.0 --port 8000 > deployment/server.log 2>&1 &
+SERVER_PID=$!
+echo "  Server started (PID: $SERVER_PID, logs: deployment/server.log)"
+sleep 2
 
 echo ""
 echo "=== Deployment complete ==="
-echo "Backend: http://127.0.0.1:8000"
-echo "Frontend: http://127.0.0.1:8501"
+echo "URL: http://0.0.0.0:8000"
 echo ""
 echo "Check status:"
 echo "  ps aux | grep uvicorn"
-echo "  ps aux | grep streamlit"
-echo "  tail -f deployment/backend.log"
-echo "  tail -f deployment/frontend.log"
+echo "  tail -f deployment/server.log"
