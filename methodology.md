@@ -126,3 +126,12 @@ To understand how player engagement relates to satisfaction, we utilize a **Kern
 - **Optimization:** The model's smoothing bandwidth ($\gamma$) and regularization strength ($s$) were globally optimized using a parallelized grid search over a diverse sample of thousands of games. We maximized the total log-likelihood (cross-entropy) of the historical review data to find the parameters that best generalize across the Steam library.
 
 - **Usage:** This model reveals patterns such as "early quitters" (negative reviews at low playtime) vs. "burnout" (negative reviews at extremely high playtime), providing deeper insights into the player experience beyond a single aggregate score.
+
+## 11. Visual & UI Stability
+To provide a polished and safe user experience, the modern frontend implements several automated visual treatments:
+
+- **NSFW Content Blurring:** Games flagged with the "Adult Only" or "Mature" content banners (or those containing specific NSFW keyword patterns) automatically have their banner images blurred in the recommendation grid. Users can click a "Reveal" button on individual cards to temporarily clear the blur.
+
+- **Grid Rendering Stability:** The recommendation grid utilizes persistent React keys based on game AppIDs and standardized CSS layout principles (avoiding flexbox on global containers) to prevent "Single Card" collapse bugs and ensure consistent card sizing across all screen resolutions.
+
+- **Dynamic Tag Visualization:** Each game card dynamically renders its most relevant genres and top user tags, highlighting matches that align with the user's search intent or seed games.
