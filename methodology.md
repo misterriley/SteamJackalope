@@ -48,7 +48,7 @@ The model we use is based around the idea that there is a latent quality score $
 
 - **Score Normalization:** To maintain a consistent spread of scores in recommended games across different Discovery settings, we apply a linear transformation to the generated z-scores. This ensures that the mean scores of the top 500 and bottom 500 games remain aligned with a baseline distribution (s = 2000), preventing the score distribution from collapsing or expanding excessively at extreme parameter values.
 
-- **Computational Efficiency:** To minimize memory usage on resource-constrained environments, the recommendation engine utilizes [Reduced Precision Arithmetic](https://en.wikipedia.org/wiki/Half-precision_floating-point_format) (FP16) for large-scale vector operations and [Memory-Mapped I/O](https://en.wikipedia.org/wiki/Memory-mapped_file) for static data artifacts. This allows the system to perform high-dimensional similarity searches while maintaining a memory footprint under 512 MB.
+- **Computational Efficiency:** To minimize memory usage on resource-constrained environments, the recommendation engine utilizes [Reduced Precision Arithmetic](https://en.wikipedia.org/wiki/Half-precision_floating-point_format) (FP16) for large-scale vector operations and [Memory-Mapped I/O](https://en.wikipedia.org/wiki/Memory-mapped_file) for static data artifacts. This allows the system to perform high-dimensional similarity searches efficiently.
 
 ## 5. Playtime Regularization
 To effectively rank games by length, we analyze the distribution of playtimes that are available as part of user reviews. We assume that negative reviews will bias the estimate of game length downward due to quitting the game before finishing it, so we discard those values. Median playtime estimates can be highly variable for games with few reviews, and to address this, we apply a Bayesian shrinkage method similar to our tag vector approach.
@@ -123,7 +123,7 @@ To understand how player engagement relates to satisfaction, we utilize a **Kern
 
 - **Bayesian Regularization:** To handle timeframes with few reviews, we apply Bayesian smoothing, pulling the predicted probability toward the global average positive review rate (0.80).
 
-- **Optimization:** The model's smoothing bandwidth ($\gamma$) and regularization strength ($s$) were globally optimized using a parallelized grid search over a diverse sample of thousands of games. We maximized the total log-likelihood (cross-entropy) of the historical review data to find the parameters that best generalize across the Steam library.
+- **Optimization:** The model's smoothing bandwidth ($\gamma$) and regularization strength ($s$) were globally optimized using a parallelized grid search over the entire dataset of 36,000+ games. We maximized the total log-likelihood (cross-entropy) of the historical review data, ensuring that every review across all games contributes equally to the calibration. 
 
 - **Usage:** This model reveals patterns such as "early quitters" (negative reviews at low playtime) vs. "burnout" (negative reviews at extremely high playtime), providing deeper insights into the player experience beyond a single aggregate score.
 

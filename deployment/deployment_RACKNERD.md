@@ -5,7 +5,7 @@
 RackNerd offers affordable VPS plans starting at ~$15/month with:
 - 2-4 GB RAM (enough for this app)
 - Full root access
-- No restrictive memory limits like Render's 512 MB container
+- No restrictive memory limits
 
 ## Prerequisites
 
@@ -495,8 +495,6 @@ ls -la ~/.cache/torch/sentence_transformers/all-MiniLM-L6-v2/onnx/
 - **RackNerd VPS (2GB RAM)**: ~$15-20/month
 - **Domain name**: ~$12/year (optional)
 - **Total first year**: ~$180-240 + domain
-
-This is significantly cheaper than Render's $7/month hobby plan that only gives 512 MB, which is insufficient for this app with both services running.
 
 ## Next Steps
 

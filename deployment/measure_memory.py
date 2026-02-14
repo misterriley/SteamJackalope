@@ -103,7 +103,6 @@ def main():
     print(f"Backend + Frontend (no model): {baseline:.1f} MB")
     print(f"Backend + Frontend (with model): {peak:.1f} MB")
     print(f"Total memory footprint: {peak:.1f} MB")
-    print(f"\nConclusion: {'✓ UNDER' if peak < 512 else '✗ OVER'} 512 MB limit")
     print("="*60)
     
     # Write results to file for later viewing
@@ -112,7 +111,6 @@ def main():
         f.write(f"Peak (with model): {peak:.2f} MB\n")
         f.write(f"Inference impact: {peak - baseline:.2f} MB\n")
         f.write(f"Total footprint: {peak:.2f} MB\n")
-        f.write(f"Status: {'UNDER' if peak < 512 else 'OVER'} 512 MB limit\n")
     
     print("\nResults saved to memory_results.txt")
 

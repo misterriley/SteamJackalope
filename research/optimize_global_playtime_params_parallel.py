@@ -42,7 +42,7 @@ def load_reviews_data():
     
     raise FileNotFoundError("Could not find scraped_reviews.csv")
 
-def get_games_with_min_reviews(reviews_df, min_reviews=200):
+def get_games_with_min_reviews(reviews_df, min_reviews=2):
     """Return list of game IDs with at least min_reviews valid reviews."""
     valid_reviews = reviews_df[
         (reviews_df['author_playtime_forever'] > 0) &
@@ -62,8 +62,11 @@ def compute_game_log_likelihood(playtimes, voted_up, gamma, s, a=0.80):
     # Compute PPP for all reviews
     ppp = estimate_ppp_vectorized(playtimes, voted_up, gamma=gamma, s=s, a=a)
     
-    # Compute log-likelihood
-    ll = np.sum(voted_up * np.log(ppp + 1e-12) + (~voted_up) * np.log(1 - ppp + 1e-12))
+    # Compute log-likelihood (per-review cross-entropy)
+    # ll = np.sum(voted_up * np.log(ppp + 1e-12) + (~voted_up) * np.log(1 - ppp + 1e-12))
+    # We use np.clip to avoid log(0)
+    ppp_clipped = np.clip(ppp, 1e-12, 1.0 - 1e-12)
+    ll = np.sum(voted_up * np.log(ppp_clipped) + (~voted_up) * np.log(1 - ppp_clipped))
     return ll
 
 def evaluate_parameters_on_games(params_tuple, games_data):
@@ -78,40 +81,40 @@ def evaluate_parameters_on_games(params_tuple, games_data):
         total_ll += ll
     return total_ll
 
-def run_single_optimization(seed, sample_per_game=200, n_games=100):
+def run_single_optimization(seed, sample_per_game=200, n_games=None, grid_size=75):
     """Run a single optimization with given random seed."""
-    np.random.seed(seed)
+    if seed is not None:
+        np.random.seed(seed)
     
-    # Load data (this happens in each process if not careful, but for this structure it's fine)
-    # Ideally we pass the dataframe, but loading once per run is okay.
+    # Load data
     reviews_df = load_reviews_data()
     
-    # Find eligible games (≥200 reviews)
-    eligible_games, game_counts = get_games_with_min_reviews(reviews_df, min_reviews=200)
+    # Find eligible games (≥2 reviews)
+    eligible_games, game_counts = get_games_with_min_reviews(reviews_df, min_reviews=2)
     
     if len(eligible_games) == 0:
         raise ValueError("No games with enough reviews found.")
     
     # Randomly sample games
-    if len(eligible_games) > n_games:
+    if n_games is not None and len(eligible_games) > n_games:
         sampled_games = np.random.choice(eligible_games, size=n_games, replace=False).tolist()
     else:
         sampled_games = eligible_games
     
+    print(f"Preparing data for {len(sampled_games)} games...")
+    
     # Prepare data for all games
     games_data = []
-    for game_id in sampled_games:
-        game_reviews = reviews_df[reviews_df['appid'] == game_id].copy()
-        game_reviews = game_reviews[
-            (game_reviews['author_playtime_forever'] > 0) &
-            (game_reviews['voted_up'].isin([True, False]))
-        ]
-        
-        if len(game_reviews) < 5:
-            continue
-            
-        playtimes = game_reviews['author_playtime_forever'].values.astype(float)
-        voted_up = game_reviews['voted_up'].values.astype(bool)
+    # Optimization: Filter df once for all sampled appids
+    valid_reviews = reviews_df[
+        (reviews_df['appid'].isin(sampled_games)) &
+        (reviews_df['author_playtime_forever'] > 0) &
+        (reviews_df['voted_up'].isin([True, False]))
+    ]
+    
+    for game_id, group in valid_reviews.groupby('appid'):
+        playtimes = group['author_playtime_forever'].values.astype(float)
+        voted_up = group['voted_up'].values.astype(bool)
         
         # Subsample if needed
         if sample_per_game is not None and len(playtimes) > sample_per_game:
@@ -122,18 +125,16 @@ def run_single_optimization(seed, sample_per_game=200, n_games=100):
         games_data.append((playtimes, voted_up))
     
     # Define grid
-    gammas = np.logspace(-3, 2, 25)  # 0.001 to 100
-    s_values = np.logspace(-3, 3, 25)  # 0.001 to 1000
+    gammas = np.logspace(-3, 2, grid_size)  # 0.001 to 100
+    s_values = np.logspace(-3, 3, grid_size)  # 0.001 to 1000
     param_grid = list(product(gammas, s_values))
     
     print(f"  Evaluating {len(param_grid)} parameter combinations on {len(games_data)} games...")
     
-    # Parallelize the grid search evaluation
-    # We parallelize the parameter search: divide the 625 parameter combos among cores
-    # Each core computes total LL for its subset of parameters across ALL games
-    # This minimizes data transfer overhead (games_data is sent to workers once)
-    
     cpu_count = max(1, multiprocessing.cpu_count() - 1)
+    
+    import time
+    start_eval = time.time()
     
     with multiprocessing.Pool(processes=cpu_count) as pool:
         # Create partial function with fixed data
@@ -141,6 +142,9 @@ def run_single_optimization(seed, sample_per_game=200, n_games=100):
         
         # Map parameters to log-likelihoods
         results = pool.map(func, param_grid)
+    
+    end_eval = time.time()
+    print(f"  Evaluation took {end_eval - start_eval:.2f}s")
     
     # Find best parameters
     best_idx = np.argmax(results)
@@ -152,7 +156,8 @@ def run_single_optimization(seed, sample_per_game=200, n_games=100):
         'gamma': float(best_gamma),
         's': float(best_s),
         'log_likelihood': float(best_ll),
-        'n_games': len(sampled_games)
+        'n_games': len(games_data),
+        'duration': end_eval - start_eval
     }
 
 def main():
@@ -165,10 +170,12 @@ def main():
                        help='Number of optimization runs with different random seeds')
     parser.add_argument('--seed', type=int, default=42,
                        help='Starting random seed (for first run)')
-    parser.add_argument('--sample-per-game', type=int, default=500,
+    parser.add_argument('--sample-per-game', type=int, default=200,
                        help='Number of reviews to sample per game')
-    parser.add_argument('--n-games', type=int, default=100,
-                       help='Number of games to sample per run')
+    parser.add_argument('--n-games', type=int, default=None,
+                       help='Number of games to sample per run (default: all)')
+    parser.add_argument('--grid-size', type=int, default=75,
+                       help='Number of steps in the gamma and s grid (total combinations = grid_size^2)')
     parser.add_argument('--output', type=str, default='research/global_playtime_params_multi.json',
                        help='Output JSON file for all results')
     
@@ -186,7 +193,8 @@ def main():
         result = run_single_optimization(
             seed=current_seed,
             sample_per_game=args.sample_per_game,
-            n_games=args.n_games
+            n_games=args.n_games,
+            grid_size=args.grid_size
         )
         
         all_results.append(result)

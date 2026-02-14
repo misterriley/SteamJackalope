@@ -216,7 +216,12 @@ const ListGameItem = ({ game, category }: { game: GameMetadata, category: string
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-4 hover:border-primary/50 transition-all group">
+    <a 
+      href={`https://store.steampowered.com/app/${game.appid}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="bg-card border border-border rounded-lg p-3 flex items-center gap-4 hover:border-primary/50 transition-all group no-underline"
+    >
       <div className="w-24 h-12 shrink-0 overflow-hidden rounded bg-secondary flex items-center justify-center">
         {!imgError ? (
           <img 
@@ -238,7 +243,7 @@ const ListGameItem = ({ game, category }: { game: GameMetadata, category: string
       <div className="text-right">
         <div className="text-sm font-mono font-bold text-primary">{getStat()}</div>
       </div>
-    </div>
+    </a>
   );
 }
 

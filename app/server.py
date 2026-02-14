@@ -43,6 +43,7 @@ from common.constants import (
     TAG_VECTORS_FILE,
     TAG_NORMS_FILE,
     METADATA_FILE,
+    TRENDING_APPIDS_FILE,
     DOT_PRODUCT_LAMBDA,
     EPSILON,
     Z_SCORE_CLAMP_MIN,
@@ -93,22 +94,10 @@ class DataManager:
         self.w_structural = None
         self.mean_desc = None
         self.mean_structural = None
-        self._model = None
+        self.model = None
         self.all_genres = []
+        self.trending_names = []
         self.lists_cache = {}
-
-    @property
-    def model(self):
-        if self._model is None:
-            logger.info("Loading SentenceTransformer model (Lazy Load)...")
-            from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(
-                MODEL_NAME,
-                backend=SENTENCE_TRANSFORMER_BACKEND,
-                model_kwargs=SENTENCE_TRANSFORMER_MODEL_KWARGS
-            )
-            logger.info("SentenceTransformer model loaded successfully")
-        return self._model
 
     def clean_release_date(self, date_str):
         if pd.isna(date_str) or date_str == "":
@@ -286,6 +275,33 @@ class DataManager:
         self.all_genres = sorted(list(all_genres_set))
         logger.info(f"Extracted {len(self.all_genres)} unique genres")
         
+        # Load trending games
+        if os.path.exists(TRENDING_APPIDS_FILE):
+            logger.info(f"Loading trending AppIDs from {TRENDING_APPIDS_FILE}...")
+            try:
+                import json
+                with open(TRENDING_APPIDS_FILE, 'r') as f:
+                    trending_appids = json.load(f)
+                
+                # Resolve AppIDs to names using metadata
+                mask = self.metadata['appid'].isin(trending_appids)
+                self.trending_names = self.metadata[mask]['name'].tolist()
+                logger.info(f"Resolved {len(self.trending_names)} trending games from {len(trending_appids)} AppIDs")
+            except Exception as e:
+                logger.error(f"Failed to load trending games: {e}")
+        else:
+            logger.warning(f"Trending AppIDs file NOT FOUND at {TRENDING_APPIDS_FILE}")
+
+        # 5. Load SentenceTransformer model
+        logger.info("Loading SentenceTransformer model...")
+        from sentence_transformers import SentenceTransformer
+        self.model = SentenceTransformer(
+            MODEL_NAME,
+            backend=SENTENCE_TRANSFORMER_BACKEND,
+            model_kwargs=SENTENCE_TRANSFORMER_MODEL_KWARGS
+        )
+        logger.info("SentenceTransformer model loaded successfully")
+
         mem_usage = self.metadata.memory_usage(deep=True).sum() / (1024 * 1024)
         logger.info(f"Metadata RAM size: {mem_usage:.2f} MB")
         logger.info("Data loading complete.")
@@ -364,6 +380,16 @@ def get_random_game():
         raise HTTPException(status_code=503, detail="Data not loaded yet")
     
     random_game = data_manager.metadata.sample(n=1).iloc[0]['name']
+    return str(random_game)
+
+@app.get("/games/trending/random")
+def get_random_trending_game():
+    """Returns a random game name from the trending list."""
+    if not data_manager.trending_names:
+        # Fallback to general random if trending is not loaded
+        return get_random_game()
+    
+    random_game = np.random.choice(data_manager.trending_names)
     return str(random_game)
 
 @app.get("/lists/{category}")

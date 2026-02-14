@@ -15,9 +15,7 @@ This document serves as a condensed reference for Gemini instances working on th
 ## 🏗️ Architecture & Tech Stack
 *   **Decoupled Design**: FastAPI Backend (`app/server.py`) + Modern React 19 Frontend (`frontend/`) or Legacy Streamlit Frontend (`app/app.py`).
 *   **Data Storage**: Metadata in `metadata.parquet` (root). Vectors in `.npy` files.
-*   **Memory Optimization (CRITICAL)**: Target < 512MB RAM (Render tier).
-    *   Use `mmap_mode='r'` for all large NumPy arrays.
-    *   Lazy-load `torch` and `SentenceTransformer` only when needed (e.g., text prompts).
+*   **Memory Optimization**: Use `mmap_mode='r'` for all large NumPy arrays.
     *   Use `float16` for storage but `float64` for statistical calculations (`mean`, `std`) to avoid overflow.
 *   **Vectorization**: Use `numpy` for all scoring and similarity logic. Avoid Python loops in the hot path.
 

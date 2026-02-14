@@ -56,10 +56,9 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
 - **Metadata and Search:** The backend provides `/metadata`, `/genres`, `/games/search`, and `/games/random` endpoints. `/games/search` enables fast autocomplete for seed game selection.
 - **Frontend Features:** The modern frontend includes real-time filtering, weight contribution visualization, NSFW blurring, and dedicated pages for About and Methodology rendered from markdown with KaTeX math support.
 - **Networking:** `127.0.0.1` is preferred over `localhost` for local backend connectivity on Windows to avoid latency and connection issues.
-- **Memory Footprint Optimization**: The backend server is optimized to run under 512 MB to support cloud deployment on platforms like Render (Starter tier). 
+- **Memory Footprint Optimization**: The backend server is optimized for efficiency to support standard cloud deployment.
     - **Memory Mapping**: All large NumPy arrays (`embeddings_desc.npy`, `embeddings_structural.npy`, `tag_vectors`, `quality_grid`) now utilize `mmap_mode='r'`. This allows the OS to page data in and out as needed, keeping the active Resident Set Size (RSS) low.
     - **Pre-Normalization**: Semantic embeddings are pre-normalized to unit length.
-    - **Lazy Loading**: The `SentenceTransformer` model (which consumes significant RAM) and the `torch` library are only loaded when a user enters a text prompt. This keeps the baseline memory usage low (< 200 MB) for standard interactions.
     - **Dimensionality Reduction**: `steam_tag_vectors.npy` has been reduced to 128 dimensions (via truncated PCA-ZCA whitening) and `quality_scores_grid.npy` to 51 steps to minimize file size and cache pressure.
     - **Numerical Stability**: When computing statistics (mean/std) on large float16 arrays (like the quality grid or embedding matrices), always use `dtype=np.float64` to prevent numerical overflow and `inf` results. The `common.utils.to_z` function handles this automatically.
     - **Metadata Optimization**: Uses `pyarrow` backend for efficient string storage and avoids creating Python list objects for genres/tags where possible.

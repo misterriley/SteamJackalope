@@ -32,6 +32,11 @@ export const getRandomGame = async (): Promise<string> => {
   return response.data;
 };
 
+export const getRandomTrendingGame = async (): Promise<string> => {
+  const response = await api.get('/games/trending/random');
+  return response.data;
+};
+
 export const getList = async (category: string, discoveryPref: number = 0): Promise<ListResponse> => {
   // Negate discoveryPref before submission as its meaning is reversed in the backend
   const response = await api.get(`/lists/${category}`, {

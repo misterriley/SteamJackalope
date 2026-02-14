@@ -69,8 +69,8 @@ else:
     PLAYTIME_REGULARIZATION_C = 0.781171
 
 # Globally optimized playtime sentiment parameters
-PLAYTIME_SENTIMENT_GAMMA = 0.510897
-PLAYTIME_SENTIMENT_S = 0.781171
+PLAYTIME_SENTIMENT_GAMMA = 0.688395
+PLAYTIME_SENTIMENT_S = 1.452654
 
 # Pipeline / Research Constants
 REG_RATE_MIN_REVIEWS_THRESHOLD = 100
@@ -99,6 +99,7 @@ SCRAPE_BACKOFF_MAX_RETRIES = 5
 CHECKPOINT_INTERVAL = 20
 MAX_ERROR_RETRIES = 3
 ERROR_IDS_FILE = "data/error_ids.csv"
+TRENDING_APPIDS_FILE = os.path.join(ROOT_DIR, "data", "trending_appids.json")
 SCRAPE_LOG_FILE = "scrape_steam.log"
 SCRAPE_INPROGRESS_SUFFIX = "_inprogress.csv"
 SCRAPE_ARCHIVE_CSV_DIR = "scraping/archive_csv"

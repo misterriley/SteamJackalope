@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { GameMetadata, RecommendationRequest } from '../types';
-import { recommend, getGenres, getRandomGame, getMetadata } from '../api';
+import { recommend, getGenres, getRandomGame, getRandomTrendingGame, getMetadata } from '../api';
 import GameCard from './GameCard';
 import Filters from './Filters';
 import SeedSelector from './SeedSelector';
 import GenreSelector from './GenreSelector';
-import { Search, RotateCcw, AlertCircle, Dices, Sparkles } from 'lucide-react';
+import { Search, RotateCcw, AlertCircle, Dices, Sparkles, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const DEFAULT_GENRES = [
@@ -22,6 +22,7 @@ const RecommendationsView: React.FC = () => {
   const [seedGamesMetadata, setSeedGamesMetadata] = useState<GameMetadata[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useTrendingRandom, setUseTrendingRandom] = useState(false);
   const isInitialMount = useRef(true);
 
   const [filters, setFilters] = useState<RecommendationRequest>({
@@ -186,7 +187,7 @@ const RecommendationsView: React.FC = () => {
 
   const handleRandomSeed = async () => {
     try {
-      const game = await getRandomGame();
+      const game = useTrendingRandom ? await getRandomTrendingGame() : await getRandomGame();
       setFilters(prev => ({
         ...prev,
         seed_games: [...prev.seed_games, game]
@@ -273,6 +274,19 @@ const RecommendationsView: React.FC = () => {
               <Sparkles size={14} />
               Random Seed Game
             </button>
+            <div className="flex items-center gap-2 ml-2">
+              <input
+                type="checkbox"
+                id="trending-random"
+                checked={useTrendingRandom}
+                onChange={(e) => setUseTrendingRandom(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary bg-secondary"
+              />
+              <label htmlFor="trending-random" className="text-xs text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1">
+                <TrendingUp size={12} />
+                Trending
+              </label>
+            </div>
             <div className="text-xs text-muted-foreground italic ml-auto hidden sm:block">
               Results update automatically as you adjust preferences.
             </div>

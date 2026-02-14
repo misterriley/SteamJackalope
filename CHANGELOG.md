@@ -41,8 +41,17 @@ All notable changes to the Steam Jackalope project will be documented in this fi
 - **Performance**: Converted large production artifacts to float16 precision, reducing the memory footprint by 50%.
 - **Algorithm**: Applied dimensionality reduction to whitening matrices to optimize cache performance and reduce noise in high-dimensional similarities.
 
+## 2026-02-14 (Build 12)
+- **Algorithm**: Re-calibrated playtime sentiment hyperparameters ($\gamma \approx 0.688$, $s \approx 1.453$) using a full-dataset parallelized grid search (36k+ games) with per-review cross-entropy loss.
+- **Infrastructure**: Removed the 512 MB RAM constraint across all documentation, tests, and deployment scripts.
+- **Backend**: Switched `SentenceTransformer` from lazy to eager loading at startup to improve initial request latency.
+- **Frontend**: Added SEO metadata (Open Graph, Twitter Cards) to the landing page.
+- **UI**: Integrated Steam Store links into the "Lists" view for direct navigation.
+- **UI**: Added "Trending" seed game selection option in the Recommendations view.
+- **Scraping**: Implemented `scrape_trending.py` to fetch top 100 Steam games daily.
+
 ## 2026-02-08
-- **Deployment**: Achieved a <512MB RAM footprint for the backend server, enabling deployment on Render.com's Starter tier.
+- **Deployment**: Achieved a highly efficient RAM footprint for the backend server, enabling deployment on standard cloud tiers.
 - **Algorithm**: Implemented thresholding in the z-score normalization function to mitigate noise from dense tag vectors.
 - **Algorithm**: Resolved a critical tag similarity bug and eliminated genre contamination in semantic vector matching.
 - **Infrastructure**: Configured Git LFS for production data files to ensure repository stability and efficient deployment.
