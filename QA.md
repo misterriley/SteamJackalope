@@ -1,0 +1,41 @@
+# SteamJackalope Quality Assurance (QA) Test Suite
+
+This document serves as the manual verification protocol for human testers and developers. Perform these tests before any major push or build increment.
+
+## 🏗️ Core Navigation & UI
+- [ ] **Tab Switching**: Click through Recommender, Lists, About, Methodology, and Changelog.
+    - *Expectation*: Content updates instantly; active tab is highlighted.
+- [ ] **Mobile Responsiveness**: Resize window to narrow width.
+    - *Expectation*: Navigation items maintain `gap-2` spacing; layout wraps without breaking.
+- [ ] **Changelog Sync**: Open the Changelog tab.
+    - *Expectation*: Dynamic fetch succeeds; latest build number matches `build_count.json`.
+
+## 🧪 Recommender Features
+- [ ] **Autocomplete**: Type "Witcher" or "Cyber" in the seed search.
+    - *Expectation*: Results appear; clicking one adds it to the seed list.
+- [ ] **Surprise Me**: Click the "Surprise Me (Random)" button.
+    - *Expectation*: Random prompt/seeds are selected; recommendations generate automatically.
+- [ ] **Trending Random**: Click the flame icon (Trending).
+    - *Expectation*: A currently popular Steam game is selected as a seed.
+- [ ] **Discovery Slider**: Set Discovery to max ("Wild Cards") and Rating to max ("Loved").
+    - *Expectation*: Results shift to high-rated games with < 500 reviews.
+- [ ] **NSFW Blurring**: Toggle "Filter Adult Content" OFF.
+    - *Expectation*: NSFW games appear but are blurred until hovered or clicked.
+
+## 🏷️ Steam Integration (Build 13)
+- [ ] **Card Meta-Links**: Click a Tag or Genre on a game card.
+    - *Expectation*: Opens the validated Steam store link (e.g., `/tags/en/RPG`) in a new tab.
+- [ ] **App Links**: Click the game title or external link icon.
+    - *Expectation*: Opens the Steam App page.
+- [ ] **Difficulty Tag Links**: In the Lists -> Difficulty Tags view, click a predictor tag.
+    - *Expectation*: Opens the validated Steam store link for that tag.
+
+## 📊 Data & Insights
+- [ ] **Ranking Lists**: Cycle through Rating, Popularity, Playtime, and Age.
+    - *Expectation*: Top/Bottom 50 tables populate with correct data types (pts, reviews, hours).
+- [ ] **Live Re-ranking**: Adjust the Discovery slider while on the "Rating" list.
+    - *Expectation*: The ranking updates in real-time.
+
+## 📐 Documentation & Math
+- [ ] **Math Rendering**: View the Methodology page.
+    - *Expectation*: LaTeX formulas (e.g., $z = \frac{x - \mu}{\sigma}$) render as clean images/KaTeX, not raw text.

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { GameMetadata, RecommendationRequest } from '../types';
-import { recommend, getGenres, getRandomGame, getRandomTrendingGame, getMetadata } from '../api';
+import { recommend, getGenres, getTermLinks, getRandomGame, getRandomTrendingGame, getMetadata } from '../api';
 import GameCard from './GameCard';
 import Filters from './Filters';
 import SeedSelector from './SeedSelector';
@@ -18,6 +18,7 @@ const DEFAULT_GENRES = [
 
 const RecommendationsView: React.FC = () => {
   const [genresList, setGenresList] = useState<string[]>(DEFAULT_GENRES);
+  const [termLinks, setTermLinks] = useState<Record<string, string>>({});
   const [recommendations, setRecommendations] = useState<GameMetadata[]>([]);
   const [seedGamesMetadata, setSeedGamesMetadata] = useState<GameMetadata[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,15 +57,20 @@ const RecommendationsView: React.FC = () => {
   // Initial data load
   useEffect(() => {
     const fetchInitialData = async () => {
-      console.log("Fetching initial data (genres)...");
+      console.log("Fetching initial data (genres, links)...");
       try {
-        const genres = await getGenres();
+        const [genres, links] = await Promise.all([
+          getGenres(),
+          getTermLinks()
+        ]);
+        
         console.log("Genres received:", genres);
         if (genres && genres.length > 0) {
           setGenresList(genres);
-        } else {
-          console.warn("Genre list received is empty.");
-          setError("The server returned an empty genre list. Please check the backend logs.");
+        }
+        
+        if (links) {
+          setTermLinks(links);
         }
       } catch (err) {
         console.error("Failed to load initial data", err);
@@ -339,6 +345,7 @@ const RecommendationsView: React.FC = () => {
                       debugMode={false} 
                       hideNSFW={filters.remove_nsfw}
                       isSeed={true}
+                      termLinks={termLinks}
                     />
                   </motion.div>
                 ))}
@@ -356,6 +363,7 @@ const RecommendationsView: React.FC = () => {
                       game={game} 
                       debugMode={filters.debug} 
                       hideNSFW={filters.remove_nsfw} 
+                      termLinks={termLinks}
                     />
                   </motion.div>
                 ))}

@@ -14,6 +14,11 @@ export const getGenres = async (): Promise<string[]> => {
   return response.data;
 };
 
+export const getTermLinks = async (): Promise<Record<string, string>> => {
+  const response = await api.get('/term_links');
+  return response.data;
+};
+
 export const getGames = async (): Promise<string[]> => {
   const response = await api.get('/games');
   return response.data;

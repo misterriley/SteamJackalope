@@ -38,6 +38,7 @@ export interface GameMetadata {
   quality_score?: number;
   total_reviews?: number;
   playtime?: number;
+  term_links?: Record<string, string>;
 }
 
 export interface RecommendationRequest {

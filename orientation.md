@@ -54,8 +54,9 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
 - `scraping/get_steam_appids.py` retrieves the full list of Steam AppIDs. It includes an automatic fallback to the public `ISteamApps/GetAppList/v2` endpoint if the primary `IStoreService` API call fails (e.g., due to an invalid API key).
 - The pipeline is functional but could benefit from better progress monitoring.
 - **Client/Server Architecture:** The project uses a decoupled architecture where heavy data loading and vector computations are performed by a FastAPI backend (`app/server.py`), while a modern React frontend (`frontend/`) or a legacy Streamlit UI (`app/app.py`) provides the interface.
-- **Metadata and Search:** The backend provides `/metadata`, `/genres`, `/games/search`, and `/games/random` endpoints. `/games/search` enables fast autocomplete for seed game selection.
-- **Frontend Features:** The modern frontend includes real-time filtering, weight contribution visualization, NSFW blurring, and dedicated pages for About and Methodology rendered from markdown with KaTeX math support.
+- **Metadata and Search:** The backend provides `/metadata`, `/genres`, `/term_links`, `/games/search`, and `/games/random` endpoints. `/games/search` enables fast autocomplete for seed game selection.
+- **Frontend Features:** The modern frontend includes real-time filtering, clickable tag/genre links to Steam, weight contribution visualization, and NSFW blurring.
+- **Verification:** Automated tests are handled via `run_all_tests.bat`. Manual verification of UI and discovery features is documented in `QA.md`.
 - **Networking:** `127.0.0.1` is preferred over `localhost` for local backend connectivity on Windows to avoid latency and connection issues.
 - **Tool Usage Constraints**: When using `run_shell_command` in this environment, avoid using the `&&` operator to chain commands as it may cause parsing errors in PowerShell. Execute commands sequentially instead.
 - **Memory Footprint Optimization**: The backend server is optimized for efficiency to support standard cloud deployment.

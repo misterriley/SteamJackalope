@@ -97,7 +97,24 @@ class DataManager:
         self.model = None
         self.all_genres = []
         self.trending_names = []
+        self.term_links = {}
         self.lists_cache = {}
+
+    def filter_dead_tags(self, tags_str):
+        """Filters out tags that are not in the term_links mapping (dead tags)."""
+        if not tags_str or not self.term_links:
+            return tags_str
+            
+        try:
+            # Handle dictionary-like format: {'Tag': count, ...}
+            if tags_str.startswith('{') and tags_str.endswith('}'):
+                data = ast.literal_eval(tags_str)
+                if isinstance(data, dict):
+                    filtered = {k: v for k, v in data.items() if k in self.term_links}
+                    return str(filtered)
+            return tags_str
+        except:
+            return tags_str
 
     def clean_release_date(self, date_str):
         if pd.isna(date_str) or date_str == "":
@@ -292,6 +309,23 @@ class DataManager:
         else:
             logger.warning(f"Trending AppIDs file NOT FOUND at {TRENDING_APPIDS_FILE}")
 
+        # Load validated Steam links
+        links_path = os.path.join(ROOT_DIR, "data", "validated_steam_links.json")
+        if os.path.exists(links_path):
+            logger.info(f"Loading validated Steam links from {links_path}...")
+            try:
+                with open(links_path, 'r') as f:
+                    self.term_links = json.load(f)
+                logger.info(f"Loaded {len(self.term_links)} term links")
+                
+                # Filter tags in metadata based on validated links
+                logger.info("Filtering dead tags from metadata...")
+                self.metadata['tags'] = self.metadata['tags'].apply(self.filter_dead_tags)
+            except Exception as e:
+                logger.error(f"Failed to load term links: {e}")
+        else:
+            logger.warning(f"Validated Steam links file NOT FOUND at {links_path}")
+
         # 5. Load SentenceTransformer model
         logger.info("Loading SentenceTransformer model...")
         from sentence_transformers import SentenceTransformer
@@ -347,6 +381,12 @@ def get_genres():
     genres = data_manager.all_genres
     logger.debug(f"Returning {len(genres)} genres")
     return genres
+
+@app.get("/term_links")
+def get_term_links():
+    """Returns a mapping of tags/genres to their validated Steam store links."""
+    logger.info("GET /term_links called")
+    return data_manager.term_links
 
 @app.get("/games")
 def get_games():

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import type { GameMetadata, ListResponse } from '../types';
-import { getList } from '../api';
-import { Trophy, TrendingUp, Clock, History, Swords, Info, Tags } from 'lucide-react';
+import { getList, getTermLinks } from '../api';
+import { Trophy, TrendingUp, Clock, History, Swords, Info, Tags, ExternalLink } from 'lucide-react';
 
 const ListsView: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('quality');
   const [discoveryPref, setDiscoveryPref] = useState(0);
   const [data, setData] = useState<ListResponse | null>(null);
+  const [termLinks, setTermLinks] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   const categories = [
@@ -23,8 +24,12 @@ const ListsView: React.FC = () => {
     try {
       // For difficulty_tags, we use the difficulty endpoint
       const endpoint = activeCategory === 'difficulty_tags' ? 'difficulty' : activeCategory;
-      const result = await getList(endpoint, discoveryPref);
+      const [result, links] = await Promise.all([
+        getList(endpoint, discoveryPref),
+        getTermLinks()
+      ]);
       setData(result);
+      if (links) setTermLinks(links);
     } catch (err) {
       console.error("Failed to fetch list", err);
     } finally {
@@ -117,7 +122,7 @@ const ListsView: React.FC = () => {
               </h3>
               <div className="grid grid-cols-1 gap-4">
                 {data.tag_impacts?.slice(0, 20).map((impact) => (
-                  <TagImpactItem key={impact.tag} tag={impact.tag} impact={impact.impact} />
+                  <TagImpactItem key={impact.tag} tag={impact.tag} impact={impact.impact} termLinks={termLinks} />
                 ))}
               </div>
             </div>
@@ -130,7 +135,7 @@ const ListsView: React.FC = () => {
               </h3>
               <div className="grid grid-cols-1 gap-4">
                 {data.tag_impacts?.slice(-20).reverse().map((impact) => (
-                  <TagImpactItem key={impact.tag} tag={impact.tag} impact={impact.impact} />
+                  <TagImpactItem key={impact.tag} tag={impact.tag} impact={impact.impact} termLinks={termLinks} />
                 ))}
               </div>
             </div>
@@ -180,18 +185,33 @@ const ListsView: React.FC = () => {
   );
 };
 
-const TagImpactItem = ({ tag, impact }: { tag: string, impact: number }) => {
-  return (
-    <div className="bg-card border border-border rounded-lg p-3 flex items-center justify-between hover:border-primary/50 transition-all group">
+const TagImpactItem = ({ tag, impact, termLinks }: { tag: string, impact: number, termLinks: Record<string, string> }) => {
+  const link = termLinks[tag];
+  
+  const content = (
+    <div className={`bg-card border border-border rounded-lg p-3 flex items-center justify-between hover:border-primary/50 transition-all group ${link ? 'cursor-pointer' : ''}`}>
       <div className="flex items-center gap-3">
         <div className={`w-1 h-6 rounded-full ${impact >= 0 ? 'bg-orange-500' : 'bg-cyan-500'}`} />
-        <span className="font-bold text-sm text-foreground uppercase tracking-wider">{tag}</span>
+        <span className="font-bold text-sm text-foreground uppercase tracking-wider flex items-center gap-2">
+          {tag}
+          {link && <ExternalLink size={12} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
+        </span>
       </div>
       <div className={`font-mono text-sm font-bold ${impact >= 0 ? 'text-orange-400' : 'text-cyan-400'}`}>
         {impact >= 0 ? '+' : ''}{impact.toFixed(3)}
       </div>
     </div>
   );
+
+  if (link) {
+    return (
+      <a href={link} target="_blank" rel="noopener noreferrer" className="no-underline block">
+        {content}
+      </a>
+    );
+  }
+
+  return content;
 };
 
 const ListGameItem = ({ game, category }: { game: GameMetadata, category: string }) => {

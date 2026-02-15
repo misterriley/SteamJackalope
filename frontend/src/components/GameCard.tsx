@@ -7,9 +7,10 @@ interface GameCardProps {
   debugMode?: boolean;
   hideNSFW?: boolean;
   isSeed?: boolean;
+  termLinks?: Record<string, string>;
 }
 
-const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, isSeed = false }) => {
+const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, isSeed = false, termLinks = {} }) => {
   const [imgError, setImgError] = useState(false);
   const steamUrl = `https://store.steampowered.com/app/${game.appid}/`;
   const headerUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`;
@@ -50,6 +51,34 @@ const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, i
 
   const allGenres = parseGenres(game.genres);
   const allTags = parseTags(game.tags);
+
+  const renderLinkableTerm = (term: string, isGenre: boolean) => {
+    const link = termLinks[term];
+    const baseClasses = isGenre 
+      ? "px-1.5 py-0.5 bg-primary/10 text-[9px] font-bold text-primary rounded border border-primary/20 uppercase tracking-tighter whitespace-nowrap transition-colors"
+      : "px-1.5 py-0.5 bg-secondary/50 text-[9px] font-bold text-muted-foreground rounded border border-border/50 uppercase tracking-tighter whitespace-nowrap transition-colors";
+    
+    if (link) {
+      return (
+        <a 
+          key={term}
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${baseClasses} hover:bg-primary/20 hover:text-primary cursor-pointer`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {term}
+        </a>
+      );
+    }
+
+    return (
+      <span key={term} className={baseClasses}>
+        {term}
+      </span>
+    );
+  };
 
   const handleCardClick = () => {
     window.open(steamUrl, '_blank', 'noopener,noreferrer');
@@ -169,28 +198,14 @@ const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, i
         {/* Genres Section - Single line dynamic fit */}
         {allGenres.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-1 h-5 overflow-hidden content-start">
-            {allGenres.map((genre) => (
-              <span 
-                key={genre} 
-                className="px-1.5 py-0.5 bg-primary/10 text-[9px] font-bold text-primary rounded border border-primary/20 uppercase tracking-tighter whitespace-nowrap"
-              >
-                {genre}
-              </span>
-            ))}
+            {allGenres.map((genre) => renderLinkableTerm(genre, true))}
           </div>
         )}
 
         {/* Tags Section - Single line dynamic fit */}
         {allTags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-4 h-5 overflow-hidden content-start">
-            {allTags.map((tag) => (
-              <span 
-                key={tag} 
-                className="px-1.5 py-0.5 bg-secondary/50 text-[9px] font-bold text-muted-foreground rounded border border-border/50 uppercase tracking-tighter whitespace-nowrap"
-              >
-                {tag}
-              </span>
-            ))}
+            {allTags.map((tag) => renderLinkableTerm(tag, false))}
           </div>
         )}
 
