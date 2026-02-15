@@ -65,7 +65,8 @@ from common.constants import (
     DIFFICULTY_WEIGHT_MULTIPLIER,
     NSFW_TAGS,
     NSFW_NAME_PATTERNS,
-    DIFFICULTY_PREDICTIONS_FILE
+    DIFFICULTY_PREDICTIONS_FILE,
+    ROOT_DIR
 )
 from common.utils import to_z, calculate_hybrid_score
 

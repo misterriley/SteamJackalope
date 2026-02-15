@@ -2,14 +2,28 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
-## 2026-02-14
-### Build 11
-### Version 0.0.1-pre-alpha+build.11
+## [13] - 2026-02-14
+
+### Added
+- **Steam Store Integration**: Implemented a comprehensive validation system for 512 tags, genres, and features.
+- **Interactive Taxonomy**: Tags and genres in the UI are now clickable, linking directly to verified Steam Store pages.
+- **Data Hygiene Protocol**: Backend now filters out "dead" or non-linkable tags (e.g., legacy or junk tags) during metadata load to ensure a clean UI and valid discovery paths.
+- **Manual QA Suite**: Established `QA.md` as the source of truth for manual functional verification of navigation, integration, and UI features.
+- **Automated Validation Tooling**: Created `tools/validate_steam_links.py` to handle pattern matching, slugification variants, and Steam category ID mapping.
+
+### Fixed
+- **Networking Stability**: Standardized backend calls to `127.0.0.1` on Windows to resolve DNS resolution latency.
+- **Metadata Parsing**: Switched to `ast.literal_eval` for robust handling of complex tag/genre dictionary strings in the backend.
+
+### Changed
+- **Unified Startup**: Consolidated local development environment into `run_test_env.bat` (automated git pull, dep installs, and environment launch).
+- **Push Protocol**: Added requirement for manual QA verification and changelog synchronization before push.
+
+## [11] - 2026-02-14
+### Added
 - **Documentation**: Integrated `onPush.md` into `orientation.md`, `onShutdown.md`, and `gemini.md` for better onboarding.
 - **UI**: Added a "Changelog" link to the header in both modern and legacy frontends.
-- **Documentation**: Established a new versioning and changelog protocol, including `onPush.md` and automated build increments.
 - **Tooling**: Refactored `generate_random_recommendation.py` output to a multiline, labeled format optimized for Discord sharing.
-- **Algorithm**: Updated difficulty display to a 10-point scale for more granular feedback in CLI recommendations.
 
 ## 2026-02-13
 ### Build 3-8

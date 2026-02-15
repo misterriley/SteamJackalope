@@ -135,3 +135,11 @@ To provide a polished and safe user experience, the modern frontend implements s
 - **Grid Rendering Stability:** The recommendation grid utilizes persistent React keys based on game AppIDs and standardized CSS layout principles (avoiding flexbox on global containers) to prevent "Single Card" collapse bugs and ensure consistent card sizing across all screen resolutions.
 
 - **Dynamic Tag Visualization:** Each game card dynamically renders its most relevant genres and top user tags, highlighting matches that align with the user's search intent or seed games.
+
+## Data Hygiene & External Integration (Build 13)
+
+To ensure the recommender remains a useful portal to the Steam ecosystem, Build 13 introduced a verified external link layer:
+
+1. **Steam Store Mapping**: A validation process (`tools/validate_steam_links.py`) maps Steam Store patterns (`/tags/en/`, `/genre/`, `/category/`, and feature-specific search IDs) to verify valid landing pages for every term in our database.
+2. **Dead Tag Filtering**: Terms that do not map to a valid Steam Store page are flagged as "dead." The backend filters these from the game metadata during the loading phase. This removes junk data and legacy metadata from the discovery engine.
+3. **Interactive Taxonomy**: Verified terms are served as a linkable mapping, enabling the UI to render tags and genres as clickable pathways directly to the Steam community hubs.
