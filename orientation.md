@@ -26,8 +26,9 @@ For detailed documentation of each directory, see the individual README files:
 - `app/server.py`: The backend FastAPI server that handles data loading and hybrid score calculations. Start with `python -m uvicorn app.server:app --host 127.0.0.1 --port 8000`.
 - `frontend/`: Modern React 19 + TypeScript + Vite + Tailwind CSS v4 frontend. Located in the `frontend/` directory. Start with `cd frontend; npm run dev`.
 - `app/app.py`: Legacy frontend Streamlit UI that communicates with the backend server. Start with `streamlit run app/app.py`.
-- `run_test_env.bat`: A convenience batch file to launch both the server and the modern frontend for local testing.
+- `run_test_env.bat`: The primary Windows entry point for local development. It pulls the latest code, updates dependencies, and launches both the FastAPI backend and the React frontend.
 - `run_all_tests.bat`: A convenience batch file to run the full test suite using `pytest`.
+- `deployment/deploy.sh`: The production deployment script for Linux servers. It builds the React frontend for optimized serving via the unified FastAPI process.
 - `onPush.md`: Guidelines for updating the changelog and maintaining versioning before pushing to the remote repository.
 - `pipeline/run_pipeline.py`: Orchestrates the data processing pipeline (tags -> semantic vectors -> metadata -> quality scores). Uses `pipeline/pipeline_config.json` for path and interval settings.
 
@@ -56,6 +57,7 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
 - **Metadata and Search:** The backend provides `/metadata`, `/genres`, `/games/search`, and `/games/random` endpoints. `/games/search` enables fast autocomplete for seed game selection.
 - **Frontend Features:** The modern frontend includes real-time filtering, weight contribution visualization, NSFW blurring, and dedicated pages for About and Methodology rendered from markdown with KaTeX math support.
 - **Networking:** `127.0.0.1` is preferred over `localhost` for local backend connectivity on Windows to avoid latency and connection issues.
+- **Tool Usage Constraints**: When using `run_shell_command` in this environment, avoid using the `&&` operator to chain commands as it may cause parsing errors in PowerShell. Execute commands sequentially instead.
 - **Memory Footprint Optimization**: The backend server is optimized for efficiency to support standard cloud deployment.
     - **Memory Mapping**: All large NumPy arrays (`embeddings_desc.npy`, `embeddings_structural.npy`, `tag_vectors`, `quality_grid`) now utilize `mmap_mode='r'`. This allows the OS to page data in and out as needed, keeping the active Resident Set Size (RSS) low.
     - **Pre-Normalization**: Semantic embeddings are pre-normalized to unit length.
