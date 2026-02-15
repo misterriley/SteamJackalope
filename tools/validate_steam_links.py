@@ -16,6 +16,56 @@ PATTERNS = [
     "https://store.steampowered.com/category/{name}"
 ]
 
+# Mapping for common features that use IDs in the URL
+FEATURE_MAPPING = {
+    "Single-player": "2",
+    "Multi-player": "1",
+    "Co-op": "9",
+    "Steam Achievements": "22",
+    "Steam Cloud": "23",
+    "Full controller support": "28",
+    "Partial Controller Support": "18",
+    "Steam Trading Cards": "29",
+    "Steam Workshop": "30",
+    "Shared/Split Screen": "24",
+    "Online PvP": "36",
+    "Shared/Split Screen PvP": "37",
+    "Online Co-op": "38",
+    "Shared/Split Screen Co-op": "39",
+    "Remote Play Together": "44",
+    "Stats": "15",
+    "Steam Leaderboards": "25",
+    "In-App Purchases": "35",
+    "Captions available": "13",
+    "Commentary available": "14",
+    "Includes level editor": "17",
+    "VR Support": "VR", # Steam has specialized search params for these
+    "VR Supported": "VR",
+    "VR Only": "VR",
+    "Cross-Platform Multiplayer": "27",
+    "Family Sharing": "62",
+    "HDR available": "61",
+    "Subtitle Options": "Subtitle_Options",
+    "Adjustable Difficulty": "adjustable_difficulty",
+    "Adjustable Text Size": "adjustable_text_size",
+    "Custom Volume Controls": "custom_volume_controls",
+    "Mouse Only Option": "mouse_only_option",
+    "Keyboard Only Option": "keyboard_only_option",
+    "Save Anytime": "save_anytime",
+    "Playable without Timed Input": "playable_without_timed_input",
+    "Includes Source SDK": "16",
+    "Valve Anti-Cheat enabled": "8",
+    "LAN PvP": "47",
+    "LAN Co-op": "48",
+    "Remote Play on Phone": "41",
+    "Remote Play on Tablet": "42",
+    "Remote Play on TV": "43",
+    "Steam Turn Notifications": "51",
+    "SteamVR Collectibles": "52",
+    "Chat Speech-to-text": "chat_speech_to_text",
+    "Chat Text-to-speech": "chat_text_to_speech"
+}
+
 def log(msg):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     full_msg = f"[{timestamp}] {msg}"
@@ -53,11 +103,22 @@ def is_valid_page(url):
         return False, None
 
 def validate_term(term):
+    # Check if it's a known feature with an ID
+    if term in FEATURE_MAPPING:
+        val = FEATURE_MAPPING[term]
+        if val == "VR":
+            return "https://store.steampowered.com/search/?vrsupport=401"
+        if val.isdigit():
+            return f"https://store.steampowered.com/search/?category2={val}"
+        # If it's a string, try it as a category slug
+        return f"https://store.steampowered.com/category/{val}"
+
     # Steam often uses slug-style names: "Free to Play" -> "Free%20to%20Play" or "free_to_play"
     
     variants = [
         urllib.parse.quote(term), # Raw encoded
         urllib.parse.quote(term.lower()), # Lowercase
+        term.lower().replace(' ', '_'), # lowercase_underscores (The one we missed!)
         term.replace(' ', '_'), # Spaces to underscores
         term.replace(' ', '-'), # Spaces to hyphens
         term.lower().replace(' ', ''), # Lowercase no spaces
@@ -105,9 +166,9 @@ def main():
 
     log(f"Starting validation of {len(all_terms)} terms...")
     
-    # Filter out already processed terms
-    to_process = [t for t in all_terms if t[1] not in results]
-    log(f"{len(to_process)} terms remaining to process.")
+    # Filter out already processed terms, but retry those that FAILED (are None)
+    to_process = [t for t in all_terms if t[1] not in results or results[t[1]] is None]
+    log(f"{len(to_process)} terms remaining to process (including retries for failures).")
 
     pbar = tqdm(to_process)
     for cat, term in pbar:

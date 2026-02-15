@@ -110,7 +110,8 @@ class DataManager:
             if tags_str.startswith('{') and tags_str.endswith('}'):
                 data = ast.literal_eval(tags_str)
                 if isinstance(data, dict):
-                    filtered = {k: v for k, v in data.items() if k in self.term_links}
+                    # Only keep tags that have a validated URL (value is not None)
+                    filtered = {k: v for k, v in data.items() if self.term_links.get(k) is not None}
                     return str(filtered)
             return tags_str
         except:
@@ -376,10 +377,11 @@ class RecommendationRequest(BaseModel):
 
 @app.get("/genres")
 def get_genres():
-    """Returns a list of all unique genres available in the dataset."""
+    """Returns a list of all unique genres available in the dataset, filtered for validity."""
     logger.info("GET /genres called")
-    genres = data_manager.all_genres
-    logger.debug(f"Returning {len(genres)} genres")
+    # Filter out genres that don't have a validated link
+    genres = [g for g in data_manager.all_genres if data_manager.term_links.get(g) is not None]
+    logger.debug(f"Returning {len(genres)} filtered genres")
     return genres
 
 @app.get("/term_links")
