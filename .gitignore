@@ -14,7 +14,13 @@ env.bak/
 venv.bak/
 
 # Project Specific
-data/
+data/*
+!data/trending_appids.json
+!data/validated_steam_links.json
+!data/production/
+data/production/*
+!data/production/regularization_constants.json
+!data/production/similarity_lists.json
 old/
 scraping/archive_csv/
 research/*.csv
