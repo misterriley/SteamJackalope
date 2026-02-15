@@ -16,6 +16,7 @@
 - Check files for syntax errors and warnings, and fix.
 - Check for text snippets looking like ">>>>+++ REPLACE" and remove them.
 - Increment the build count using `python tools/increment_build.py`.
+- Check the timestamp on `data/trending_appids.json`. If it is more than 24 hours old, or the file is missing, run `python scraping/scrape_trending.py` to refresh the trending games list.
 - Make sure code that is currently being executed contains informative logging. 
 - Cross off any completed tasks from `tasklist.md`, and move them to the "## Recently Completed" section.
 - Verify that all directory README files (app/, common/, pipeline/, scraping/, research/, tests/, tools/, data/, deployment/) are properly referenced in `orientation.md` and that they provide accurate guidance for new contributors.
