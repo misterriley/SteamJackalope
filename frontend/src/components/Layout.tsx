@@ -71,7 +71,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
             </button>
           </nav>
 
-          <div className="flex items-center gap-0.5 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
              <button
               onClick={() => onTabChange('changelog')}
               className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${

@@ -18,7 +18,7 @@ Before pushing changes to the remote repository, ensure that `CHANGELOG.md` is u
     *   Include the **Build Number** (found in `build_count.json`) and the **Version String** (constructed in `common/constants.py`).
     *   **Daily Merging**: If `CHANGELOG.md` already contains an entry for today's date, merge the new summaries into the existing entry instead of creating a new section.
 4.  **Commit the Changelog**: Stage and commit the updated `CHANGELOG.md` before executing the push.
-5. Execute ```git push origin main```. 
+5. Execute ```git push origin master```. 
 
 ### Format Example
 ```markdown

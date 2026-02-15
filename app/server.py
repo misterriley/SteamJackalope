@@ -392,6 +392,15 @@ def get_random_trending_game():
     random_game = np.random.choice(data_manager.trending_names)
     return str(random_game)
 
+@app.get("/changelog")
+def get_changelog():
+    """Returns the content of CHANGELOG.md."""
+    try:
+        with open("CHANGELOG.md", "r", encoding="utf-8") as f:
+            return {"content": f.read()}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Changelog file not found")
+
 @app.get("/lists/{category}")
 def get_list(category: str, discovery_pref: float = 0.0):
     """
