@@ -39,3 +39,17 @@ This document serves as the manual verification protocol for human testers and d
 ## 📐 Documentation & Math
 - [ ] **Math Rendering**: View the Methodology page.
     - *Expectation*: LaTeX formulas (e.g., $z = \frac{x - \mu}{\sigma}$) render as clean images/KaTeX, not raw text.
+
+## 🧬 Personalization Engine (Build 15)
+- [ ] **Data Acquisition**: Enter a valid SteamID64 and click "Start Analysis".
+    - *Expectation*: Background task starts; UI transitions to "Acquiring Data" state.
+- [ ] **Verification UI**: Review the predicted ratings table.
+    - *Expectation*: Table is sortable; ratings can be manually adjusted; "Ignore" toggle works.
+- [ ] **Taste Solving**: Click "Solve My Taste DNA".
+    - *Expectation*: Pipeline completes; Insights dashboard displays Predictive Tags and Taste Anchors.
+- [ ] **Unified Recommender**: Click "Apply to Recommender".
+    - *Expectation*: Tab switches to Recommender; "PERSONALIZED" badge appears; top results match "Games You'll Love" list from Insights.
+- [ ] **Predictive Multipliers**: Adjust a slider (e.g., Quality) in Personalized mode.
+    - *Expectation*: Results re-rank based on the slider acting as a multiplier on the DNA weight.
+- [ ] **Error Recovery**: Click the "Reset App" button in the header.
+    - *Expectation*: Storage is cleared; page reloads; app returns to factory defaults.
