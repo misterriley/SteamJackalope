@@ -18,16 +18,24 @@
 ### Next Priority
 
 - [ ] The "Trending" label (next to the checkbox), when clicked on, should open a tab to the most played games list for Steam: https://store.steampowered.com/charts/mostplayed. This should happen only when the text is clicked - the box itself should work as a standard checkbox. 
-- [ ] Implement "Analyze My Catalogue" (Personalization Engine)
-    - [x] **Data Acquisition**: Create a backend module to fetch a user's library (AppID + Playtime) via SteamID64. Support both OpenID login and manual AppID list input. (Implemented: `scraping/get_user_stats.py`)
-    - [x] **Soft-Labeling Engine**: Implement the math to predict user ratings (1-10) using the global Playtime Sentiment Model ($\gamma, s$) and global Quality Scores. (Implemented: `pipeline/generate_user_soft_labels.py`)
-    - [ ] **User Verification UI**: Build a frontend view to display predicted ratings and allow the user to quickly verify or override them (Ground Truth generation).
-    - [ ] **Taste Solve**: Implement a Ridge Regression solver with LOOCV on the backend to map verified ratings against the 128-dim tag vectors and metadata factors.
-    - [ ] **Recommender Integration**: Feed the resulting regression weights back into the search sliders and identify "Ideal Match" seed games based on the user's solved taste vector.
-    - [ ] **QA**: Add manual verification steps to `QA.md` for the catalogue analysis flow.
+
+### Market Research Sprint: User Agency & Visuals
+**⚠️ MANDATORY POLISH CONSTRAINT**: DO NOT start these tasks until the current Unified Personalized Engine (Build 15) is confirmed 100% bug-free, stable, and mathematically perfect in all edge cases.
+
+#### Phase 1: High Impact / Low Effort (The "Agency Update")
+- [ ] **Visual Previews**: Implement "Hover-to-Play" gameplay clips in `GameCard` using the `movies` metadata.
+- [ ] **Instant Blacklist**: Add an "X" / "Hide" button to game cards that persists to `localStorage` and immediately removes the game from view.
+- [ ] **Personal Wishlist**: Add a "Bookmark" / "Star" feature to save games for later discovery.
+
+#### Phase 2: Medium Effort (Strategic Alignment)
+- [ ] **Psychological Taxonomy**: Implement a "Mood" filter based on the Quantic Foundry model (Mastery, Immersion, etc.) mapped to Steam tags.
+- [ ] **Universal Importer**: Create a tool to import Epic/GOG libraries via CSV/Text paste to avoid duplicate recommendations.
+- [ ] **Client-Side Pricing**: Fetch real-time price/discount data for the top 20 visible recommendations using the Steam Storefront API.
+
+#### Phase 3: High Effort (Moonshots)
+- [ ] **Taste Twins**: Opt-in social discovery to find users with similar rating histories.
+- [ ] **AI Shovelware Filter**: Explicit developer-history and asset-flip detection beyond Bayesian scores.
 
 ### Lesser Priority
 
 ### Vague ideas - prompt the user to discuss details and flesh out what needs to be done
-
-- [ ] Start on "analyze my catalogue" project?
