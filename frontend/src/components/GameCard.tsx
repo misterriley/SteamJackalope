@@ -19,27 +19,40 @@ const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, i
   const shouldBlur = isNSFW && hideNSFW;
 
   // Parse genres: handle both comma-separated and list formats
-  const parseGenres = (genresStr: string) => {
+  const parseGenres = (genresStr: any) => {
     if (!genresStr) return [];
-    if (genresStr.startsWith('[') && genresStr.endsWith(']')) {
+    if (Array.isArray(genresStr)) return genresStr;
+    
+    const str = String(genresStr);
+    if (str.startsWith('[') && str.endsWith(']')) {
       try {
-        return genresStr
+        return str
           .slice(1, -1)
           .split(',')
-          .map(g => g.trim().replace(/^['"]|['"]$/g, ''))
+          .map(g => g.trim().replace(/^['']|['"]$/g, ''))
           .filter(g => g);
       } catch (e) {
-        console.error("Failed to parse genre list string", genresStr);
+        console.error("Failed to parse genre list string", str);
       }
     }
-    return genresStr.split(',').map(g => g.trim()).filter(g => g);
+    return str.split(',').map(g => g.trim()).filter(g => g);
   };
 
   // Parse tags: handle dictionary-like format {'Tag': count, ...}
-  const parseTags = (tagsStr: string) => {
+  const parseTags = (tagsStr: any) => {
     if (!tagsStr) return [];
+    
+    // Handle array format
+    if (Array.isArray(tagsStr)) return tagsStr;
+    
+    // Handle object/dictionary format
+    if (typeof tagsStr === 'object') {
+      return Object.keys(tagsStr);
+    }
+
     try {
-      const tagMatch = tagsStr.match(/'([^']+)'(?=:)/g);
+      const str = String(tagsStr);
+      const tagMatch = str.match(/'([^']+)'(?=:)/g);
       if (tagMatch) {
         return tagMatch.map(t => t.replace(/'/g, ''));
       }
@@ -220,7 +233,7 @@ const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, i
           </div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Trophy size={12} className="text-orange-500" />
-            <span>Diff: {game.difficulty_predicted.toFixed(1)}</span>
+            <span>Diff: {game.difficulty_predicted?.toFixed(1) || '0.0'}</span>
           </div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <span className="bg-secondary px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider">
@@ -229,10 +242,10 @@ const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, i
           </div>
         </div>
 
-        {game.weighted_score !== undefined && !isSeed && (
+        {game.weighted_score !== undefined && game.weighted_score !== null && !isSeed && (
           <div className="mt-4 pt-3 border-t border-border flex justify-between items-center">
             <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">Match Score</span>
-            <span className="text-primary font-bold text-sm">{game.weighted_score.toFixed(2)}</span>
+            <span className="text-primary font-bold text-sm">{(game.weighted_score || 0).toFixed(2)}</span>
           </div>
         )}
 

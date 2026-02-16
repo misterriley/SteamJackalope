@@ -1,18 +1,19 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import pandas as pd
 import numpy as np
-# from sentence_transformers import SentenceTransformer # Moved to lazy load
 import os
 import sys
 import re
 import ast
 import gc
 import logging
+import subprocess
+import json
 
 # Configure logging
 logging.basicConfig(
@@ -66,7 +67,8 @@ from common.constants import (
     NSFW_TAGS,
     NSFW_NAME_PATTERNS,
     DIFFICULTY_PREDICTIONS_FILE,
-    ROOT_DIR
+    ROOT_DIR,
+    TAG_GLOBAL_SCALING_FACTOR
 )
 from common.utils import to_z, calculate_hybrid_score
 
@@ -355,6 +357,16 @@ async def startup_event():
 class MetadataRequest(BaseModel):
     names: List[str]
 
+class UserFetchRequest(BaseModel):
+    steam_id: str
+    review_html: Optional[str] = None
+
+class UserVerifyUpdate(BaseModel):
+    steam_id: str
+    appid: int
+    rating: float
+    ignore: bool
+
 class RecommendationRequest(BaseModel):
     alpha: float
     beta: float
@@ -373,6 +385,11 @@ class RecommendationRequest(BaseModel):
     prompt: str
     seed_games: List[str]
     genres: Optional[List[str]] = []
+    
+    # Taste DNA Extensions
+    vibe_vector: Optional[List[float]] = None
+    intercept: Optional[float] = None
+    metadata_weights: Optional[Dict[str, float]] = None
 
 # --- Endpoints ---
 
@@ -443,6 +460,188 @@ def get_changelog():
             return {"content": f.read()}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Changelog file not found")
+
+# --- Personalization Pipeline Endpoints ---
+
+@app.post("/user/fetch")
+async def fetch_user_data(request: UserFetchRequest, background_tasks: BackgroundTasks):
+    """Triggers the scraping and soft-labeling process for a user."""
+    input_val = request.steam_id.strip()
+    if not input_val:
+        raise HTTPException(status_code=400, detail="SteamID is required")
+    
+    # Resolve SteamID from URL if necessary
+    steam_id_clean = input_val.rstrip('/')
+    if "steamcommunity.com" in input_val:
+        profile_match = re.search(r'profiles/(\d+)', input_val)
+        if profile_match:
+            steam_id_clean = profile_match.group(1)
+        else:
+            vanity_match = re.search(r'id/([^/]+)', input_val)
+            if vanity_match:
+                steam_id_clean = vanity_match.group(1).rstrip('/')
+    
+    # If it looks like a vanity name, we'll let the script resolve it, 
+    # but we need a clean string for filenames.
+    # For now, let's assume we want a 17-digit ID if possible for consistent filenames.
+    # The script get_user_stats.py will do the final resolution.
+    
+    # Save review HTML to temp file if provided
+    if request.review_html:
+        html_path = f"data/user_{steam_id_clean}_reviews.html"
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(request.review_html)
+    
+    def run_pipeline(sid):
+        try:
+            # 1. Scraping
+            logger.info(f"Background: Scraping for {sid}")
+            cmd_scrape = ["python", "scraping/get_user_stats.py", sid]
+            if request.review_html:
+                cmd_scrape.append(f"data/user_{sid}_reviews.html")
+            
+            # Use subprocess and capture output for debugging
+            result = subprocess.run(cmd_scrape, capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"Scraping failed for {sid}: {result.stderr}")
+                return
+
+            # Extract the actual resolved SteamID from output if it was a vanity URL
+            # The script prints "Fetching library for SteamID: [ID]"
+            resolved_id = sid
+            match = re.search(r'Fetching library for SteamID: (\d+)', result.stdout)
+            if match:
+                resolved_id = match.group(1)
+                logger.info(f"Resolved vanity '{sid}' to '{resolved_id}'")
+            
+            # 2. Soft Labeling
+            logger.info(f"Background: Labeling for {resolved_id}")
+            subprocess.run(["python", "pipeline/generate_user_soft_labels.py", f"data/user_{resolved_id}_library.csv"], check=True)
+            logger.info(f"Background: Pipeline complete for {resolved_id}")
+        except Exception as e:
+            logger.error(f"Background Pipeline Failed: {e}")
+
+    background_tasks.add_task(run_pipeline, steam_id_clean)
+    return {"message": "Data acquisition started.", "resolved_as": steam_id_clean}
+
+@app.get("/user/status/{steam_id}")
+def get_user_status(steam_id: str):
+    """Checks the progress of data acquisition."""
+    library_exists = os.path.exists(f"data/user_{steam_id}_library.csv")
+    soft_labels_exists = os.path.exists(f"data/user_{steam_id}_soft_labels.csv")
+    ground_truth_exists = os.path.exists(f"data/user_{steam_id}_ground_truth.csv")
+    profile_exists = os.path.exists(f"data/user_{steam_id}_taste_profile.json")
+    
+    return {
+        "steam_id": steam_id,
+        "has_library": library_exists,
+        "has_soft_labels": soft_labels_exists,
+        "has_ground_truth": ground_truth_exists,
+        "has_profile": profile_exists
+    }
+
+@app.get("/user/verify/{steam_id}")
+def get_verification_data(steam_id: str):
+    """Returns the combined soft labels and ground truth for the verification UI."""
+    gt_path = f"data/user_{steam_id}_ground_truth.csv"
+    sl_path = f"data/user_{steam_id}_soft_labels.csv"
+    
+    if not os.path.exists(sl_path):
+        raise HTTPException(status_code=404, detail="User data not found. Please fetch first.")
+    
+    df_sl = pd.read_csv(sl_path)
+    
+    if os.path.exists(gt_path):
+        df_gt = pd.read_csv(gt_path)
+        # 1. Identify games in GT that are NOT in SL (Manual Additions)
+        manual_appids = df_gt[~df_gt['appid'].isin(df_sl['appid'])]['appid'].tolist()
+        
+        # 2. Get metadata for manual games
+        manual_rows = []
+        if manual_appids:
+            metadata = data_manager.metadata
+            m_data = metadata[metadata['appid'].isin(manual_appids)]
+            for _, row in m_data.iterrows():
+                gt_row = df_gt[df_gt['appid'] == row['appid']].iloc[0]
+                manual_rows.append({
+                    'appid': int(row['appid']),
+                    'name': row['name'],
+                    'playtime_forever': 0,
+                    'predicted_rating': 5, # Default for manual
+                    'actual_rating': gt_row['actual_rating'],
+                    'ignore': bool(gt_row['ignore']),
+                    'is_manual': True
+                })
+        
+        # 3. Merge library games
+        df = df_sl.merge(df_gt[['appid', 'actual_rating', 'ignore']], on='appid', how='left')
+        df['actual_rating'] = df['actual_rating'].fillna(df['predicted_rating'])
+        df['ignore'] = df['ignore'].fillna(False)
+        df['is_manual'] = False
+        
+        # 4. Combine
+        final_list = df.to_dict(orient='records') + manual_rows
+    else:
+        df = df_sl.copy()
+        df['actual_rating'] = df['predicted_rating']
+        df['ignore'] = False
+        df['is_manual'] = False
+        final_list = df.to_dict(orient='records')
+        
+    # JSON cannot handle NaN values, replace with None (null)
+    # We do this on the list of dicts for safety
+    def clean_dict(d):
+        return {k: (None if (isinstance(v, float) and np.isnan(v)) else v) for k, v in d.items()}
+    
+    return [clean_dict(item) for item in final_list]
+
+@app.post("/user/verify")
+def update_verification_data(updates: List[UserVerifyUpdate]):
+    """Saves the user's manual ratings and ignore status."""
+    if not updates: return {"message": "No updates provided"}
+    
+    steam_id = updates[0].steam_id
+    gt_path = f"data/user_{steam_id}_ground_truth.csv"
+    
+    # Load existing or create new
+    if os.path.exists(gt_path):
+        df = pd.read_csv(gt_path)
+    else:
+        df = pd.DataFrame(columns=['appid', 'actual_rating', 'ignore'])
+        
+    for up in updates:
+        # Update or add
+        mask = df['appid'] == up.appid
+        if mask.any():
+            df.loc[mask, 'actual_rating'] = up.rating
+            df.loc[mask, 'ignore'] = up.ignore
+        else:
+            new_row = pd.DataFrame([{'appid': up.appid, 'actual_rating': up.rating, 'ignore': up.ignore}])
+            df = pd.concat([df, new_row], ignore_index=True)
+            
+    df.to_csv(gt_path, index=False)
+    return {"message": "Verification data saved successfully"}
+
+@app.post("/user/solve/{steam_id}")
+def solve_taste(steam_id: str):
+    """Runs the regression solver to generate the taste profile."""
+    try:
+        subprocess.run(["python", "pipeline/solve_user_taste.py", steam_id], check=True)
+        return {"message": "Taste profile solved successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Solver failed: {e}")
+
+@app.get("/user/insights/{steam_id}")
+def get_user_insights(steam_id: str):
+    """Returns the solved weights and top/bottom tags for the insights view."""
+    profile_path = f"data/user_{steam_id}_taste_profile.json"
+    if not os.path.exists(profile_path):
+        raise HTTPException(status_code=404, detail="Taste profile not found.")
+        
+    with open(profile_path, 'r') as f:
+        profile = json.load(f)
+    
+    return profile
 
 @app.get("/lists/{category}")
 def get_list(category: str, discovery_pref: float = 0.0):
@@ -741,18 +940,51 @@ def recommend(request: RecommendationRequest):
                 logger.debug("Used seed-only similarities")
 
     all_tag_sims = np.zeros(len(metadata))
-    if seed_indices.size > 0:
+    is_pure_vibe = False
+    if seed_indices.size > 0 or request.vibe_vector:
         logger.debug("Computing tag similarity...")
-        tag_seed_vectors = data_manager.tag_vectors[seed_indices]
-        combined_tag_query = np.mean(tag_seed_vectors, axis=0)
-        tag_q_mag = np.linalg.norm(combined_tag_query)
         
-        dot_products = np.dot(data_manager.tag_vectors, combined_tag_query)
-        denom = (data_manager.tag_vectors_norms * tag_q_mag) + DOT_PRODUCT_LAMBDA
-        denom[denom == 0] = EPSILON
-        
-        all_tag_sims = dot_products / denom
-        logger.info(f"Tag similarities computed: min={all_tag_sims.min():.4f}, max={all_tag_sims.max():.4f}, mean={all_tag_sims.mean():.4f}")
+        if request.vibe_vector and seed_indices.size == 0:
+            # PURE PERSONALIZED PATH: Match the Solver's logic exactly.
+            # Solver uses: V_scaled = (V / (|V| + lambda)) * 11.283
+            # Score = Dot(W, V_scaled) = (Dot(W, V) / (|V| + lambda)) * 11.283
+            is_pure_vibe = True
+            personal_vibe = np.array(request.vibe_vector, dtype=np.float32)
+            
+            dot_products = np.dot(data_manager.tag_vectors, personal_vibe)
+            denom = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
+            
+            all_tag_sims = (dot_products / denom) * TAG_GLOBAL_SCALING_FACTOR
+            logger.info(f"Using globally-scaled personalized dot products. Range: [{all_tag_sims.min():.4f}, {all_tag_sims.max():.4f}]")
+        else:
+            # SEED-BASED PATH (includes blended DNA)
+            if seed_indices.size > 0:
+                tag_seed_vectors = data_manager.tag_vectors[seed_indices]
+                combined_tag_query = np.mean(tag_seed_vectors, axis=0)
+                
+                # If a personalized vibe vector is also provided, blend it
+                if request.vibe_vector:
+                    personal_vibe = np.array(request.vibe_vector, dtype=np.float32)
+                    # Normalize both to ensure fair blending
+                    v_mag = np.linalg.norm(personal_vibe)
+                    personal_vibe_norm = personal_vibe / (v_mag if v_mag > EPSILON else 1.0)
+                    
+                    s_mag = np.linalg.norm(combined_tag_query)
+                    seed_vibe_norm = combined_tag_query / (s_mag if s_mag > EPSILON else 1.0)
+                    
+                    combined_tag_query = (personal_vibe_norm + seed_vibe_norm) / 2.0
+            else:
+                # Vibe vector only (fallback, should be handled by pure path above)
+                combined_tag_query = np.array(request.vibe_vector, dtype=np.float32)
+                
+            tag_q_mag = np.linalg.norm(combined_tag_query)
+            
+            dot_products = np.dot(data_manager.tag_vectors, combined_tag_query)
+            denom = (data_manager.tag_vectors_norms * tag_q_mag) + DOT_PRODUCT_LAMBDA
+            denom[denom == 0] = EPSILON
+            
+            all_tag_sims = dot_products / denom
+            logger.info(f"Tag similarities computed: min={all_tag_sims.min():.4f}, max={all_tag_sims.max():.4f}, mean={all_tag_sims.mean():.4f}")
 
     semantic_sims = all_semantic_sims[keep_indices]
     tag_sims = all_tag_sims[keep_indices]
@@ -771,15 +1003,33 @@ def recommend(request: RecommendationRequest):
     z_difficulty = np.clip(metadata.iloc[keep_indices]['difficulty_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
 
     # 5. Hybrid Scoring
-    gamma = QUALITY_WEIGHT_MULTIPLIER * request.quality_pref
+    is_linear_mode = request.metadata_weights is not None
     
-    w_semantic = request.alpha if (request.prompt or seed_appids) else 0.0
-    w_tag = request.beta if seed_appids else 0.0
-    w_spps = gamma
-    w_date = AGE_WEIGHT_MULTIPLIER * request.age_pref
-    w_pop = POPULARITY_WEIGHT_MULTIPLIER * request.pop_pref
-    w_length = LENGTH_WEIGHT_MULTIPLIER * request.length_pref
-    w_difficulty = DIFFICULTY_WEIGHT_MULTIPLIER * request.difficulty_pref
+    if is_linear_mode:
+        # PURE LINEAR MODE: Use raw regression coefficients (Beta weights)
+        # Match Solver: Score = Intercept + Beta_Q * Q + Beta_Age * Age + ... + Tag_Dot_Scaled
+        # The sliders now act as MULTIPLIERS on the solved weights.
+        w_spps = request.metadata_weights.get('quality', 0) * request.quality_pref * 2.0
+        w_date = request.metadata_weights.get('age', 0) * request.age_pref * 2.0
+        w_pop = request.metadata_weights.get('popularity', 0) * request.pop_pref * 2.0
+        w_length = request.metadata_weights.get('length', 0) * request.length_pref * 2.0
+        w_difficulty = request.metadata_weights.get('difficulty', 0) * request.difficulty_pref * 2.0
+        w_tag = 1.0 * request.beta
+        w_semantic = request.alpha
+        intercept = request.intercept or 0.0
+        
+        logger.info(f"Using LINEAR SCORER mode with intercept {intercept:.4f}")
+    else:
+        # STANDARD HYBRID MODE
+        gamma = QUALITY_WEIGHT_MULTIPLIER * request.quality_pref
+        w_semantic = request.alpha if (request.prompt or seed_appids) else 0.0
+        w_tag = request.beta if (seed_appids or request.vibe_vector) else 0.0
+        w_spps = gamma
+        w_date = AGE_WEIGHT_MULTIPLIER * request.age_pref
+        w_pop = POPULARITY_WEIGHT_MULTIPLIER * request.pop_pref
+        w_length = LENGTH_WEIGHT_MULTIPLIER * request.length_pref
+        w_difficulty = DIFFICULTY_WEIGHT_MULTIPLIER * request.difficulty_pref
+        intercept = 0.0
 
     total_weight = (
         abs(w_semantic) + 
@@ -795,37 +1045,36 @@ def recommend(request: RecommendationRequest):
                  f"age={w_date:.2f}, pop={w_pop:.2f}, length={w_length:.2f}, difficulty={w_difficulty:.2f}")
 
     z_semantic = np.clip(to_z(semantic_sims), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) if (request.prompt or seed_appids) else np.zeros(len(keep_indices))
-    z_tag = np.clip(to_z(tag_sims, ignore_zeros=True), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) if seed_appids else np.zeros(len(keep_indices))
-
-    logger.debug(f"Z-scores before hybrid: semantic mean={z_semantic.mean():.3f} (nz={np.sum(z_semantic != 0)}), "
-                 f"tag mean={z_tag.mean():.3f} (nz={np.sum(z_tag != 0)}), "
-                 f"quality mean={z_spps.mean():.3f}")
     
-    # NEW: Log quality weight and z-score distribution to diagnose slider issues
-    # Use float64 to avoid overflow in mean/std with float16 arrays
-    mean_f64 = np.mean(z_spps, dtype=np.float64)
-    std_f64 = np.std(z_spps, dtype=np.float64)
-    logger.info(f"QUALITY ANALYSIS: quality_pref={request.quality_pref:.3f}, w_spps={w_spps:.3f}, "
-                f"z_spps range=[{z_spps.min():.3f}, {z_spps.max():.3f}], mean={mean_f64:.3f}, "
-                f"std={std_f64:.3f}")
-    # Log the partial contributions for top 10 candidates to see if quality is making a difference
-    if len(keep_indices) > 0 and request.top_k > 0:
-        num_to_show = min(10, len(keep_indices))
-        logger.info(f"Top {num_to_show} candidates quality contribution (z_spps * w_spps):")
-        for i in range(num_to_show):
-            idx = i  # keep_indices are already in order, we'll sort later
-            q_contrib = z_spps[idx] * w_spps
-            logger.info(f"  Candidate {idx}: z_spps={z_spps[idx]:.3f}, w_spps={w_spps:.3f} → contrib={q_contrib:.3f}")
+    if is_pure_vibe or is_linear_mode:
+        # Bypassing Z-scoring for personalized vibes because they are already regression-weighted dot products
+        z_tag = tag_sims
+    else:
+        z_tag = np.clip(to_z(tag_sims, ignore_zeros=True), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) if (seed_appids or request.vibe_vector) else np.zeros(len(keep_indices))
 
-    final_scores = calculate_hybrid_score(
-        z_semantic, w_semantic,
-        z_tag, w_tag,
-        z_spps, w_spps,
-        z_date, w_date,
-        z_pop, w_pop,
-        z_length, w_length,
-        z_difficulty, w_difficulty
-    )
+    # Calculate final scores
+    # If linear mode, we don't Z-score the components further (except semantic which is similarity)
+    if is_linear_mode:
+        final_scores = (
+            (z_tag * w_tag) +
+            (z_spps * w_spps) +
+            (z_date * w_date) +
+            (z_pop * w_pop) +
+            (z_length * w_length) +
+            (z_difficulty * w_difficulty) +
+            (z_semantic * w_semantic) +
+            intercept
+        )
+    else:
+        final_scores = calculate_hybrid_score(
+            z_semantic, w_semantic,
+            z_tag, w_tag,
+            z_spps, w_spps,
+            z_date, w_date,
+            z_pop, w_pop,
+            z_length, w_length,
+            z_difficulty, w_difficulty
+        )
 
     logger.debug(f"Final scores: min={final_scores.min():.3f}, max={final_scores.max():.3f}, mean={final_scores.mean():.3f}")
 

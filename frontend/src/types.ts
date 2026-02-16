@@ -60,6 +60,7 @@ export interface RecommendationRequest {
   seed_games: string[];
   genres: string[];
   debug?: boolean;
+  vibe_vector?: number[];
 }
 
 export interface ListResponse {

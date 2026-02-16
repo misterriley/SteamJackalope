@@ -126,6 +126,34 @@ A series of research tests were conducted to predict game difficulty, initially 
 - **Leverage/Influence**: Analysis identified high-leverage games (e.g., *Center2048*, *King of Texas*) that disproportionately skew linear model coefficients due to unusual tag profiles.
 - **External Validation**: The final model (`pipeline/generate_difficulty_model.py`) is trained on ~3,200 games matched between GameFAQs (which has explicit 1-5 difficulty ratings) and Steam. It uses Rank-INT transformed tag proportions to predict the GameFAQs difficulty score, clamped to the [1, 5] range. This provides a ground-truth anchored difficulty metric rather than relying solely on tag semantics.
 
+### Personalized Quality (Expected Experience)
+
+We have developed a "Personalized Quality" model that adjusts a game's global quality score $Q$ (the probit transformed Bayesian rating) to reflect the expected experience for a specific player based on their target playtime $t$. 
+
+- **Concept**: The model assumes a game's experiences are distributed as $N(Q, 1)$. While the global review score reflects the natural sampling from this distribution, a specific player's likelihood of enjoyment is guided by the **Playtime-Sentiment** kernel model ($p_+(t)$).
+- **Mathematical Basis**: The "Personalized Quality" is the biased mean of the experience distribution:
+  $$E[X \mid t] = Q + \phi(Q) \left[ \frac{p_+(t)}{\Phi(Q)} - \frac{1 - p_+(t)}{1 - \Phi(Q)} \right]$$
+- **Implementation**: This is implemented in `common/utils.py` as `calculate_personalized_quality(q_global, p_plus_playtime)`.
+- **Impact**: This correction allows the recommender to prioritize "Acquired Tastes" (games that improve over time) for long-playtime seekers, even if their early-game bounce rate is high. Conversely, it can penalize "Flash in the Pan" games for users seeking depth.
+- **Next Steps**: Integration into the hybrid scoring pipeline will occur once user-specific data (Steam ID connection or manual playtime preference) is integrated (see `tasklist.md`).
+
+## Feature: Analyze My Catalogue (Personalization Engine)
+
+The "Analyze My Catalogue" feature allows users to solve for their personal preference weights by analyzing their existing Steam library. 
+
+### Data Flow
+1.  **Acquisition**: Fetch AppIDs and playtimes via SteamID64 API or manual HTML source paste (`scraping/get_user_stats.py`).
+2.  **Soft-Labeling**: Generate 0-10 predicted ratings using the **Personalized Quality** formula ($Q_{pers}$) and the global **Playtime-Sentiment** model.
+3.  **Verification (Ground Truth)**: User reviews the predicted ratings in a dense table UI, adjusting sliders or checking "Ignore" for games that don't reflect their taste.
+4.  **Taste Solver**: Run a Ridge Regression (with LOOCV) mapping the 0-10 ratings against game tag vectors (128-dim) and metadata factors (Age, Length, Difficulty).
+5.  **Deployment**: Exported weights are used to initialize the recommendation sliders on the main page.
+
+### UI Requirements (For React Implementation)
+- **Dense Grid/Table**: Support for Steam banner images, expandable review text, and responsive columns.
+- **Persistent State**: Use local storage or a backend database to save user verification progress.
+- **Sorting & Filtering**: Real-time sorting by Playtime, Predicted Rating, Global Rating, or Ignore status.
+- **Mapping**: All quality scores must be mapped to the 0-10 scale using the calibrated anchors ($m=3.0088, c=3.2772$).
+
 ## Technical Gotchas & Lessons Learned
 
 - **PowerShell Command Chaining**: This environment uses PowerShell. Use `;` instead of `&&` to chain commands (e.g., `git add .; git commit`). Using `&&` will result in a `ParserError`.

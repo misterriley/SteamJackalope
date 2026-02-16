@@ -2,6 +2,24 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [15] - 2026-02-15
+
+### Added
+- **Unified Linear Scorer**: Replaced the 'hybrid approximation' system with a direct linear scorer. The Discovery Engine now executes the user's solved Ridge Regression model ($Score = Intercept + \sum \beta_i x_i$) with 100% mathematical consistency between the Solver and Recommender.
+- **Global Feature Standardization**: Implemented a global scaling factor (**11.283x**) for tag features and standardized metadata weights on Global Z-scores. This enables 'Beta Weights' that are portable and stable across hits and niche games.
+- **Robust Error Handling**: Installed a global **ErrorBoundary** and a **Reset App** safety button to prevent and recover from 'white-screen' crashes caused by corrupted cache or invalid data.
+- **Format-Agnostic Parsing**: Updated frontend game card parsing to handle Genres and Tags in multiple formats (Array, String, Object), preventing type errors during data hydration.
+- **Personalization Persistence**: User DNA results (weights, vibe vector, intercept) now persist across tab switches and page reloads via `sessionStorage`.
+
+### Fixed
+- **Vibe Inflation Bug**: Resolved an issue where Z-scoring tag similarities caused niche North Star games to artificially jump to #1.
+- **UnboundLocal & Name Errors**: Fixed several critical variable scope bugs in the Taste Solver pipeline.
+- **JSON Safety**: Solver now recursively strips `NaN`/`Inf` values from output JSON to ensure frontend compatibility.
+
+### Changed
+- **Predictive Sliders**: In Personalized mode, sliders now act as **Multipliers** on the solved DNA weights (0.5 = 100% impact, 1.0 = 200% impact) rather than absolute biases.
+- **Rating Calibration**: Recommender 'Match Scores' are now calibrated to the user's predicted **0-10 rating** scale.
+
 ## [13] - 2026-02-14
 
 ### Added

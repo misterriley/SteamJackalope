@@ -88,6 +88,7 @@ CHI_FIT_NORM_THRESHOLD = 5.0
 CHI_FIT_PERCENTILE = 0.95
 USE_TAG_WHITENING = True
 TAG_TRANSFORM_TYPE = 'clr' # 'anscombe', or 'clr', or 'none
+TAG_GLOBAL_SCALING_FACTOR = 11.283 # Multiplier to bring tag variance to ~1.0
 
 # Scraping Constants
 API_KEY = os.getenv("STEAM_API_KEY")

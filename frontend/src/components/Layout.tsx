@@ -1,7 +1,7 @@
 import React from 'react';
-import { Sparkles, BarChart2, Github, Info, BookOpen, History } from 'lucide-react';
+import { Sparkles, BarChart2, Github, Info, BookOpen, History, RotateCcw } from 'lucide-react';
 
-export type TabType = 'recommend' | 'lists' | 'about' | 'methodology' | 'changelog';
+export type TabType = 'recommend' | 'lists' | 'personalize' | 'about' | 'methodology' | 'changelog';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -48,6 +48,17 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
               Analysis
             </button>
             <button
+              onClick={() => onTabChange('personalize')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'personalize' 
+                  ? 'bg-card text-primary shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Sparkles size={16} />
+              Analyze My Catalogue
+            </button>
+            <button
               onClick={() => onTabChange('about')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === 'about' 
@@ -72,6 +83,19 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-4">
+             <button
+              onClick={() => {
+                if (window.confirm("Clear all cached data and reset the app?")) {
+                  localStorage.clear();
+                  sessionStorage.clear();
+                  window.location.reload();
+                }
+              }}
+              className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+              title="Reset Application State"
+             >
+              <RotateCcw size={18} />
+             </button>
              <button
               onClick={() => onTabChange('changelog')}
               className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${

@@ -16,7 +16,11 @@ const DEFAULT_GENRES = [
   "Photo Editing", "Animation & Modeling", "Accounting"
 ];
 
-const RecommendationsView: React.FC = () => {
+interface RecommendationsViewProps {
+  onProfileClear?: () => void;
+}
+
+const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClear }) => {
   const [genresList, setGenresList] = useState<string[]>(DEFAULT_GENRES);
   const [termLinks, setTermLinks] = useState<Record<string, string>>({});
   const [recommendations, setRecommendations] = useState<GameMetadata[]>([]);
@@ -26,26 +30,42 @@ const RecommendationsView: React.FC = () => {
   const [useTrendingRandom, setUseTrendingRandom] = useState(false);
   const isInitialMount = useRef(true);
 
-  const [filters, setFilters] = useState<RecommendationRequest>({
-    alpha: 1.0,
-    beta: 1.0,
-    quality_pref: 0.5,
-    age_pref: 0.0,
-    pop_pref: 0.0,
-    disc_pref: 0.0,
-    length_pref: 0.0,
-    difficulty_pref: 0.0,
-    remove_vr: true,
-    english_only: true,
-    remove_nsfw: true,
-    remove_utilities: true,
-    remove_unreleased: true,
-    top_k: 30,
-    prompt: '',
-    seed_games: [],
-    genres: [],
-    debug: false
+  const [filters, setFilters] = useState<RecommendationRequest>(() => {
+    const defaults: RecommendationRequest = {
+      alpha: 1.0,
+      beta: 1.0,
+      quality_pref: 0.5,
+      age_pref: 0.0,
+      pop_pref: 0.0,
+      disc_pref: 0.0,
+      length_pref: 0.0,
+      difficulty_pref: 0.0,
+      remove_vr: true,
+      english_only: true,
+      remove_nsfw: true,
+      remove_utilities: true,
+      remove_unreleased: true,
+      top_k: 30,
+      prompt: '',
+      seed_games: [],
+      genres: [],
+      debug: false
+    };
+
+    const saved = sessionStorage.getItem('recommendations_filters');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...defaults, ...parsed };
+      } catch (e) {}
+    }
+    return defaults;
   });
+
+  // Save filters to session storage
+  useEffect(() => {
+    sessionStorage.setItem('recommendations_filters', JSON.stringify(filters));
+  }, [filters]);
 
   const [localPrompt, setLocalPrompt] = useState(filters.prompt);
 
@@ -97,13 +117,19 @@ const RecommendationsView: React.FC = () => {
     fetchSeedMetadata();
   }, [filters.seed_games]);
 
+  const lastSearchRef = useRef<string>('');
+
   const handleSearch = async (currentFilters: RecommendationRequest) => {
+    const filterStr = JSON.stringify(currentFilters);
+    if (filterStr === lastSearchRef.current) return;
+    
+    lastSearchRef.current = filterStr; // Update immediately
     setLoading(true);
     setError(null);
     try {
-      // Always include NSFW in results so we can handle blurring on the client side
       const results = await recommend({ ...currentFilters, remove_nsfw: false });
       setRecommendations(results);
+      
       if (results.length === 0 && currentFilters.seed_games.length === 0 && !currentFilters.prompt) {
         // Silently handle empty state
       } else if (results.length === 0) {
@@ -112,6 +138,7 @@ const RecommendationsView: React.FC = () => {
     } catch (err) {
       console.error("Recommendation failed", err);
       setError("An error occurred while fetching recommendations.");
+      lastSearchRef.current = ''; // Reset on error to allow retry
     } finally {
       setLoading(false);
     }
@@ -119,8 +146,7 @@ const RecommendationsView: React.FC = () => {
 
   // Auto-update effect with debouncing
   useEffect(() => {
-    // Skip debounce on initial mount to load immediately, 
-    // or handle initial load through a standard fetch.
+    // Immediate search on mount
     if (isInitialMount.current) {
       isInitialMount.current = false;
       handleSearch(filters);
@@ -129,27 +155,10 @@ const RecommendationsView: React.FC = () => {
 
     const timer = setTimeout(() => {
       handleSearch(filters);
-    }, 500); // 500ms debounce
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [
-    filters.alpha, 
-    filters.beta, 
-    filters.quality_pref, 
-    filters.age_pref, 
-    filters.pop_pref, 
-    filters.disc_pref, 
-    filters.length_pref, 
-    filters.difficulty_pref, 
-    filters.remove_vr, 
-    filters.english_only, 
-    filters.remove_utilities, 
-    filters.remove_unreleased, 
-    filters.top_k, 
-    filters.prompt, 
-    filters.seed_games, 
-    filters.genres
-  ]);
+  }, [filters]); // Simplified dependency array
 
   const handleReset = () => {
     setFilters({
@@ -203,6 +212,29 @@ const RecommendationsView: React.FC = () => {
     }
   };
 
+  const handleProfileUpload = (profile: any) => {
+    if (!profile || !profile.metadata || !profile.vibe_vector) {
+      alert("Invalid taste profile format.");
+      return;
+    }
+
+    // Apply solved weights (divide by multipliers to get slider positions)
+    // Multipliers from common/constants.py:
+    // Quality: 4.0, Age: 1.4, Pop: 1.0, Length: 0.25, Diff: 1.3
+    setFilters(prev => ({
+      ...prev,
+      quality_pref: parseFloat((profile.metadata.quality / 4.0).toFixed(2)),
+      age_pref: parseFloat((profile.metadata.age / 1.4).toFixed(2)),
+      pop_pref: parseFloat((profile.metadata.popularity / 1.0).toFixed(2)),
+      length_pref: parseFloat((profile.metadata.length / 0.25).toFixed(2)),
+      difficulty_pref: parseFloat((profile.metadata.difficulty / 1.3).toFixed(2)),
+      vibe_vector: profile.vibe_vector,
+      // Reset alpha/beta to sensible defaults for personalized mode
+      alpha: 1.0,
+      beta: 1.5 
+    }));
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-8">
       {/* Sidebar - Filters */}
@@ -212,6 +244,7 @@ const RecommendationsView: React.FC = () => {
           onChange={setFilters} 
           onSearch={() => handleSearch(filters)} 
           loading={loading}
+          onProfileUpload={handleProfileUpload}
         />
       </aside>
 
@@ -303,11 +336,11 @@ const RecommendationsView: React.FC = () => {
         <section>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold">
-              {recommendations.length > 0 ? 'Results for you' : 'Discover something new'}
+              {(recommendations || []).length > 0 ? 'Results for you' : 'Discover something new'}
             </h2>
-            {recommendations.length > 0 && (
+            {(recommendations || []).length > 0 && (
               <span className="text-sm text-muted-foreground">
-                Found {recommendations.length} matching games
+                Found {(recommendations || []).length} matching games
               </span>
             )}
           </div>
@@ -332,7 +365,7 @@ const RecommendationsView: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
               <AnimatePresence mode="popLayout">
                 {/* Seed Games */}
-                {seedGamesMetadata.map((game, index) => (
+                {(seedGamesMetadata || []).map((game, index) => (
                   <motion.div
                     key={`seed-${game.appid}`}
                     initial={{ opacity: 0, scale: 0.9 }}
@@ -351,12 +384,12 @@ const RecommendationsView: React.FC = () => {
                 ))}
 
                 {/* Recommendations */}
-                {recommendations.map((game, index) => (
+                {(recommendations || []).map((game, index) => (
                   <motion.div
                     key={game.appid}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: (seedGamesMetadata.length + index) * 0.05 }}
+                    transition={{ delay: ((seedGamesMetadata || []).length + index) * 0.05 }}
                     layout
                   >
                     <GameCard 

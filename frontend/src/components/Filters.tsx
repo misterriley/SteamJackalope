@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { RecommendationRequest } from '../types';
-import { Settings2, Info } from 'lucide-react';
+import { Settings2, Info, Upload, UserCheck } from 'lucide-react';
 
 // Robust Tooltip component using Portals to avoid overflow clipping
 const Tooltip = ({ text }: { text: string }) => {
@@ -90,10 +90,10 @@ interface SliderProps {
 }
 
 const Slider = ({ label, value, min, max, step, onChange, tooltip }: SliderProps) => {
-  const [localValue, setLocalValue] = React.useState(value);
+  const [localValue, setLocalValue] = React.useState(value || 0);
 
   React.useEffect(() => {
-    setLocalValue(value);
+    setLocalValue(value || 0);
   }, [value]);
 
   return (
@@ -103,7 +103,7 @@ const Slider = ({ label, value, min, max, step, onChange, tooltip }: SliderProps
           {label}
           {tooltip && <Tooltip text={tooltip} />}
         </label>
-        <span className="text-[10px] font-mono text-primary font-bold">{localValue.toFixed(2)}</span>
+        <span className="text-[10px] font-mono text-primary font-bold">{(localValue || 0).toFixed(2)}</span>
       </div>
       <input
         type="range"
@@ -139,21 +139,73 @@ interface FiltersProps {
   onChange: (filters: RecommendationRequest) => void;
   onSearch: () => void;
   loading: boolean;
+  onProfileUpload?: (profile: any) => void;
 }
 
-const Filters: React.FC<FiltersProps> = ({ filters, onChange }) => {
+const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleChange = (key: keyof RecommendationRequest, value: any) => {
     onChange({ ...filters, [key]: value });
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && onProfileUpload) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const profile = JSON.parse(e.target?.result as string);
+          onProfileUpload(profile);
+        } catch (err) {
+          alert("Failed to parse taste profile JSON.");
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm sticky top-20 h-[calc(100vh-6rem)] flex flex-col">
-      <div className="p-4 border-b border-border flex items-center gap-2 shrink-0">
-        <Settings2 size={18} className="text-primary" />
-        <h2 className="text-base font-bold">Preferences</h2>
+      <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <Settings2 size={18} className="text-primary" />
+          <h2 className="text-base font-bold">Preferences</h2>
+        </div>
+        {filters.vibe_vector && (
+          <div className="flex items-center gap-1 text-[10px] text-green-500 font-bold bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">
+            <UserCheck size={10} />
+            PERSONALIZED
+          </div>
+        )}
       </div>
 
       <div className="p-4 overflow-y-auto flex-grow custom-scrollbar space-y-4">
+        <div className="pb-2 border-b border-border/50">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Personalization</h3>
+          <input 
+            type="file" 
+            accept=".json" 
+            className="hidden" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-secondary/50 hover:bg-secondary rounded-lg text-xs font-medium transition-colors border border-border/50"
+          >
+            <Upload size={14} />
+            {filters.vibe_vector ? "Change Taste Profile" : "Upload Taste Profile"}
+          </button>
+          {filters.vibe_vector && (
+            <button 
+              onClick={() => handleChange('vibe_vector', undefined)}
+              className="w-full mt-2 text-[10px] text-muted-foreground hover:text-destructive underline transition-colors"
+            >
+              Clear personalization
+            </button>
+          )}
+        </div>
         <div>
           <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Core Weights</h3>
           <Slider 

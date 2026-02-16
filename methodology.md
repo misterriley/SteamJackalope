@@ -136,6 +136,20 @@ To provide a polished and safe user experience, the modern frontend implements s
 
 - **Dynamic Tag Visualization:** Each game card dynamically renders its most relevant genres and top user tags, highlighting matches that align with the user's search intent or seed games.
 
+## 12. Personalized Linear Scorer (Build 15)
+
+To ensure perfect alignment between a user's library analysis and their discovery feed, Build 15 introduced a **Unified Linear Scorer** architecture. This replaces the "hybrid approximation" with a direct execution model.
+
+- **Unified Feature Space:** Both the Taste DNA Solver and the Recommendation Engine utilize a standardized global feature space. Metadata (Age, Quality, Popularity, etc.) are represented as **Global Z-scores**, while Steam tags are transformed using **Penalized Normalization** ($v / (\|v\| + \lambda)$) and then scaled by a global constant (**11.283x**) to match the variance of the Z-scored metadata.
+
+- **Portable Beta Weights:** By removing user-specific scaling, the DNA Solver learns **Beta Weights** that are directly portable. These weights represent the absolute importance of each feature (e.g., "how many rating points is one unit of Difficulty worth to this specific user?").
+
+- **Direct Execution:** When a Taste Profile is applied, the Recommendation Engine switches into **Linear Mode**. Instead of using internal biases, it calculates the final Match Score by directly running the user's solved regression model: $\text{Match Score} = \text{Intercept} + \sum (\beta_i \cdot x_i)$. 
+
+- **Predictive Sliders:** In this mode, the UI sliders transition from absolute biases to **Multipliers**. A slider at 0.5 uses the solved DNA weight exactly (100%), while 0.0 ignores the preference and 1.0 doubles its impact. This allows users to fine-tune their DNA in real-time.
+
+- **Predicted Ratings:** Because the math is unified, the "Match Score" displayed on game cards becomes a calibrated **Predicted 0-10 Rating** for that game, ensuring that the "Games You'll Love" list in the analyzer and the Recommendation results are always mathematically identical.
+
 ## Data Hygiene & External Integration (Build 13)
 
 To ensure the recommender remains a useful portal to the Steam ecosystem, Build 13 introduced a verified external link layer:
