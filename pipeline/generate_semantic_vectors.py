@@ -18,6 +18,7 @@ from common.constants import (
     SENTENCE_TRANSFORMER_MODEL_KWARGS,
     METADATA_FILE
 )
+from common.utils import safe_save_npy
 
 def whiten(vectors, variance_threshold=0.80):
     print("Whitening vectors (Centered ZCA with dimensionality reduction)...")
@@ -155,25 +156,25 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     embeddings_desc = normalize(embeddings_desc)
     
     print(f"Saving structural embeddings to {embeddings_tag_out}...")
-    np.save(embeddings_tag_out, embeddings_structural)
+    safe_save_npy(embeddings_tag_out, embeddings_structural)
     
     # Save whitening matrices and means only if paths are provided
     if w_structural_out:
         print(f"Saving structural whitening matrix to {w_structural_out}...")
-        np.save(w_structural_out, W_structural.astype(np.float16))
+        safe_save_npy(w_structural_out, W_structural.astype(np.float16))
     if mean_structural_out:
         print(f"Saving structural mean vector to {mean_structural_out}...")
-        np.save(mean_structural_out, mean_structural.astype(np.float16))
+        safe_save_npy(mean_structural_out, mean_structural.astype(np.float16))
     
     print(f"Saving descriptive embeddings to {embeddings_desc_out}...")
-    np.save(embeddings_desc_out, embeddings_desc)
+    safe_save_npy(embeddings_desc_out, embeddings_desc)
     
     if w_desc_out:
         print(f"Saving descriptive whitening matrix to {w_desc_out}...")
-        np.save(w_desc_out, W_desc.astype(np.float16))
+        safe_save_npy(w_desc_out, W_desc.astype(np.float16))
     if mean_desc_out:
         print(f"Saving descriptive mean vector to {mean_desc_out}...")
-        np.save(mean_desc_out, mean_desc.astype(np.float16))
+        safe_save_npy(mean_desc_out, mean_desc.astype(np.float16))
 
     # Run distribution analysis
     try:

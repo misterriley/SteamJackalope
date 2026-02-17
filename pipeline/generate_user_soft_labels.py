@@ -42,13 +42,13 @@ def generate_soft_labels(user_library_path, reviews_path='scraped_reviews.csv', 
     # Merge user library with metadata
     user_games = user_df.merge(metadata, on='appid', how='inner', suffixes=('', '_global'))
     
-    # Filter 1: Remove zero playtime
+    # Filter: Remove zero playtime
     initial_count = len(user_games)
     user_games = user_games[user_games['playtime_forever'] > 0].copy()
     zero_playtime_count = initial_count - len(user_games)
     print(f"Filtered out {zero_playtime_count} games with zero playtime.")
     
-    print(f"Found metadata for {len(user_games)} active games in library.")
+    print(f"Found metadata for {len(user_games)} games in library.")
 
     if user_games.empty:
         print("No active games in library matched the metadata.")
@@ -103,12 +103,6 @@ def generate_soft_labels(user_library_path, reviews_path='scraped_reviews.csv', 
             else:
                 playtimes = game_reviews['author_playtime_forever'].values.astype(float)
                 
-                # Filter 2: User playtime must be >= minimum review playtime
-                min_review_playtime = np.min(playtimes)
-                if user_playtime < min_review_playtime:
-                    filtered_min_playtime_count += 1
-                    continue
-
                 voted_up = game_reviews['voted_up'].values.astype(bool)
                 
                 # Use global parameters
@@ -147,7 +141,6 @@ def generate_soft_labels(user_library_path, reviews_path='scraped_reviews.csv', 
         })
 
     results_df = pd.DataFrame(results)
-    print(f"Filtered out {filtered_min_playtime_count} games where user playtime was less than the minimum review playtime.")
     
     if output_path:
         results_df.to_csv(output_path, index=False)

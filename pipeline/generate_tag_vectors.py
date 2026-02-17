@@ -410,13 +410,13 @@ def apply_tag_transform(augmented_counts, prior_G, original_total_votes, K, tran
     
     return final_vectors, V_prior
 
-def whiten(vectors, variance_threshold=0.80):
+def whiten(vectors, variance_threshold=0.95, min_components=128):
     """
     Whitening using PCA-based dimensionality reduction followed by ZCA rotation.
     Reduces memory footprint and eliminates singular/noisy dimensions.
     Dimensionality is chosen to retain specified proportion of variance.
     """
-    print(f"Whitening vectors (PCA-ZCA with variance threshold {variance_threshold:.1%})...")
+    print(f"Whitening vectors (PCA-ZCA with variance threshold {variance_threshold:.1%}, target min {min_components})...")
     n_games = vectors.shape[0]
     
     # M is the second moment matrix (uncentered covariance)
@@ -425,26 +425,27 @@ def whiten(vectors, variance_threshold=0.80):
     
     # Compute cumulative explained variance
     cumvar = np.cumsum(S) / np.sum(S)
-    n_components = np.argmax(cumvar >= variance_threshold) + 1
-    if n_components <= 0:
-        n_components = max(1, int(variance_threshold * len(S)))  # fallback
-    actual_n = min(n_components, np.sum(S > 1e-9))
+    
+    # Target dimensionality
+    n_vars = np.argmax(cumvar >= variance_threshold) + 1
+    actual_n = max(min(min_components, len(S)), n_vars)
+    actual_n = min(actual_n, np.sum(S > 1e-9)) # Cap at non-singular dimensions
     
     print(f"Keeping top {actual_n} components (explaining {np.sum(S[:actual_n])/np.sum(S):.2%} variance)")
     
     U_reduced = U[:, :actual_n]
     S_reduced = S[:actual_n]
     
-    # PCA Whitening Matrix: U_reduced @ diag(1/sqrt(S_reduced))
-    # ZCA Whitening Matrix would be U_reduced @ diag(1/sqrt(S_reduced)) @ U_reduced.T
-    # But we want to return whitened vectors of shape (n_games, actual_n)
-    # to save memory as specified in orientation.md
+    print(f"Minimum singular value retained: {S_reduced[-1]:.6f}")
     
+    # PCA Whitening Matrix: U_reduced @ diag(1/sqrt(S_reduced))
     W = np.dot(U_reduced, np.diag(1.0 / np.sqrt(S_reduced + 1e-6)))
     whitened = np.dot(vectors, W)
     
     # Also return the full projection matrix for query transformation
     return whitened, W
+
+from common.utils import safe_save_npy
 
 def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, output_norms=None, w_tag_path=None):
     # Use defaults from constants if not provided - now pointing to data/production/
@@ -473,7 +474,7 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
     
     # 5. Whiten
     if USE_TAG_WHITENING:
-        whitened_vectors, W = whiten(transformed_vectors, variance_threshold=0.80)
+        whitened_vectors, W = whiten(transformed_vectors, variance_threshold=0.95)
     else:
         print("Skipping whitening (Identity transform)...")
         whitened_vectors = transformed_vectors
@@ -482,20 +483,20 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
         W = np.eye(dim)
     
     print(f"Saving vectors to {output_vectors}...")
-    np.save(output_vectors, whitened_vectors.astype(np.float16))
+    safe_save_npy(output_vectors, whitened_vectors.astype(np.float16))
 
     norms_path = output_norms if output_norms else TAG_NORMS_FILE
     print(f"Saving tag vector norms to {norms_path}...")
     tag_norms = np.linalg.norm(whitened_vectors.astype(np.float32), axis=1).astype(np.float16)
-    np.save(norms_path, tag_norms)
+    safe_save_npy(norms_path, tag_norms)
 
     final_w_path = w_tag_path if w_tag_path else W_TAG_FILE
     print(f"Saving whitening matrix to {final_w_path}...")
-    np.save(final_w_path, W.astype(np.float16))
+    safe_save_npy(final_w_path, W.astype(np.float16))
 
     print(f"Saving tag priors to {TAG_PRIOR_COUNTS_FILE} and {TAG_PRIOR_TRANSFORMED_FILE}...")
-    np.save(TAG_PRIOR_COUNTS_FILE, G_final.astype(np.float32))
-    np.save(TAG_PRIOR_TRANSFORMED_FILE, V_prior.astype(np.float32))
+    safe_save_npy(TAG_PRIOR_COUNTS_FILE, G_final.astype(np.float32))
+    safe_save_npy(TAG_PRIOR_TRANSFORMED_FILE, V_prior.astype(np.float32))
 
     # Run distribution analysis
     try:
@@ -505,6 +506,7 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
         print("Warning: could not import analyze_distribution from research.analyze_vector_distributions")
     
     # Calculate DOT_PRODUCT_LAMBDA
+    from common.utils import calculate_dot_product_lambda
     lambda_val = calculate_dot_product_lambda(whitened_vectors)
     
     # Save Constants
@@ -532,36 +534,6 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
         json.dump(unique_tags, f, indent=4)
         
     return whitened_vectors, appids
-
-def calculate_dot_product_lambda(vectors):
-    """
-    Calculates DOT_PRODUCT_LAMBDA by fitting a Chi-distribution to the lengths 
-    of 'low-tag' vectors and taking the 95th percentile.
-    """
-    print("Calculating DOT_PRODUCT_LAMBDA via Chi-distribution fit...")
-    # Calculate L2 norms (lengths)
-    lengths = np.linalg.norm(vectors, axis=1)
-    
-    # Filter for non-zero vectors in the 'noise' range
-    subset_mask = (lengths > 1e-6) & (lengths <= CHI_FIT_NORM_THRESHOLD)
-    subset_lengths = lengths[subset_mask]
-    
-    if len(subset_lengths) > 10: # Ensure enough samples for a fit
-        try:
-            # Fit Chi-distribution
-            df, loc, scale = chi.fit(subset_lengths)
-            # Calculate 95th percentile
-            data_driven_lambda = chi.ppf(CHI_FIT_PERCENTILE, df, loc, scale)
-            print(f"Fitted Chi: df={df:.4f}, loc={loc:.4f}, scale={scale:.4f}")
-        except Exception as e:
-            print(f"Warning: Chi-fit failed ({e}). Falling back to variance.")
-            data_driven_lambda = np.var(subset_lengths)
-    else:
-        print(f"Warning: Too few vectors in range (0, {CHI_FIT_NORM_THRESHOLD}]. Using default lambda=1.0")
-        data_driven_lambda = 1.0
-
-    print(f"Recommended Lambda: {data_driven_lambda:.4f}")
-    return data_driven_lambda
 
 class TagSearchEngine:
     def __init__(self, vectors, appids):

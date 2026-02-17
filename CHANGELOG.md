@@ -2,6 +2,56 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [36] - 2026-02-16
+
+### Changed
+- **Smooth Adaptive DNA**: Refined the adaptive dimensionality logic in `solve_user_taste.py` to use a smooth linear function ($K = \text{clamp}(40 + 0.7 \times N, 40, 243)$). This replaces the previous stepped logic, providing organic complexity growth and improved model stability as users add ratings to their library.
+
+## [35] - 2026-02-16
+
+### Added
+- **Adaptive DNA Dimensionality**: Implemented a dynamic feature scaling system in `solve_user_taste.py`. The solver now automatically adjusts the number of tag components ($K$) based on the user's library size:
+    - **Micro (<30)**: 40 components
+    - **Small (30-100)**: 80 components
+    - **Standard (100-300)**: 160 components
+    - **Enthusiast (>300)**: Full 243 components
+- This prevents overfitting for new users while maintaining high-fidelity modeling for power users, with all profiles remaining 100% compatible with the recommendation engine via zero-padding.
+
+## [34] - 2026-02-16
+
+### Added
+- **Support-Based Sanity Check**: Implemented a filtering mechanism in `solve_user_taste.py` that prevents "phantom" tags from appearing in the DNA view. Tags must now appear in at least one game in the user's library to be eligible for the "Love/Hate" lists, effectively eliminating aliasing artifacts.
+
+### Changed
+- **Whitening Optimization**: Reverted the tag vector pipeline to use a **95% variance threshold**. This provides the best balance between information density and regularization, significantly reducing overfitting in the personalization engine.
+
+## [33] - 2026-02-16
+
+### Added
+- **Centralized Regularization Logic**: Moved `calculate_dot_product_lambda` to `common/utils.py` for consistent Chi-distribution fitting across the pipeline.
+
+### Fixed
+- **Windows File Locking (WinError 32/5)**: Further hardened `safe_save_npy` with a multi-step retry loop, unique PID-based temporary files, and a fallback rename-to-garbage strategy. This ensures that the pipeline can update artifacts even under heavy contention from OneDrive or a running FastAPI server.
+- **Numpy Save Extensions**: Fixed a bug where `safe_save_npy` failed to find temp files because `np.save` automatically appends `.npy`.
+- **Pipeline Restoration**: Restored the missing `whiten` function and fixed mangled imports/indentation in `generate_tag_vectors.py`, `generate_semantic_vectors.py`, and `generate_quality_scores_grid.py`.
+- **Whitening Calibration**: Re-centered the whitening threshold to 99% in `generate_tag_vectors.py` to ensure optimal noise reduction.
+
+## [32] - 2026-02-16
+
+### Added
+- **Robust Artifact Saving**: Implemented `safe_save_npy` in `common/utils.py` to handle Windows file locking issues. This allows the data pipeline to update `.npy` artifacts (tag vectors, semantic embeddings, quality grid) even while the FastAPI server is running and memory-mapping those files.
+
+## [31] - 2026-02-16
+
+### Fixed
+- **Tag List Recovery**: Manually regenerated `tag_names.json` to resolve a critical mismatch where only 2 tags were recognized despite the pipeline expecting 455. This ensures that predictive tags in the Personalization view are correctly mapped and displayed.
+
+## [30] - 2026-02-16
+
+### Changed
+- **DNA Solver Refinement**: Increased the ridge regression alpha range from $10^{-2}-10^{4}$ to $10^{-2}-10^{6}$ with higher step density (81 steps). This ensures the optimal regularization constant is captured even for highly noisy or sparse user libraries.
+- **Inclusive Soft-Labeling**: Removed playtime filters that previously excluded games with playtime below the minimum review threshold. This allows the personalization engine to utilize more of a user's library for taste analysis, while still filtering out games with zero playtime to ensure valid data points.
+
 ## [29] - 2026-02-16
 
 ### Fixed

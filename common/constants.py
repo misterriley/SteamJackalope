@@ -93,6 +93,11 @@ USE_TAG_WHITENING = True
 TAG_TRANSFORM_TYPE = 'clr' # 'anscombe', or 'clr', or 'none
 TAG_GLOBAL_SCALING_FACTOR = 11.283 # Multiplier to bring tag variance to ~1.0
 
+# Adaptive DNA Complexity (Linear Scaling)
+# Formula: K = clamp(BASE + SLOPE * N_ratings, BASE, MAX)
+ADAPTIVE_DNA_BASE_K = 40
+ADAPTIVE_DNA_SLOPE = 0.7
+
 # Scraping Constants
 API_KEY = os.getenv("STEAM_API_KEY")
 if API_KEY is None:

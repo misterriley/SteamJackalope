@@ -3,7 +3,7 @@ import pandas as pd
 import unittest
 import os
 from common.constants import DOT_PRODUCT_LAMBDA
-from pipeline.generate_tag_vectors import calculate_dot_product_lambda
+from common.utils import calculate_dot_product_lambda
 
 class TestTagVectors(unittest.TestCase):
     @classmethod

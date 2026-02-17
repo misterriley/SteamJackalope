@@ -18,11 +18,14 @@ from common.constants import (
     QUALITY_SCORE_S_CONST,
     GLOBAL_POSITIVE_RATE,
     W_TAG_FILE,
+    TAG_NORMS_FILE,
     DOT_PRODUCT_LAMBDA,
     TAG_GLOBAL_SCALING_FACTOR,
     TAG_NAMES_FILE,
     TAG_PRIOR_COUNTS_FILE,
-    TAG_PRIOR_TRANSFORMED_FILE
+    TAG_PRIOR_TRANSFORMED_FILE,
+    ADAPTIVE_DNA_BASE_K,
+    ADAPTIVE_DNA_SLOPE
 )
 
 def solve_user_taste(ground_truth_path, output_path=None):
@@ -54,7 +57,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     print(f"Loading metadata and tag vectors...")
     # Get metadata for needed columns
-    full_metadata = pd.read_parquet(METADATA_FILE, columns=['appid', 'name', 'pop_z', 'date_z', 'playtime_z', 'difficulty_z', 'positive', 'negative'])
+    full_metadata = pd.read_parquet(METADATA_FILE, columns=['appid', 'name', 'pop_z', 'date_z', 'playtime_z', 'difficulty_z', 'positive', 'negative', 'tags'])
     
     # Map user appids to indices in the full dataset
     appid_to_idx = {appid: idx for idx, appid in enumerate(full_metadata['appid'])}
@@ -94,9 +97,30 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     print(f"Optimal Discovery: {optimal_disc_pref:+.3f} (Max Absolute Correlation: {correlations[best_idx]:.4f})")
 
-    # Load Tag Vectors (128-dim)
+    # Load Tag Vectors (Current production K, e.g., 243-dim)
     tag_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
-    user_tag_features = tag_vectors[user_indices]
+    user_tag_features_raw = tag_vectors[user_indices]
+    
+    # --- ADAPTIVE DIMENSIONALITY ---
+    # Choose how many components to use based on library size (N)
+    # Using a smooth linear relationship: K = BASE + SLOPE * N
+    # This prevents the solver from 'memorizing' noise in small libraries
+    # while organically increasing fidelity as more data is provided.
+    num_ratings = len(y) - 1 # Exclude dummy
+    
+    k_min = ADAPTIVE_DNA_BASE_K
+    k_max = tag_vectors.shape[1] # Production max (e.g. 243)
+    k_adaptive = int(np.clip(k_min + ADAPTIVE_DNA_SLOPE * num_ratings, k_min, k_max))
+    
+    print(f"Adaptive DNA: Using top {k_adaptive} tag components for library size {num_ratings}.")
+    
+    # 1. Use the FULL norm for penalized normalization (consistency with Recommender)
+    # tag_vectors_norms is pre-calculated on the full whitened space
+    full_norms = np.load(TAG_NORMS_FILE, mmap_mode='r')
+    user_tag_norms = full_norms[user_indices].reshape(-1, 1).astype(np.float32)
+    
+    # 2. Slice features to the adaptive dimensionality
+    user_tag_features = user_tag_features_raw[:, :k_adaptive].astype(np.float32)
     
     # Load Metadata Features
     meta_cols = ['date_z', 'pop_z', 'playtime_z', 'difficulty_z']
@@ -106,7 +130,6 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Apply "Penalized Normalization" and Global Scaling (11.28)
     # This brings tag features to ~1.0 variance, matching metadata Z-scores.
     print(f"Applying penalized normalization and global scaling...")
-    user_tag_norms = np.linalg.norm(user_tag_features, axis=1, keepdims=True)
     user_tag_features_norm = user_tag_features / (user_tag_norms + DOT_PRODUCT_LAMBDA)
     user_tag_features_scaled = user_tag_features_norm * TAG_GLOBAL_SCALING_FACTOR
     
@@ -125,7 +148,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     # Ridge with LOOCV - Fit directly on pre-scaled features
     # This ensures coefficients map directly to Global Z-scores.
-    alphas = np.logspace(-2, 4, 50)
+    alphas = np.logspace(-2, 6, 81)
     model = RidgeCV(alphas=alphas, scoring='neg_mean_squared_error')
     model.fit(X, y)
     
@@ -139,21 +162,32 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # --- TAG PROJECTION ---
     # Project whitened coefficients back to original tag space to find predictive tags
     print("Projecting coefficients back to original tag space...")
-    tag_coeffs_whitened = coeffs[5:] # Skip quality + 4 metadata
+    tag_coeffs_adaptive = coeffs[5:] # Skip quality + 4 metadata
     
-    # Calculate Tag Norm and Unit Vector for the Recommender
-    tag_norm = np.linalg.norm(tag_coeffs_whitened)
+    # PAD coefficients back to the full production K (e.g., 243)
+    full_k = tag_vectors.shape[1]
+    tag_coeffs_full = np.zeros(full_k)
+    tag_coeffs_full[:k_adaptive] = tag_coeffs_adaptive
+    
+    # Create full coefficient vector for scoring: [Q] + [4 Metadata] + [Full Tags]
+    full_coeffs = np.zeros(5 + full_k)
+    full_coeffs[:5] = coeffs[:5] # Quality + Metadata
+    full_coeffs[5:] = tag_coeffs_full
+    
+    # Calculate Tag Norm and Unit Vector for the Recommender (using padded full vector)
+    tag_norm = np.linalg.norm(tag_coeffs_full)
     
     if tag_norm > 1e-9:
-        vibe_vector_unit = (tag_coeffs_whitened / tag_norm).tolist()
+        vibe_vector_unit = (tag_coeffs_full / tag_norm).tolist()
     else:
-        vibe_vector_unit = tag_coeffs_whitened.tolist()
+        vibe_vector_unit = tag_coeffs_full.tolist()
 
     # Load whitening matrix W (original_tags x whitened_dim)
     W = np.load(W_TAG_FILE)
     
     # Project: beta_original = W * beta_whitened
-    tag_weights_original = np.dot(W, tag_coeffs_whitened)
+    # Using the full padded vector ensures we multiply by the correct columns of W
+    tag_weights_original = np.dot(W, tag_coeffs_full)
     
     # Load Master Tag List for stable indexing
     if os.path.exists(TAG_NAMES_FILE):
@@ -183,10 +217,40 @@ def solve_user_taste(ground_truth_path, output_path=None):
         unique_tags = unique_tags[:min_len]
         tag_weights_original = tag_weights_original[:min_len]
 
-    # Create tag mapping and sort
-    tag_impact = sorted(zip(unique_tags, tag_weights_original), key=lambda x: x[1], reverse=True)
-    top_tags = [{'tag': t, 'impact': float(w)} for t, w in tag_impact[:10]]
-    bottom_tags = [{'tag': t, 'impact': float(w)} for t, w in tag_impact[-10:][::-1]]
+    # --- SANITY CHECK: Support-Based Filtering ---
+    # We calculate how many games in the user's library actually contain each tag.
+    # If a tag has zero support, it's likely a statistical alias and should be masked from the UI.
+    print("Calculating tag support in user library for sanity check...")
+    user_tags_raw = full_metadata.iloc[user_indices]['tags'].values
+    tag_support = np.zeros(len(unique_tags), dtype=int)
+    tag_to_idx_map = {tag: i for i, tag in enumerate(unique_tags)}
+    
+    for tag_str in user_tags_raw:
+        if pd.isna(tag_str) or tag_str == '' or tag_str == '[]': continue
+        try:
+            # Using ast.literal_eval for safety
+            tags_dict = ast.literal_eval(tag_str)
+            if isinstance(tags_dict, dict):
+                for tag in tags_dict.keys():
+                    if tag in tag_to_idx_map:
+                        tag_support[tag_to_idx_map[tag]] += 1
+        except: continue
+        
+    # Threshold: Must appear in at least N games. 
+    # For now, N=1 is sufficient to kill "bogus" associations.
+    SUPPORT_THRESHOLD = 1
+    support_mask = tag_support >= SUPPORT_THRESHOLD
+    
+    # Filter the impacts: only tags with sufficient support are eligible for top/bottom lists
+    eligible_impacts = [
+        (t, float(w)) for i, (t, w) in enumerate(zip(unique_tags, tag_weights_original)) 
+        if support_mask[i]
+    ]
+    
+    # Sort the supported impacts
+    tag_impact = sorted(eligible_impacts, key=lambda x: x[1], reverse=True)
+    top_tags = [{'tag': t, 'impact': w} for t, w in tag_impact[:10]]
+    bottom_tags = [{'tag': t, 'impact': w} for t, w in tag_impact[-10:][::-1]]
 
     # Load All Tag Vectors for scoring and similarity
     all_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
@@ -197,7 +261,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # --- NORTH STAR & ABYSSAL GAMES ---
     # Find games whose TAG VECTORS (not final scores) are most similar to the taste coefficients
     print("Finding North Star and Abyssal games (pure tag alignment)...")
-    vibe_vec = coeffs[5:]
+    vibe_vec = tag_coeffs_full
     vibe_norm = np.linalg.norm(vibe_vec)
     
     if vibe_norm > 1e-9:
@@ -231,34 +295,62 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # --- TOP & BOTTOM RECOMMENDATIONS ---
     print("Generating top and bottom recommendations based on solved profile...")
     # Scoring: Final Score = X_full_whitened * coeffs + intercept
-    meta_features_full = full_metadata[meta_cols].values
     
-    # Use the precalculated quality scores from the optimal discovery level for everyone
-    q_all = quality_grid[best_idx]
+    # Load metadata features
+    date_z = full_metadata['date_z'].values
+    pop_z = full_metadata['pop_z'].values
+    playtime_z = full_metadata['playtime_z'].values
+    difficulty_z = full_metadata['difficulty_z'].values
+    
+    # Apply Clamping to match Recommender exactly
+    from common.constants import Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX
+    
+    q_all = np.clip(quality_grid[best_idx], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    date_z = np.clip(date_z, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    pop_z = np.clip(pop_z, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    playtime_z = np.clip(playtime_z, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    difficulty_z = np.clip(difficulty_z, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     
     # Apply Penalized Norm and Global Scaling to ALL vectors
-    all_norms = np.linalg.norm(all_vectors, axis=1, keepdims=True)
+    # Using pre-calculated norms for bit-perfect consistency with Recommender
+    all_norms = np.load(TAG_NORMS_FILE, mmap_mode='r').reshape(-1, 1).astype(np.float32)
     all_vectors_norm = all_vectors / (all_norms + DOT_PRODUCT_LAMBDA)
     all_vectors_scaled = all_vectors_norm * TAG_GLOBAL_SCALING_FACTOR
     
-    X_full = np.hstack([q_all.reshape(-1, 1), full_metadata[meta_cols].values, all_vectors_scaled])
+    # Build feature matrix
+    X_full = np.hstack([
+        q_all.reshape(-1, 1),
+        date_z.reshape(-1, 1),
+        pop_z.reshape(-1, 1),
+        playtime_z.reshape(-1, 1),
+        difficulty_z.reshape(-1, 1),
+        all_vectors_scaled
+    ])
     
     # Predict directly using coefficients (Beta * Z + Intercept)
-    scores = np.dot(X_full, coeffs) + intercept
+    # Use full_coeffs (which is padded) to match X_full shape
+    scores = np.dot(X_full, full_coeffs) + intercept
     # Clamp to 0-10 scale for display
     scores = np.clip(scores, 0, 10)
     
     # Mask known games for top
     top_scores = scores.copy()
     top_scores[known_indices] = -1e12
-    top_indices = np.argsort(-top_scores)[:30]
+    
+    # Get top 30 using stable lexicographical sort (score DESC, name ASC)
+    all_names = full_metadata['name'].fillna("").values
+    top_indices = np.lexsort((all_names, -top_scores))[:30]
+    
     top_games = full_metadata.iloc[top_indices][['appid', 'name']].copy()
     top_games['predicted_rating'] = top_scores[top_indices]
     
     # Mask known games for bottom
     bottom_scores = scores.copy()
     bottom_scores[known_indices] = 1e12
-    bottom_indices = np.argsort(bottom_scores)[:30]
+    
+    # Get bottom 30 using stable lexicographical sort (score ASC, name ASC)
+    bottom_indices = np.lexsort((all_names, bottom_scores))[:30]
+    
     bottom_games = full_metadata.iloc[bottom_indices][['appid', 'name']].copy()
     bottom_games['predicted_rating'] = bottom_scores[bottom_indices]
     

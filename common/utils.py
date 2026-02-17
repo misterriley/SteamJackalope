@@ -122,3 +122,103 @@ def calculate_personalized_quality(q_global, p_plus_playtime):
     personalized_q = q_64 + pdf_q * shift
     
     return personalized_q.astype(np.float32)
+
+def calculate_dot_product_lambda(vectors):
+    """
+    Calculates DOT_PRODUCT_LAMBDA by fitting a Chi-distribution to the lengths 
+    of 'low-tag' vectors and taking the 95th percentile.
+    """
+    from common.constants import CHI_FIT_NORM_THRESHOLD, CHI_FIT_PERCENTILE
+    from scipy.stats import chi
+    
+    print("Calculating DOT_PRODUCT_LAMBDA via Chi-distribution fit...")
+    # Calculate L2 norms (lengths)
+    lengths = np.linalg.norm(vectors, axis=1)
+    
+    # Filter for non-zero vectors in the 'noise' range
+    subset_mask = (lengths > 1e-6) & (lengths <= CHI_FIT_NORM_THRESHOLD)
+    subset_lengths = lengths[subset_mask]
+    
+    if len(subset_lengths) > 10: # Ensure enough samples for a fit
+        try:
+            # Fit Chi-distribution
+            df, loc, scale = chi.fit(subset_lengths)
+            # Calculate 95th percentile
+            data_driven_lambda = chi.ppf(CHI_FIT_PERCENTILE, df, loc, scale)
+            print(f"Fitted Chi: df={df:.4f}, loc={loc:.4f}, scale={scale:.4f}")
+        except Exception as e:
+            print(f"Warning: Chi-fit failed ({e}). Falling back to variance.")
+            data_driven_lambda = np.var(subset_lengths)
+    else:
+        print(f"Warning: Too few vectors in range (0, {CHI_FIT_NORM_THRESHOLD}]. Using default lambda=1.0")
+        data_driven_lambda = 1.0
+
+    print(f"Recommended Lambda: {data_driven_lambda:.4f}")
+    return data_driven_lambda
+
+def safe_save_npy(path, data):
+    """
+    Saves a NumPy array to a file safely, handling Windows file locking 
+    (e.g., when the file is memory-mapped by another process or locked by OneDrive).
+    """
+    import os
+    import time
+    import shutil
+    
+    # Ensure path ends in .npy
+    if not path.endswith('.npy'):
+        path += '.npy'
+        
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    
+    # We save to a unique temp file to avoid collisions and allow multiple attempts
+    temp_path = path + f".{os.getpid()}.tmp"
+    actual_temp_file = temp_path + ".npy"
+    
+    try:
+        np.save(temp_path, data)
+    except Exception as e:
+        print(f"CRITICAL: Failed to write initial temp file to {temp_path}: {e}")
+        raise e
+    
+    max_retries = 10
+    retry_delay = 1.0 # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            # 1. Try direct replace (atomic on many systems)
+            if os.path.exists(path):
+                os.replace(actual_temp_file, path)
+            else:
+                os.rename(actual_temp_file, path)
+            return
+        except OSError as e:
+            # WinError 32: File used by another process
+            # WinError 5: Access is denied (often occurs if file is memory-mapped)
+            
+            # 2. Try the rename-to-garbage trick (sometimes works for memory-mapped files)
+            garbage_path = path + f".old.{int(time.time())}.{attempt}"
+            try:
+                os.rename(path, garbage_path)
+                # Success! Now the target path is free.
+                os.rename(actual_temp_file, path)
+                # Try to clean up garbage, but don't fail if we can't
+                try:
+                    os.remove(garbage_path)
+                except:
+                    pass
+                return
+            except OSError:
+                # Both direct replace and rename-trick failed. 
+                # This usually means a hard lock (like a memory map in an active process).
+                if attempt < max_retries - 1:
+                    if attempt == 0:
+                        print(f"Warning: {path} is locked. Retrying ({attempt+1}/{max_retries})...")
+                    time.sleep(retry_delay)
+                else:
+                    print(f"CRITICAL: Failed to update {path} after {max_retries} attempts.")
+                    print(f"This is likely because the file is locked by the FastAPI server or OneDrive.")
+                    print(f"ACTION REQUIRED: Please stop the FastAPI server and try again.")
+                    print(f"The new data has been saved to: {actual_temp_file}")
+                    raise e

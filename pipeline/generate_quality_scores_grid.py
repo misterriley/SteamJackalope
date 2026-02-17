@@ -8,6 +8,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from common.constants import AP_SLIDER_VALUES, QUALITY_SCORE_S_CONST, QUALITY_SCORE_S_BASE, QUALITY_SCORE_MIN_VOTES_FOR_RELIABLE, QUALITY_SCORE_CLIP, QUALITY_SCORE_PIN_GROUP, PIN_QUALITY_DISTRIBUTION, Z_SCORE_CLAMP_MAX, Z_SCORE_CLAMP_MIN, METADATA_FILE, QUALITY_GRID_FILE
+from common.utils import safe_save_npy
 
 def generate_quality_grid(metadata_path, output_path):
     """
@@ -121,7 +122,7 @@ def generate_quality_grid(metadata_path, output_path):
         print(f"  Top 5 scores: {print_grid}")
 
     print(f"Saving grid to {output_path}...")
-    np.save(output_path, grid.astype(np.float16))
+    safe_save_npy(output_path, grid.astype(np.float16))
     print("Done!")
 
 if __name__ == "__main__":

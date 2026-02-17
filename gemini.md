@@ -3,7 +3,7 @@
 This document serves as a condensed reference for Gemini instances working on this repository. It synthesizes critical operational knowledge from `onStartup.md`, `orientation.md`, and `onShutdown.md`.
 
 ## 🚀 Quick Start Workflow
-1.  **Orient**: Read `orientation.md` (architecture) and `methodology.md` (math/stats).
+1.  **Orient**: Read `orientation.md` (architecture), `methodology.md` (math/stats), and `user.md` (user expectations).
 2.  **Sync**: Ensure you are working with the latest artifacts. Production data (`metadata.parquet`, `.npy` files) should be in the root and synchronized.
 3.  **Tasking**: Check `tasklist.md` for active tasks. If empty, check `ideas.md` to propose new ones.
 4.  **Environment**: 

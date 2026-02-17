@@ -33,7 +33,7 @@ Steam tags are user-contributed and often noisy. We apply a pipeline to transfor
 
 - **Regularized Similarity:** We use a **Regularized Cosine Similarity** for tag vectors: $\text{Sim}(A,B) = \frac{A \cdot B}{\|A\|\|B\| + \lambda}$. This effectively penalizes similarity scores for games with low-information (short) tag vectors, ensuring that recommendations are based on strong, confident tag matches. The parameter $\lambda$ is determined by fitting a [Chi-distribution](https://en.wikipedia.org/wiki/Chi-distribution) to the lengths (norms) of "low-tag" vectors (norms between 0 and 5). We set $\lambda$ to the 95th percentile of this fitted distribution, which represents the "noise floor" of the embedding space. This ensures that a vector's length must be statistically significant before it can achieve high similarity scores.
 
-- **Whitening & Dimensionality Reduction:** To ensure stability and remove numerical noise, tag vectors undergo **Truncated PCA-ZCA Whitening**. The data is projected onto its top 128 principal components, which capture the vast majority of variance while eliminating singular dimensions (such as the linear constraint imposed by the CLR transform). This process decorrelates the tags and prevents "ghost" similarities between unrelated games.
+- **Whitening & Dimensionality Reduction:** To ensure stability and remove numerical noise, tag vectors undergo **Truncated PCA-ZCA Whitening**. The data is projected onto its top principal components, which capture 95% of the global variance while eliminating singular dimensions (such as the linear constraint imposed by the CLR transform). This process decorrelates the tags and prevents "ghost" similarities between unrelated games.
 
 ## 4. Quality Scoring
 Instead of raw review percentages, we use a Bayesian score that smooths out noisy reviews. This allows the system to distinguish between a game with 10 positive reviews out of 10 and a masterpiece with 98,000 positive reviews out of 100,000. 
@@ -150,7 +150,17 @@ To ensure perfect alignment between a user's library analysis and their discover
 
 - **Predicted Ratings:** Because the math is unified, the "Match Score" displayed on game cards becomes a calibrated **Predicted 0-10 Rating** for that game, ensuring that the "Games You'll Love" list in the analyzer and the Recommendation results are always mathematically identical.
 
-## Data Hygiene & External Integration (Build 13)
+## 13. Robust Personalization (Build 36)
+
+As the personalization engine matured, we introduced several features to ensure that the "Taste DNA" remains both statistically sound and human-readable.
+
+- **Adaptive DNA Dimensionality:** To prevent the model from "overfitting" or memorizing small libraries, the solver dynamically scales the complexity of the tag space based on the number of ratings provided by the user. We use a smooth linear relationship: $K = \text{clamp}(40 + 0.7 \times N_{\text{ratings}}, \text{min}=40, \text{max}=243)$. This ensures that new users with few ratings are modeled using only broad, high-certainty genre components, while power users with hundreds of ratings gain access to high-fidelity, niche stylistic details.
+
+- **Support-Based Tag Filtering:** High-dimensional models can sometimes create "phantom" associations (statistical aliasing) where a tag you haven't actually played shows up in your DNA because it is correlated with something you like. To solve this, we implemented a **Sanity Check** layer. A tag is only eligible to be displayed in the "Love/Hate" lists if it has direct evidence in your library (i.e., it appears in at least one game you have rated). This ensures that the DNA view is always grounded in your actual play history.
+
+- **Scoring Synchronization:** To ensure 100% parity between the Solver's preview and the Recommender tool, we synchronized all implementation details, including bit-perfect tag normalization (using pre-calculated norms), Z-score clamping at $\pm 8.0$, and lexicographical tie-breaking (Score DESC, Name ASC).
+
+## 14. Data Hygiene & External Integration (Build 13)
 
 To ensure the recommender remains a useful portal to the Steam ecosystem, Build 13 introduced a verified external link layer:
 
