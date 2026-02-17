@@ -20,7 +20,7 @@ interface RecommendationsViewProps {
   onProfileClear?: () => void;
 }
 
-const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClear }) => {
+const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClear: _onProfileClear }) => {
   const [genresList, setGenresList] = useState<string[]>(DEFAULT_GENRES);
   const [termLinks, setTermLinks] = useState<Record<string, string>>({});
   const [recommendations, setRecommendations] = useState<GameMetadata[]>([]);

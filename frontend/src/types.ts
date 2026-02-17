@@ -61,6 +61,8 @@ export interface RecommendationRequest {
   genres: string[];
   debug?: boolean;
   vibe_vector?: number[];
+  intercept?: number;
+  metadata_weights?: Record<string, number>;
   
   // Profile Exclusion
   profile_filter?: 'none' | 'rated' | 'all';
