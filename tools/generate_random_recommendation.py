@@ -105,7 +105,7 @@ def generate_random_params(games):
         "quality_pref": 1.0,  # Max quality bias as specified
         "age_pref": random.uniform(-1.0, 1.0),
         "pop_pref": random.uniform(-1.0, 1.0),
-        "disc_pref": -1.0,  # Max discovery (Wild Cards / Niche)
+        "disc_pref": 1.0,  # Max discovery (Wild Cards / Niche)
         "length_pref": random.uniform(-1.0, 1.0),
         "difficulty_pref": random.uniform(-1.0, 1.0),
         "remove_vr": True,

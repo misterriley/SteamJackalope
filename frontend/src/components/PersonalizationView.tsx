@@ -37,6 +37,7 @@ interface GameVerification {
   user_voted_up?: boolean;
   playtime_forever: number;
   is_manual?: boolean;
+  is_nsfw?: boolean;
 }
 
 interface PersonalizationViewProps {
@@ -47,6 +48,7 @@ interface VerificationTableProps {
   data: GameVerification[];
   title: string;
   showPlaytime?: boolean;
+  blurNSFW?: boolean;
   sortConfig: { key: keyof GameVerification; direction: 'asc' | 'desc' };
   onSort: (key: keyof GameVerification) => void;
   onRatingChange: (appid: number, rating: number) => void;
@@ -55,7 +57,7 @@ interface VerificationTableProps {
 }
 
 const VerificationTable: React.FC<VerificationTableProps> = ({ 
-  data, title, showPlaytime = true, sortConfig, onSort, onRatingChange, onIgnoreChange, onDelete 
+  data, title, showPlaytime = true, blurNSFW = true, sortConfig, onSort, onRatingChange, onIgnoreChange, onDelete 
 }) => (
   <div className="space-y-4">
     <h3 className="text-sm font-bold uppercase tracking-widest text-primary px-2">{title} ({data.length})</h3>
@@ -92,7 +94,7 @@ const VerificationTable: React.FC<VerificationTableProps> = ({
                   <img 
                     src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
                     alt={game.name} 
-                    className="w-16 h-8 object-cover rounded shadow-sm border border-border/50"
+                    className={`w-16 h-8 object-cover rounded shadow-sm border border-border/50 ${game.is_nsfw && blurNSFW ? 'blur-sm scale-110' : ''}`}
                     onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/460x215?text=No+Image')}
                   />
                 </a>
@@ -193,6 +195,31 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
   const [manualSearchResults, setManualSearchResults] = useState<string[]>([]);
   const [showManualResults, setShowManualResults] = useState(false);
   const manualSearchRef = useRef<HTMLDivElement>(null);
+
+  // Sync blur setting from session storage (where Filters.tsx saves it)
+  const [blurNSFW, setBlurNSFW] = useState(true);
+  useEffect(() => {
+    const checkFilters = () => {
+      const saved = sessionStorage.getItem('recommendations_filters');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.remove_nsfw !== undefined) {
+            setBlurNSFW(parsed.remove_nsfw);
+          }
+        } catch (e) {}
+      }
+    };
+    checkFilters();
+    // Also listen for storage changes in other tabs or components
+    window.addEventListener('storage', checkFilters);
+    // Polling as a fallback for same-tab session storage updates
+    const interval = setInterval(checkFilters, 1000);
+    return () => {
+      window.removeEventListener('storage', checkFilters);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Persistence: Save state on change
   useEffect(() => {
@@ -545,6 +572,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                 data={manualGames} 
                 title="Manual Additions" 
                 showPlaytime={false} 
+                blurNSFW={blurNSFW}
                 sortConfig={sortConfig}
                 onSort={handleSort}
                 onRatingChange={handleRatingChange}
@@ -555,6 +583,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
             <VerificationTable 
               data={libraryGames} 
               title="Library Games" 
+              blurNSFW={blurNSFW}
               sortConfig={sortConfig}
               onSort={handleSort}
               onRatingChange={handleRatingChange}
@@ -589,17 +618,20 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                 <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
                   <h3 className="text-lg font-bold flex items-center gap-2"><LineChart size={18} className="text-primary" />Metadata Weights</h3>
                   <div className="space-y-4">
-                    {Object.entries(insights.metadata || {}).filter(([key]) => key !== 'semantic').map(([key, val]: [string, any]) => (
-                      <div key={key} className="space-y-1">
-                        <div className="flex justify-between text-xs uppercase tracking-widest font-bold">
-                          <span>{key}</span>
-                          <span className={(val || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>{(val || 0) >= 0 ? '+' : ''}{(val || 0).toFixed(4)}</span>
+                    {Object.entries(insights.metadata || {}).filter(([key]) => key !== 'semantic').map(([key, val]: [string, any]) => {
+                      const denominator = key === 'discovery' ? 1.0 : 3.0;
+                      return (
+                        <div key={key} className="space-y-1">
+                          <div className="flex justify-between text-xs uppercase tracking-widest font-bold">
+                            <span>{key}</span>
+                            <span className={(val || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>{(val || 0) >= 0 ? '+' : ''}{(val || 0).toFixed(4)}</span>
+                          </div>
+                          <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                            <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (Math.abs(val || 0) / denominator) * 100)}%` }} className={`h-full ${(val || 0) >= 0 ? 'bg-green-500' : 'bg-red-500'}`} />
+                          </div>
                         </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, Math.abs(val || 0) * 100)}%` }} className={`h-full ${(val || 0) >= 0 ? 'bg-green-500' : 'bg-red-500'}`} />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -691,7 +723,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
                         <img 
                           src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
-                          className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform" 
+                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`} 
                           onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/460x215?text=No+Image')}
                         />
                         <div className="flex-grow min-w-0">
@@ -717,7 +749,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div className="w-6 h-6 flex items-center justify-center bg-red-500/10 rounded-full text-[10px] font-bold text-red-500 shrink-0">{idx + 1}</div>
                         <img 
                           src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
-                          className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform" 
+                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`} 
                           onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/460x215?text=No+Image')}
                         />
                         <div className="flex-grow min-w-0">

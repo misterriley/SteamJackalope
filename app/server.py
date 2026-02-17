@@ -13,6 +13,7 @@ import ast
 import gc
 import logging
 import subprocess
+import asyncio
 import json
 
 # Configure logging
@@ -70,7 +71,7 @@ from common.constants import (
     ROOT_DIR,
     TAG_GLOBAL_SCALING_FACTOR
 )
-from common.utils import to_z, calculate_hybrid_score
+from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores
 
 app = FastAPI()
 
@@ -390,6 +391,11 @@ class RecommendationRequest(BaseModel):
     vibe_vector: Optional[List[float]] = None
     intercept: Optional[float] = None
     metadata_weights: Optional[Dict[str, float]] = None
+    
+    # Profile Exclusion
+    profile_filter: Optional[str] = "none" # "none", "rated", "all"
+    library_appids: Optional[List[int]] = []
+    rated_appids: Optional[List[int]] = []
 
 # --- Endpoints ---
 
@@ -577,11 +583,19 @@ def get_verification_data(steam_id: str):
                     'predicted_rating': 5, # Default for manual
                     'actual_rating': gt_row['actual_rating'],
                     'ignore': bool(gt_row['ignore']),
-                    'is_manual': True
+                    'is_manual': True,
+                    'is_nsfw': bool(row.get('is_nsfw', False))
                 })
         
         # 3. Merge library games
-        df = df_sl.merge(df_gt[['appid', 'actual_rating', 'ignore']], on='appid', how='left')
+        # Also need is_nsfw for library games
+        metadata = data_manager.metadata
+        df_sl = df_sl.merge(metadata[['appid', 'is_nsfw']], on='appid', how='left')
+        
+        # FILTER: Only show games with playtime in the verification UI
+        df_sl_visible = df_sl[df_sl['has_playtime'] == True].copy()
+        
+        df = df_sl_visible.merge(df_gt[['appid', 'actual_rating', 'ignore']], on='appid', how='left')
         df['actual_rating'] = df['actual_rating'].fillna(df['predicted_rating'])
         df['ignore'] = df['ignore'].fillna(False)
         df['is_manual'] = False
@@ -589,11 +603,18 @@ def get_verification_data(steam_id: str):
         # 4. Combine
         final_list = df.to_dict(orient='records') + manual_rows
     else:
-        df = df_sl.copy()
-        df['actual_rating'] = df['predicted_rating']
-        df['ignore'] = False
-        df['is_manual'] = False
-        final_list = df.to_dict(orient='records')
+        # Initial fetch (no ground truth yet)
+        # Add is_nsfw from metadata
+        metadata = data_manager.metadata
+        df = df_sl.merge(metadata[['appid', 'is_nsfw']], on='appid', how='left')
+        
+        # FILTER: Only show games with playtime in the verification UI
+        df_visible = df[df['has_playtime'] == True].copy()
+        
+        df_visible['actual_rating'] = df_visible['predicted_rating']
+        df_visible['ignore'] = False
+        df_visible['is_manual'] = False
+        final_list = df_visible.to_dict(orient='records')
         
     # JSON cannot handle NaN values, replace with None (null)
     # We do this on the list of dicts for safety
@@ -630,12 +651,26 @@ def update_verification_data(updates: List[UserVerifyUpdate]):
     return {"message": "Verification data saved successfully"}
 
 @app.post("/user/solve/{steam_id}")
-def solve_taste(steam_id: str):
+async def solve_taste(steam_id: str):
     """Runs the regression solver to generate the taste profile."""
     try:
-        subprocess.run(["python", "pipeline/solve_user_taste.py", steam_id], check=True)
+        logger.info(f"Solving Taste DNA for {steam_id}...")
+        process = await asyncio.create_subprocess_exec(
+            "python", "pipeline/solve_user_taste.py", steam_id,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            err_msg = stderr.decode().strip()
+            logger.error(f"Solver failed for {steam_id}: {err_msg}")
+            raise HTTPException(status_code=500, detail=f"Solver failed: {err_msg}")
+            
+        logger.info(f"Taste DNA solved for {steam_id}")
         return {"message": "Taste profile solved successfully"}
     except Exception as e:
+        logger.exception(f"Unexpected error in solve_taste for {steam_id}")
         raise HTTPException(status_code=500, detail=f"Solver failed: {e}")
 
 @app.get("/user/insights/{steam_id}")
@@ -958,22 +993,27 @@ def recommend(request: RecommendationRequest):
             
             # Penalized normalization for each seed
             penalized_seeds = tag_seed_vectors / (seed_norms[:, None] + DOT_PRODUCT_LAMBDA)
-            beta_seed = np.mean(penalized_seeds, axis=0)
+            beta_seed_unit = np.mean(penalized_seeds, axis=0)
+            # Apply the user's manual Tag Match slider as the absolute weight for seeds
+            beta_seed = beta_seed_unit * request.beta
         else:
             beta_seed = None
 
         # 2. Calculate DNA Beta (if any)
-        # Note: Solver already provides beta solved for SCALED features
+        # request.vibe_vector contains the UNIT coefficients.
+        # We restore the absolute coefficients by multiplying by 'tag_match' (the norm).
         if request.vibe_vector:
-            beta_dna = np.array(request.vibe_vector, dtype=np.float32)
+            beta_dna_unit = np.array(request.vibe_vector, dtype=np.float32)
+            # Use the absolute weight from metadata if available (the norm of the solver's tag coeffs)
+            w_tag_dna = request.metadata_weights.get('tag_match', 1.0) if request.metadata_weights else 1.0
+            beta_dna = beta_dna_unit * w_tag_dna
+            logger.info(f"Loaded DNA Beta: Unit norm={np.linalg.norm(beta_dna_unit):.4f}, Scale={w_tag_dna:.4f}")
         else:
             beta_dna = None
 
-        # 3. Blend Betas
+        # 3. Select or Blend Betas
         if beta_seed is not None and beta_dna is not None:
             # If both exist, we blend them. 
-            # Given the request to "import items directly", we treat seeds as temporary DNA override/supplement.
-            # Using 50/50 blend as a robust default for unified scoring.
             combined_beta = (beta_seed + beta_dna) / 2.0
             logger.info("Blended Seed Beta and DNA Beta")
         elif beta_seed is not None:
@@ -985,10 +1025,10 @@ def recommend(request: RecommendationRequest):
 
         # 4. Final Scoring: dot(U_scaled, combined_beta)
         # U_scaled = (U / (||U|| + lambda)) * TAG_GLOBAL_SCALING_FACTOR
-        # Score = (dot(U, combined_beta) / (||U|| + lambda)) * TAG_GLOBAL_SCALING_FACTOR
         dot_products = np.dot(data_manager.tag_vectors, combined_beta)
         denom = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
         
+        # Note: We multiply by the scaling factor to match the solver's feature space
         all_tag_sims = (dot_products / denom) * TAG_GLOBAL_SCALING_FACTOR
         logger.info(f"Unified Tag Scorer: Range=[{all_tag_sims.min():.4f}, {all_tag_sims.max():.4f}]")
 
@@ -1008,44 +1048,101 @@ def recommend(request: RecommendationRequest):
     z_length = np.clip(metadata.iloc[keep_indices]['playtime_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     z_difficulty = np.clip(metadata.iloc[keep_indices]['difficulty_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
 
+    # Initialize variables for the response to prevent UnboundLocalError
+    z_semantic = np.zeros(len(keep_indices))
+    z_tag = tag_sims # In linear mode, tag_sims IS the feature. In recommender mode, it's the dot product.
+
     # 5. Unified Linear Scoring
     # All weights (alpha, beta, quality_pref, etc.) are now ABSOLUTE contributions 
     # (rating points per SD of the feature) to ensure consistent scale between modes.
     
     # 5.1 Determine Mode
-    # Intercept is ignored in Recommender mode to keep scores unitless and relative.
-    is_linear_mode = request.metadata_weights is not None
+    # Pure Linear Mode: Used when vibe_vector is provided (Taste DNA import)
+    # Recommender Mode: Used for manual slider tuning
+    expected_tag_dim = data_manager.tag_vectors.shape[1]
+    is_vibe_present = request.vibe_vector is not None and len(request.vibe_vector) > 0
+    is_vibe_valid = is_vibe_present and (len(request.vibe_vector) == expected_tag_dim)
     
-    # 5.2 Assign Weights
-    # In both modes, these are now the final absolute weights.
-    w_semantic = request.alpha
-    w_tag = request.beta
-    w_quality = request.quality_pref
-    w_date = request.age_pref
-    w_pop = request.pop_pref
-    w_length = request.length_pref
-    w_difficulty = request.difficulty_pref
+    is_linear_mode = is_vibe_valid
+    
+    if is_vibe_present and not is_vibe_valid:
+        logger.warning(f"Vibe vector dimension mismatch: received {len(request.vibe_vector)}, expected {expected_tag_dim}. Profile may be outdated. Falling back to manual mode.")
+    
+    if is_linear_mode:
+        # PURE LINEAR MODE: Match solve_user_taste.py exactly using unified utility
+        logger.info("Using Pure Linear Mode (Taste DNA) via unified scoring path")
+        
+        # Use the pre-calculated combined_beta (which already blends DNA and Seeds if present)
+        # Note: combined_beta was calculated at line ~995
+        beta_to_use = combined_beta
+        
+        # Use unified utility for scoring
+        final_scores_all = calculate_linear_scores(
+            z_quality=data_manager.quality_grid[grid_index],
+            z_date=metadata['date_z'].values,
+            z_pop=metadata['pop_z'].values,
+            z_playtime=metadata['playtime_z'].values,
+            z_difficulty=metadata['difficulty_z'].values,
+            tag_vectors=data_manager.tag_vectors,
+            tag_norms=data_manager.tag_vectors_norms,
+            beta_tag=beta_to_use,
+            weights=request.metadata_weights or {},
+            intercept=request.intercept or 0.0,
+            tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
+            dot_product_lambda=DOT_PRODUCT_LAMBDA,
+            z_clamp_min=Z_SCORE_CLAMP_MIN,
+            z_clamp_max=Z_SCORE_CLAMP_MAX
+        )
+        
+        # Filter to keep_indices
+        final_scores = final_scores_all[keep_indices]
+        
+        # Set weights for total_weight/sorting logic
+        # If seeds are present, we use the average of the profile weight and the user's manual tag weight
+        w_tag_dna = request.metadata_weights.get('tag_match', 1.0) if request.metadata_weights else 1.0
+        w_tag = (w_tag_dna + request.beta) / 2.0 if seed_indices.size > 0 else w_tag_dna
+        
+        w_quality = request.metadata_weights.get('quality', 0.0) if request.metadata_weights else 0.0
+        w_date = request.metadata_weights.get('age', 0.0) if request.metadata_weights else 0.0
+        w_pop = request.metadata_weights.get('popularity', 0.0) if request.metadata_weights else 0.0
+        w_length = request.metadata_weights.get('length', 0.0) if request.metadata_weights else 0.0
+        w_difficulty = request.metadata_weights.get('difficulty', 0.0) if request.metadata_weights else 0.0
+        w_semantic = request.alpha
+        
+        # If there's a prompt or seeds, we treat it as a temporary z-scored offset
+        if request.prompt or seed_appids:
+            z_semantic = np.clip(to_z(semantic_sims), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+            final_scores += (z_semantic * request.alpha)
+            
+    else:
+        # RECOMMENDER MODE: Similarity-based weighting
+        w_semantic = request.alpha
+        w_tag = request.beta
+        w_quality = request.quality_pref
+        w_date = request.age_pref
+        w_pop = request.pop_pref
+        w_length = request.length_pref
+        w_difficulty = request.difficulty_pref
 
-    logger.debug(f"Weights (Absolute): semantic={w_semantic:.2f}, tag={w_tag:.2f}, quality={w_quality:.2f}, "
-                 f"age={w_date:.2f}, pop={w_pop:.2f}, length={w_length:.2f}, difficulty={w_difficulty:.2f}")
+        logger.debug(f"Weights (Absolute): semantic={w_semantic:.2f}, tag={w_tag:.2f}, quality={w_quality:.2f}, "
+                    f"age={w_date:.2f}, pop={w_pop:.2f}, length={w_length:.2f}, difficulty={w_difficulty:.2f}")
 
-    # 5.3 Process Semantic Component (Similarity Match)
-    # Semantic match is still a similarity (0-1), so we Z-score it to put it on the same scale as metadata.
-    z_semantic = np.clip(to_z(semantic_sims), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) if (request.prompt or seed_appids) else np.zeros(len(keep_indices))
-    
-    # 5.4 Unified Scoring Formula
-    # Match Solver / Recommender: Score = sum(Weight_i * Feature_i)
-    # We remove the Intercept here to keep recommendation scores unitless and relative.
-    
-    final_scores = (
-        (z_semantic * w_semantic) +
-        (tag_sims * w_tag) +
-        (z_spps * w_quality) +
-        (z_date * w_date) +
-        (z_pop * w_pop) +
-        (z_length * w_length) +
-        (z_difficulty * w_difficulty)
-    )
+        # Process Semantic Component
+        if request.prompt or seed_appids:
+            z_semantic = np.clip(to_z(semantic_sims), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+            
+        # Process Tag Component
+        z_tag = np.clip(to_z(tag_sims), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+
+        final_scores = (
+            (z_semantic * w_semantic) +
+            (z_tag * w_tag) +
+            (z_spps * w_quality) +
+            (z_date * w_date) +
+            (z_pop * w_pop) +
+            (z_length * w_length) +
+            (z_difficulty * w_difficulty)
+        )
 
     logger.debug(f"Final scores: min={final_scores.min():.3f}, max={final_scores.max():.3f}, mean={final_scores.mean():.3f}")
 
@@ -1056,6 +1153,29 @@ def recommend(request: RecommendationRequest):
         seeds_excluded = np.sum(seed_mask)
         final_scores[seed_mask] = -1e12
         logger.debug(f"Excluded {seeds_excluded} seed games from results")
+
+    # Exclude profile games (Library/Rated)
+    if request.profile_filter != "none":
+        exclude_appids = []
+        if request.profile_filter == "all":
+            exclude_appids = request.library_appids or []
+            logger.info(f"Filtering ALL profile games ({len(exclude_appids)})")
+        elif request.profile_filter == "rated":
+            exclude_appids = request.rated_appids or []
+            logger.info(f"Filtering RATED profile games ({len(exclude_appids)})")
+            
+        if exclude_appids:
+            profile_mask = meta_filt['appid'].isin(exclude_appids).values
+            profile_excluded = np.sum(profile_mask)
+            if profile_excluded > 0:
+                # Set scores for excluded games to a very low value
+                final_scores[profile_mask] = -1e12
+                
+                # Log a few examples of excluded games for debugging
+                excluded_names = meta_filt[profile_mask]['name'].head(5).tolist()
+                logger.info(f"Excluded {profile_excluded} profile games (Mode: {request.profile_filter}). Examples: {excluded_names}")
+            else:
+                logger.debug(f"Profile Filter ({request.profile_filter}): No matches found in current results.")
 
     # 6. Sorting and Result Formatting
     total_weight = abs(w_semantic) + abs(w_tag) + abs(w_quality) + abs(w_date) + abs(w_pop) + abs(w_length) + abs(w_difficulty)

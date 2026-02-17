@@ -40,6 +40,20 @@ function App() {
 
   const handleProfileClear = useCallback(() => {
     setAppliedProfile(null);
+    // Also clear profile data from persisted filters
+    const saved = sessionStorage.getItem('recommendations_filters');
+    if (saved) {
+      try {
+        const filters = JSON.parse(saved);
+        const { vibe_vector, intercept, metadata_weights, library_appids, rated_appids, ...rest } = filters;
+        sessionStorage.setItem('recommendations_filters', JSON.stringify({
+          ...rest,
+          profile_filter: 'none',
+          library_appids: [],
+          rated_appids: []
+        }));
+      } catch (e) {}
+    }
   }, []);
 
   const handleApplyProfile = (profile: any) => {
@@ -57,12 +71,24 @@ function App() {
 
       const newFilters = {
         ...filters,
+        // RESET interfering filters to match solver's "clean" environment
+        genres: [],
+        seed_games: [],
+        prompt: '',
+        
+        // Match solver's default filtering assumptions
+        english_only: true,
+        remove_vr: true,
+        remove_nsfw: true,
+        remove_utilities: true,
+        remove_unreleased: true,
+
         // Direct Translation: Sliders = Absolute Weights
-        quality_pref: metadata.quality || 0,
-        age_pref: metadata.age || 0,
-        pop_pref: metadata.popularity || 0,
-        length_pref: metadata.length || 0,
-        difficulty_pref: metadata.difficulty || 0,
+        quality_pref: metadata.quality ?? 0,
+        age_pref: metadata.age ?? 0,
+        pop_pref: metadata.popularity ?? 0,
+        length_pref: metadata.length ?? 0,
+        difficulty_pref: metadata.difficulty ?? 0,
         
         vibe_vector: vibeVector,
         intercept: profile.intercept || 0,
@@ -70,7 +96,10 @@ function App() {
         
         alpha: metadata.semantic ?? 1.0,
         beta: metadata.tag_match ?? 1.0,
-        disc_pref: metadata.discovery ?? 0
+        disc_pref: metadata.discovery ?? 0,
+        
+        library_appids: profile.library_appids || [],
+        rated_appids: profile.rated_appids || []
       };
 
       console.log("New Filters Prepared:", newFilters);

@@ -48,9 +48,8 @@ export const getChangelog = async (): Promise<string> => {
 };
 
 export const getList = async (category: string, discoveryPref: number = 0): Promise<ListResponse> => {
-  // Negate discoveryPref before submission as its meaning is reversed in the backend
   const response = await api.get(`/lists/${category}`, {
-    params: { discovery_pref: -discoveryPref },
+    params: { discovery_pref: discoveryPref },
   });
   return response.data;
 };
@@ -62,12 +61,7 @@ export const getMetadata = async (names: string[]): Promise<GameMetadata[]> => {
 };
 
 export const recommend = async (request: RecommendationRequest): Promise<GameMetadata[]> => {
-  // Negate disc_pref before submission as its meaning is reversed in the backend
-  const payload = {
-    ...request,
-    disc_pref: -request.disc_pref
-  };
-  const response = await api.post('/recommend', payload);
+  const response = await api.post('/recommend', request);
   return response.data;
 };
 

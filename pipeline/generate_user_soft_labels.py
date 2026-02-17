@@ -42,16 +42,13 @@ def generate_soft_labels(user_library_path, reviews_path='scraped_reviews.csv', 
     # Merge user library with metadata
     user_games = user_df.merge(metadata, on='appid', how='inner', suffixes=('', '_global'))
     
-    # Filter: Remove zero playtime
-    initial_count = len(user_games)
-    user_games = user_games[user_games['playtime_forever'] > 0].copy()
-    zero_playtime_count = initial_count - len(user_games)
-    print(f"Filtered out {zero_playtime_count} games with zero playtime.")
+    # Track playtime presence for UI filtering
+    user_games['has_playtime'] = user_games['playtime_forever'] > 0
     
-    print(f"Found metadata for {len(user_games)} games in library.")
+    print(f"Found metadata for {len(user_games)} games in library ({np.sum(~user_games['has_playtime'])} with zero playtime).")
 
     if user_games.empty:
-        print("No active games in library matched the metadata.")
+        print("No games in library matched the metadata.")
         return None
 
     # Load reviews - this is the slow part. We only load what we need.
@@ -59,18 +56,17 @@ def generate_soft_labels(user_library_path, reviews_path='scraped_reviews.csv', 
     # Use chunksize to avoid loading 1.2GB at once if possible, or just use usecols
     needed_cols = ['appid', 'voted_up', 'author_playtime_forever']
     
-    # Efficient loading: only games in user library
-    user_active_appids = user_games['appid'].unique()
+    # Efficient loading: only games in user library with playtime
+    user_active_appids = user_games[user_games['has_playtime']]['appid'].unique()
     reviews_iter = pd.read_csv(reviews_path, usecols=needed_cols, chunksize=100000)
     relevant_reviews_list = []
     for chunk in reviews_iter:
         relevant_reviews_list.append(chunk[chunk['appid'].isin(user_active_appids)])
     
-    reviews_df = pd.concat(relevant_reviews_list)
+    reviews_df = pd.concat(relevant_reviews_list) if relevant_reviews_list else pd.DataFrame(columns=needed_cols)
     print(f"Loaded {len(reviews_df)} relevant reviews for {reviews_df['appid'].nunique()} games.")
 
     results = []
-    filtered_min_playtime_count = 0
 
     for idx, row in user_games.iterrows():
         appid = row['appid']
@@ -88,6 +84,22 @@ def generate_soft_labels(user_library_path, reviews_path='scraped_reviews.csv', 
         prob = np.clip(prob, 1e-6, 1 - 1e-6)
         q_global = norm.ppf(prob)
         
+        if not row['has_playtime']:
+            # For zero-playtime games, use a neutral default and global Q
+            results.append({
+                'appid': appid,
+                'name': row['name'],
+                'playtime_forever': 0,
+                'user_voted_up': np.nan,
+                'user_review_text': "",
+                'global_q': q_global,
+                'p_plus_t': prob,
+                'personalized_q': q_global,
+                'predicted_rating': 5, # Neutral middle
+                'has_playtime': False
+            })
+            continue
+
         # 2. Calculate Personalized Probability p+(t)
         if pd.notna(user_voted_up):
             # Use real user review as ground truth (Hard Label)
@@ -122,9 +134,6 @@ def generate_soft_labels(user_library_path, reviews_path='scraped_reviews.csv', 
         personalized_q = calculate_personalized_quality(np.array([q_global]), np.array([p_plus_t]))[0]
         
         # 4. Map to 0-10 scale using calibrated anchors
-        # m=3.008809, c=3.277190 derived from:
-        # MAX: Portal 2 (p+=1) -> 10
-        # MIN: Mirror 2: Project X (p+=0) -> 0
         rating = 3.277190 + 3.008809 * personalized_q
         rating = int(np.clip(np.round(rating), 0, 10))
         
@@ -137,7 +146,8 @@ def generate_soft_labels(user_library_path, reviews_path='scraped_reviews.csv', 
             'global_q': q_global,
             'p_plus_t': p_plus_t,
             'personalized_q': personalized_q,
-            'predicted_rating': rating
+            'predicted_rating': rating,
+            'has_playtime': True
         })
 
     results_df = pd.DataFrame(results)

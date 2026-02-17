@@ -61,6 +61,11 @@ export interface RecommendationRequest {
   genres: string[];
   debug?: boolean;
   vibe_vector?: number[];
+  
+  // Profile Exclusion
+  profile_filter?: 'none' | 'rated' | 'all';
+  library_appids?: number[];
+  rated_appids?: number[];
 }
 
 export interface ListResponse {

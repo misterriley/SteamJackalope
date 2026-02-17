@@ -68,11 +68,14 @@ def generate_quality_grid(metadata_path, output_path):
 
     print("Computing quality scores grid...")
     for i, val in enumerate(slider_values):
-        # New formula: s = 3500 * 70^(val)
-        s = QUALITY_SCORE_S_CONST * (QUALITY_SCORE_S_BASE ** (val))
+        # New formula: s = 3500 * 70^(-val)
+        # Using -val ensures:
+        # val = -1.0 (Left/Safe) -> s is High (High Regularization)
+        # val = +1.0 (Right/Discovery) -> s is Low (Low Regularization)
+        s = QUALITY_SCORE_S_CONST * (QUALITY_SCORE_S_BASE ** (-val))
         # Bayesian score
         prob = (p + s * a) / (p + n + s)
-        print(f"Computing scores for slider value {val} (s={s:.2f})...")
+        print(f"Computing scores for slider value {val} (Index {i}, s={s:.2f})...")
 
         # Probit transform (z-score of probability)
         # Clamp probability to avoid inf in ppf

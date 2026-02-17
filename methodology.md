@@ -35,7 +35,18 @@ Steam tags are user-contributed and often noisy. We apply a pipeline to transfor
 
 - **Whitening & Dimensionality Reduction:** To ensure stability and remove numerical noise, tag vectors undergo **Truncated PCA-ZCA Whitening**. The data is projected onto its top principal components, which capture 95% of the global variance while eliminating singular dimensions (such as the linear constraint imposed by the CLR transform). This process decorrelates the tags and prevents "ghost" similarities between unrelated games.
 
-## 4. Quality Scoring
+## 4. Personalization: Taste DNA
+To provide bit-perfect recommendations tailored to individual history, we use a supervised regression pipeline to build a "Taste DNA" profile.
+
+- **Soft-Labeling:** We estimate a user's potential rating for every game in their library using a combination of their explicit Steam reviews and their relative playtime. We apply a **Log-Normal Kernel** to the global playtime distribution of each game to predict the probability of a positive review at the user's specific playtime ($p+(t)$). This probability is blended with the global quality score to produce a predicted rating on a 0-10 scale.
+
+- **LASSO Regression:** We solve for the user's "Taste DNA" using [**LASSO Regression**](https://en.wikipedia.org/wiki/Lasso_(statistics)). This technique is chosen for its ability to perform automatic feature selection; by applying an L1 penalty, the model identifies the specific subset of tags and metadata that truly drive a user's preferences, setting irrelevant features to exactly zero.
+
+- **Adaptive Dimensionality:** To prevent overfitting while maintaining high fidelity, we use an **Adaptive Dimensionality** scheme for the tag space. The number of principal components $K$ used during solving is dynamically set based on the user's library size $N$, typically following $K = \text{clip}(N-6, 1, 243)$. This ensures that users with small libraries receive stable, broad profiles, while power users with thousands of games receive highly granular, high-dimensional taste vectors.
+
+- **Unified Pathway:** Both the **Taste DNA Solver** and the **Discovery Engine** utilize the exact same mathematical code path (`calculate_linear_scores`). This ensures 100% ranking parity between the games used to train the profile and the recommendations surfaced by the engine.
+
+## 5. Quality Scoring
 Instead of raw review percentages, we use a Bayesian score that smooths out noisy reviews. This allows the system to distinguish between a game with 10 positive reviews out of 10 and a masterpiece with 98,000 positive reviews out of 100,000. 
 
 The model we use is based around the idea that there is a latent quality score $Q$ for each game, a normally distributed range of possible experiences that users might have with that game, and a threshold where, if a user has an experience greater than the threshold, they will give a positive review. Under some minimal assumptions, this gives the relation $\frac{p}{p + n} = \Phi(Q)$, where $p$ and $n$ are the number of positive and negative reviews left for the game, respectively, and $\Phi$ is the [cumulative distribution function of a standard normal variable](https://en.wikipedia.org/wiki/Normal_distribution#Cumulative_distribution_function). However, we do not necessarily trust the overall review score, especially when there are only a few reviews; this is due to [the cold start problem](https://en.wikipedia.org/wiki/Cold_start_(recommender_systems)). So, we introduce a variable $s$ that "shrinks" the percentage of positive reviews toward a group mean, where $s$ has a larger effect for games with fewer reviews. The variable $s$ can be thought of as a set of initial reviews shared by all games that reduces the variability of estimates of $Q$ when there are few reviews. The resulting regularization scheme yields the following formula: $\frac{p + s \cdot a}{p + n + s} = \Phi(Q)$; solving for $Q$ gives $Q = \Phi^{-1}\left(\frac{p + s \cdot a}{p + n + s}\right)$.  
@@ -50,7 +61,7 @@ The model we use is based around the idea that there is a latent quality score $
 
 - **Computational Efficiency:** To minimize memory usage on resource-constrained environments, the recommendation engine utilizes [Reduced Precision Arithmetic](https://en.wikipedia.org/wiki/Half-precision_floating-point_format) (FP16) for large-scale vector operations and [Memory-Mapped I/O](https://en.wikipedia.org/wiki/Memory-mapped_file) for static data artifacts. This allows the system to perform high-dimensional similarity searches efficiently.
 
-## 5. Playtime Regularization
+## 6. Playtime Regularization
 To effectively rank games by length, we analyze the distribution of playtimes that are available as part of user reviews. We assume that negative reviews will bias the estimate of game length downward due to quitting the game before finishing it, so we discard those values. Median playtime estimates can be highly variable for games with few reviews, and to address this, we apply a Bayesian shrinkage method similar to our tag vector approach.
 
 - **Stochastic Path Analysis:** We determine an optimal regularization constant $C$ by creating synthetic "small" games using reviews from "reliable" games (those with $\ge 80$ positive reviews). We solve for the $C$ that minimizes the error between the regularized estimate of the small game and the true median of the original reliable game.
@@ -61,7 +72,7 @@ To effectively rank games by length, we analyze the distribution of playtimes th
 
 - **Display:** The exponential of this regularized value is displayed as the estimation of length. 
 
-## 6. Difficulty Prediction
+## 7. Difficulty Prediction
 Steam games do not natively have a "Difficulty" rating. To solve this, we built a predictive model using external data fitted to Steam game tags. 
 
 - **Source Data:** We use an external dataset of ~3,200 games with explicit difficulty ratings that are in the Steam ecosystem.
@@ -78,7 +89,14 @@ Steam games do not natively have a "Difficulty" rating. To solve this, we built 
 
 - **Display:** The predicted 0-10 difficulty score is displayed directly on the game cards, providing a quick estimate of the expected challenge.
 
-## 7. The Jackalope
+## 8. Content Sensitivity (NSFW Blur)
+To maintain a safe and professional discovery experience, Steam Jackalope employs an **"NSFW Blur" Architecture**. 
+
+- **Flagging:** Games are automatically flagged as `is_nsfw` based on a curated list of sensitivity tags (e.g., "Hentai", "Sexual Content", "Nudity"). 
+
+- **UI Interaction:** Instead of hard-filtering results, which can bias the algorithm's understanding of "vibe," the frontend uses a global **Blur Toggle**. When active, any game flagged as NSFW has its header image blurred using a CSS backdrop filter. This maintains the integrity of the recommendation list while giving users control over their visual environment.
+
+## 9. The Jackalope
 
 The final recommendation list is generated as a hybrid, blending normalized components:
 

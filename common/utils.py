@@ -32,6 +32,52 @@ def to_z(x, ignore_zeros=False):
     z = (x_array - mean) / (std if std > EPSILON else 1.0)
     return z
 
+def calculate_linear_scores(
+    z_quality, 
+    z_date, 
+    z_pop, 
+    z_playtime, 
+    z_difficulty,
+    tag_vectors, 
+    tag_norms, 
+    beta_tag,
+    weights, 
+    intercept,
+    tag_scaling_factor, 
+    dot_product_lambda,
+    z_clamp_min, 
+    z_clamp_max
+):
+    """
+    Unified linear scoring function for Taste DNA parity.
+    This is the single source of truth for both the Solver preview and Backend recommender.
+    """
+    # 1. Apply Clamping to Metadata
+    q = np.clip(z_quality, z_clamp_min, z_clamp_max)
+    d = np.clip(z_date, z_clamp_min, z_clamp_max)
+    p = np.clip(z_pop, z_clamp_min, z_clamp_max)
+    l = np.clip(z_playtime, z_clamp_min, z_clamp_max)
+    diff = np.clip(z_difficulty, z_clamp_min, z_clamp_max)
+    
+    # 2. Tag Scoring: dot(U / (||U|| + lambda) * Scale, beta_absolute)
+    # beta_tag should already be the absolute coefficient vector (unit * tag_match_norm)
+    dot_products = np.dot(tag_vectors, beta_tag)
+    # Ensure tag_norms is a vector matching tag_vectors length
+    denom = tag_norms.reshape(-1) + dot_product_lambda
+    tag_contrib = (dot_products / denom) * tag_scaling_factor
+    
+    # 3. Summation: Intercept + sum(beta_i * feature_i)
+    scores = (
+        q * weights.get('quality', 0.0) +
+        d * weights.get('age', 0.0) +
+        p * weights.get('popularity', 0.0) +
+        l * weights.get('length', 0.0) +
+        diff * weights.get('difficulty', 0.0) +
+        tag_contrib +
+        intercept
+    )
+    return scores
+
 def calculate_hybrid_score(
     z_semantic, w_semantic,
     z_tag, w_tag,
@@ -170,7 +216,9 @@ def safe_save_npy(path, data):
         path += '.npy'
         
     # Create directory if it doesn't exist
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
     
     # We save to a unique temp file to avoid collisions and allow multiple attempts
     temp_path = path + f".{os.getpid()}.tmp"

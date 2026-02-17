@@ -134,6 +134,27 @@ const Toggle = ({ label, checked, onChange }: { label: string, checked: boolean,
   </label>
 );
 
+const SegmentedControl = ({ label, options, value, onChange }: { label: string, options: { label: string, value: string }[], value: string, onChange: (v: any) => void }) => (
+  <div className="mb-4">
+    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 block">{label}</label>
+    <div className="grid grid-cols-3 bg-secondary/50 p-1 rounded-lg border border-border/50">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className={`py-1 text-[10px] font-bold rounded-md transition-all ${
+            value === opt.value 
+              ? 'bg-primary text-primary-foreground shadow-sm' 
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
 interface FiltersProps {
   filters: RecommendationRequest;
   onChange: (filters: RecommendationRequest) => void;
@@ -199,7 +220,18 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
           </button>
           {filters.vibe_vector && (
             <button 
-              onClick={() => handleChange('vibe_vector', undefined)}
+              onClick={() => {
+                const { 
+                  vibe_vector, 
+                  intercept, 
+                  metadata_weights, 
+                  library_appids, 
+                  rated_appids, 
+                  profile_filter,
+                  ...rest 
+                } = filters;
+                onChange({ ...rest, profile_filter: 'none', library_appids: [], rated_appids: [] });
+              }}
               className="w-full mt-2 text-[10px] text-muted-foreground hover:text-destructive underline transition-colors"
             >
               Clear personalization
@@ -234,7 +266,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
             value={filters.disc_pref} 
             min={-1} max={1} step={0.1} 
             onChange={(v: number) => handleChange('disc_pref', v)}
-            tooltip="Controls Bayesian regularization strength (Low = Safe, High = Niche)."
+            tooltip="Controls Bayesian regularization strength (Left = Safe/Mainstream, Right = Wild Cards/Discovery)."
           />
         </div>
 
@@ -271,10 +303,27 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
         </div>
 
         <div className="pt-2 border-t border-border/50">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Filters</h3>
+          <div className="flex justify-between items-center mb-1">
+             <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Filters</h3>
+             {filters.library_appids && filters.library_appids.length > 0 && (
+               <span className="text-[8px] font-bold text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20">
+                 {filters.library_appids.length} games in profile
+               </span>
+             )}
+          </div>
+          <SegmentedControl 
+            label="Filter Profile Games"
+            options={[
+              { label: 'None', value: 'none' },
+              { label: `Rated (${filters.rated_appids?.length || 0})`, value: 'rated' },
+              { label: `All (${filters.library_appids?.length || 0})`, value: 'all' }
+            ]}
+            value={filters.profile_filter || 'none'}
+            onChange={(v) => handleChange('profile_filter', v)}
+          />
           <Toggle label="English Only" checked={filters.english_only} onChange={(v: boolean) => handleChange('english_only', v)} />
           <Toggle label="Hide VR-Only" checked={filters.remove_vr} onChange={(v: boolean) => handleChange('remove_vr', v)} />
-          <Toggle label="Hide NSFW" checked={filters.remove_nsfw} onChange={(v: boolean) => handleChange('remove_nsfw', v)} />
+          <Toggle label="Blur NSFW" checked={filters.remove_nsfw} onChange={(v: boolean) => handleChange('remove_nsfw', v)} />
           <Toggle label="Hide Utilities" checked={filters.remove_utilities} onChange={(v: boolean) => handleChange('remove_utilities', v)} />
           <Toggle label="Released Only" checked={filters.remove_unreleased} onChange={(v: boolean) => handleChange('remove_unreleased', v)} />
           <Toggle label="Visualize Contributions" checked={!!filters.debug} onChange={(v: boolean) => handleChange('debug', v)} />

@@ -33,13 +33,20 @@ def solve_user_taste(ground_truth_path, output_path=None):
     Solves for user preference weights using Ridge Regression.
     """
     print(f"Loading ground truth from {ground_truth_path}...")
-    df_full = pd.read_csv(ground_truth_path)
+    df_gt = pd.read_csv(ground_truth_path)
     
-    # Store all AppIDs to exclude them from recommendations later
-    all_known_appids = set(df_full['appid'].values)
+    # Load full library from soft labels to ensure ALL owned games (including zero playtime)
+    # are tracked for exclusion, even if they aren't in the training set.
+    sl_path = ground_truth_path.replace('_ground_truth.csv', '_soft_labels.csv')
+    if os.path.exists(sl_path):
+        print(f"Loading full library list from {sl_path}...")
+        df_sl = pd.read_csv(sl_path)
+        all_library_appids = df_sl['appid'].unique().tolist()
+    else:
+        all_library_appids = df_gt['appid'].unique().tolist()
     
     # Filter for regression training: remove ignored and NaN ratings
-    df = df_full.copy()
+    df = df_gt.copy()
     if 'ignore' in df.columns:
         df = df[df['ignore'] == False].copy()
     
@@ -77,8 +84,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     correlations = []
     print("Step-wise Correlation Scan:")
+    from common.constants import Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX
+    
     for i in range(num_steps):
-        q_step = quality_grid[i][user_indices]
+        # Apply Clamping to match Recommender exactly during optimization
+        q_step = np.clip(quality_grid[i][user_indices], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
         # Calculate Pearson correlation
         if np.std(q_step) > 1e-9 and np.std(y) > 1e-9:
             corr = np.corrcoef(q_step, y)[0, 1]
@@ -93,7 +103,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
     best_idx = np.argmax(np.abs(correlations))
     # Map index back to -1.0 to 1.0
     optimal_disc_pref = (best_idx / (num_steps - 1)) * 2.0 - 1.0
-    q_global = quality_grid[best_idx][user_indices]
+    # Apply Clamping to the best grid row
+    q_global = np.clip(quality_grid[best_idx][user_indices], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     
     print(f"Optimal Discovery: {optimal_disc_pref:+.3f} (Max Absolute Correlation: {correlations[best_idx]:.4f})")
 
@@ -102,20 +113,15 @@ def solve_user_taste(ground_truth_path, output_path=None):
     user_tag_features_raw = tag_vectors[user_indices]
     
     # --- ADAPTIVE DIMENSIONALITY ---
-    # Choose how many components to use based on library size (N)
-    # Using a smooth linear relationship: K = BASE + SLOPE * N
-    # This prevents the solver from 'memorizing' noise in small libraries
-    # while organically increasing fidelity as more data is provided.
+    # Based on parametric study, K = N - 6 reaches the saturation point for df
     num_ratings = len(y) - 1 # Exclude dummy
     
-    k_min = ADAPTIVE_DNA_BASE_K
     k_max = tag_vectors.shape[1] # Production max (e.g. 243)
-    k_adaptive = int(np.clip(k_min + ADAPTIVE_DNA_SLOPE * num_ratings, k_min, k_max))
+    k_adaptive = int(np.clip(num_ratings - 6, 1, k_max))
     
-    print(f"Adaptive DNA: Using top {k_adaptive} tag components for library size {num_ratings}.")
+    print(f"Adaptive DNA: Using saturation dimensionality K = {k_adaptive} for library size {num_ratings}.")
     
     # 1. Use the FULL norm for penalized normalization (consistency with Recommender)
-    # tag_vectors_norms is pre-calculated on the full whitened space
     full_norms = np.load(TAG_NORMS_FILE, mmap_mode='r')
     user_tag_norms = full_norms[user_indices].reshape(-1, 1).astype(np.float32)
     
@@ -124,36 +130,40 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     # Load Metadata Features
     meta_cols = ['date_z', 'pop_z', 'playtime_z', 'difficulty_z']
-    user_meta_features = full_metadata.iloc[user_indices][meta_cols].values
+    # Apply Clamping to match Recommender exactly during training
+    user_meta_features = np.clip(full_metadata.iloc[user_indices][meta_cols].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     
     # --- TAG TRANSFORMATION ---
-    # Apply "Penalized Normalization" and Global Scaling (11.28)
-    # This brings tag features to ~1.0 variance, matching metadata Z-scores.
     print(f"Applying penalized normalization and global scaling...")
     user_tag_features_norm = user_tag_features / (user_tag_norms + DOT_PRODUCT_LAMBDA)
     user_tag_features_scaled = user_tag_features_norm * TAG_GLOBAL_SCALING_FACTOR
     
-    # Combine features: [Q (1)] + [Metadata (4)] + [Tags (128)]
-    # Everything is now roughly Mean=0, Std=1 globally.
+    # Combine features: [Q (1)] + [Metadata (4)] + [Tags (k)]
     X = np.hstack([q_global.reshape(-1, 1), user_meta_features, user_tag_features_scaled])
     
     # --- STABILIZATION: Add a dummy game ---
-    # A game with 0 z-scores and a neutral rating (5.0) to act as a prior anchor
     dummy_X = np.zeros((1, X.shape[1]))
     dummy_y = np.array([5.0])
     X = np.vstack([X, dummy_X])
     y = np.append(y, dummy_y)
     
-    print(f"Solving regression for {len(y)} samples (including dummy) across {X.shape[1]} features...")
+    print(f"Solving Lasso regression for {len(y)} samples across {X.shape[1]} features...")
     
-    # Ridge with LOOCV - Fit directly on pre-scaled features
-    # This ensures coefficients map directly to Global Z-scores.
-    alphas = np.logspace(-2, 6, 81)
-    model = RidgeCV(alphas=alphas, scoring='neg_mean_squared_error')
+    from sklearn.linear_model import LassoCV
+    # Use LassoCV with a broad alpha range and high iterations for stability
+    # Note: We NO LONGER use StandardScaler here, as the features are already 
+    # standardized to Global Z-scores (Metadata) or Scaled Norms (Tags).
+    model = LassoCV(cv=5, max_iter=20000, selection='random', tol=1e-3)
     model.fit(X, y)
     
+    # Extract Coefficients directly
+    coeffs = model.coef_
+    intercept = model.intercept_
+    
     print(f"Optimal Alpha: {model.alpha_:.4f}")
-    print(f"Model R^2: {model.score(X, y):.4f}")
+    # Calculate R^2 on the training set
+    r2_train = model.score(X, y)
+    print(f"Model Training R^2: {r2_train:.4f}")
     
     # Extract Coefficients
     coeffs = model.coef_
@@ -256,7 +266,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     all_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
     
     # Exclude games already in user's library or manual additions (including ignored ones)
-    known_indices = [appid_to_idx[aid] for aid in all_known_appids if aid in appid_to_idx]
+    known_indices = [appid_to_idx[aid] for aid in all_library_appids if aid in appid_to_idx]
 
     # --- NORTH STAR & ABYSSAL GAMES ---
     # Find games whose TAG VECTORS (not final scores) are most similar to the taste coefficients
@@ -293,49 +303,68 @@ def solve_user_taste(ground_truth_path, output_path=None):
         abyssal_games = pd.DataFrame()
 
     # --- TOP & BOTTOM RECOMMENDATIONS ---
-    print("Generating top and bottom recommendations based on solved profile...")
-    # Scoring: Final Score = X_full_whitened * coeffs + intercept
+    print("Generating top and bottom recommendations based on solved profile (unified pathway)...")
+    # Using unified scoring utility for bit-perfect parity with Recommender
+    from common.utils import calculate_linear_scores
     
-    # Load metadata features
-    date_z = full_metadata['date_z'].values
-    pop_z = full_metadata['pop_z'].values
-    playtime_z = full_metadata['playtime_z'].values
-    difficulty_z = full_metadata['difficulty_z'].values
+    # Restore absolute tag coefficients
+    beta_tag_absolute = tag_coeffs_full
     
-    # Apply Clamping to match Recommender exactly
-    from common.constants import Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX
+    # Define weights dictionary for utility
+    meta_weights = {
+        'quality': float(coeffs[0]),
+        'age': float(coeffs[1]),
+        'popularity': float(coeffs[2]),
+        'length': float(coeffs[3]),
+        'difficulty': float(coeffs[4])
+    }
     
-    q_all = np.clip(quality_grid[best_idx], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-    date_z = np.clip(date_z, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-    pop_z = np.clip(pop_z, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-    playtime_z = np.clip(playtime_z, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-    difficulty_z = np.clip(difficulty_z, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    # Predict directly using unified function
+    # Note: Quality grid is already loaded as quality_grid
+    all_tag_norms = np.load(TAG_NORMS_FILE, mmap_mode='r')
     
-    # Apply Penalized Norm and Global Scaling to ALL vectors
-    # Using pre-calculated norms for bit-perfect consistency with Recommender
-    all_norms = np.load(TAG_NORMS_FILE, mmap_mode='r').reshape(-1, 1).astype(np.float32)
-    all_vectors_norm = all_vectors / (all_norms + DOT_PRODUCT_LAMBDA)
-    all_vectors_scaled = all_vectors_norm * TAG_GLOBAL_SCALING_FACTOR
+    scores = calculate_linear_scores(
+        z_quality=quality_grid[best_idx],
+        z_date=full_metadata['date_z'].values,
+        z_pop=full_metadata['pop_z'].values,
+        z_playtime=full_metadata['playtime_z'].values,
+        z_difficulty=full_metadata['difficulty_z'].values,
+        tag_vectors=all_vectors,
+        tag_norms=all_tag_norms,
+        beta_tag=beta_tag_absolute,
+        weights=meta_weights,
+        intercept=intercept,
+        tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
+        dot_product_lambda=DOT_PRODUCT_LAMBDA,
+        z_clamp_min=Z_SCORE_CLAMP_MIN,
+        z_clamp_max=Z_SCORE_CLAMP_MAX
+    )
     
-    # Build feature matrix
-    X_full = np.hstack([
-        q_all.reshape(-1, 1),
-        date_z.reshape(-1, 1),
-        pop_z.reshape(-1, 1),
-        playtime_z.reshape(-1, 1),
-        difficulty_z.reshape(-1, 1),
-        all_vectors_scaled
-    ])
-    
-    # Predict directly using coefficients (Beta * Z + Intercept)
-    # Use full_coeffs (which is padded) to match X_full shape
-    scores = np.dot(X_full, full_coeffs) + intercept
     # Clamp to 0-10 scale for display
     scores = np.clip(scores, 0, 10)
     
+    # --- APPLY DEFAULT FILTERS (Match Recommender) ---
+    mask = np.ones(len(full_metadata), dtype=bool)
+    # 1. English Only
+    if 'is_english' in full_metadata.columns:
+        mask &= full_metadata['is_english'].values
+    # 2. No VR Only
+    if 'is_vr_only' in full_metadata.columns:
+        mask &= ~full_metadata['is_vr_only'].values
+    # 3. No Utilities
+    if 'is_utility' in full_metadata.columns:
+        mask &= ~full_metadata['is_utility'].values
+    # 4. Released Only
+    if 'parsed_date' in full_metadata.columns:
+        build_time = pd.Timestamp.now() # Close enough to mtime
+        future_mask = (full_metadata['parsed_date'] > build_time).fillna(False)
+        mask &= ~future_mask.values
+
     # Mask known games for top
     top_scores = scores.copy()
     top_scores[known_indices] = -1e12
+    # Apply filters
+    top_scores[~mask] = -1e12
     
     # Get top 30 using stable lexicographical sort (score DESC, name ASC)
     all_names = full_metadata['name'].fillna("").values
@@ -347,6 +376,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Mask known games for bottom
     bottom_scores = scores.copy()
     bottom_scores[known_indices] = 1e12
+    # Apply filters (we want the "worst" of the VALID games)
+    bottom_scores[~mask] = 1e12
     
     # Get bottom 30 using stable lexicographical sort (score ASC, name ASC)
     bottom_indices = np.lexsort((all_names, bottom_scores))[:30]
@@ -354,22 +385,38 @@ def solve_user_taste(ground_truth_path, output_path=None):
     bottom_games = full_metadata.iloc[bottom_indices][['appid', 'name']].copy()
     bottom_games['predicted_rating'] = bottom_scores[bottom_indices]
     
+    # --- WEIGHT SCALING (Slider Real Estate) ---
+    # We scale metadata weights so the largest absolute value is 3.0.
+    # This preserves ranking order but makes better use of the UI slider range.
+    weights_to_scale = {
+        'quality': float(coeffs[0]),
+        'age': float(coeffs[1]),
+        'popularity': float(coeffs[2]),
+        'length': float(coeffs[3]),
+        'difficulty': float(coeffs[4]),
+        'tag_match': float(tag_norm),
+        'semantic': 1.0  # Default base semantic weight
+    }
+    
+    max_abs_weight = max(abs(v) for v in weights_to_scale.values())
+    scaling_factor = 3.0 / max_abs_weight if max_abs_weight > 1e-6 else 1.0
+    
+    scaled_metadata = {k: v * scaling_factor for k, v in weights_to_scale.items()}
+    # Keep discovery separate (do not scale)
+    scaled_metadata['discovery'] = float(optimal_disc_pref)
+    
+    # Scale intercept to maintain relative signal-to-bias ratio for the preview scores
+    scaled_intercept = float(intercept) * scaling_factor
+
     # Map back to feature names
     weights = {
-        'metadata': {
-            'quality': float(coeffs[0]),
-            'age': float(coeffs[1]),
-            'popularity': float(coeffs[2]),
-            'length': float(coeffs[3]),
-            'difficulty': float(coeffs[4]),
-            'tag_match': float(tag_norm),
-            'semantic': 1.0, # Default semantic weight
-            'discovery': float(optimal_disc_pref)
-        },
+        'metadata': scaled_metadata,
         'vibe_vector': vibe_vector_unit,
-        'intercept': float(intercept),
+        'intercept': scaled_intercept,
         'alpha': float(model.alpha_),
         'r2': float(model.score(X, y)),
+        'library_appids': all_library_appids,
+        'rated_appids': df_gt[~df_gt['ignore'].fillna(False) & df_gt['actual_rating'].notna()]['appid'].tolist(),
         'top_tags': top_tags,
         'bottom_tags': bottom_tags,
         'north_stars': north_stars.to_dict(orient='records'),

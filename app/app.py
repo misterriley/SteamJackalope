@@ -605,7 +605,7 @@ else:
             beta = compact_slider(TAG_WEIGHT_LABEL, "beta", TAG_WEIGHT_HELP, 0.0, TAG_WEIGHT_MULTIPLIER, TAG_WEIGHT_MULTIPLIER/ABG_NOTCHES_ON_SLIDER, "0", str(TAG_WEIGHT_MULTIPLIER), show_bounds=False)
             st.markdown("<hr style='margin: 10px 0; opacity: 0.3;'>", unsafe_allow_html=True)
 
-            disc_pref = compact_slider(DISC_PREF_LABEL, "disc_pref", DISC_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DISCOVERY_LABEL_LEFT, DISCOVERY_LABEL_RIGHT, negate=True)
+            disc_pref = compact_slider(DISC_PREF_LABEL, "disc_pref", DISC_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DISCOVERY_LABEL_LEFT, DISCOVERY_LABEL_RIGHT)
             length_pref = compact_slider(LENGTH_PREF_LABEL, "length_pref", LENGTH_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, LENGTH_SHORT_LABEL, LENGTH_LONG_LABEL)
             difficulty_pref = compact_slider(DIFFICULTY_PREF_LABEL, "difficulty_pref", DIFFICULTY_PREF_HELP, AP_SLIDER_MIN, AP_SLIDER_MAX, AP_SLIDER_STEP, DIFFICULTY_EASY_LABEL, DIFFICULTY_HARD_LABEL)
 

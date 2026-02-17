@@ -34,12 +34,12 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     const defaults: RecommendationRequest = {
       alpha: 1.0,
       beta: 1.0,
-      quality_pref: 4.0,
-      age_pref: 1.4,
-      pop_pref: 1.0,
+      quality_pref: 1.0,
+      age_pref: 0.0,
+      pop_pref: 0.0,
       disc_pref: 0.0,
-      length_pref: 0.25,
-      difficulty_pref: 1.3,
+      length_pref: 0.0,
+      difficulty_pref: 0.0,
       remove_vr: true,
       english_only: true,
       remove_nsfw: true,
@@ -49,7 +49,10 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       prompt: '',
       seed_games: [],
       genres: [],
-      debug: false
+      debug: false,
+      profile_filter: 'none',
+      library_appids: [],
+      rated_appids: []
     };
 
     const saved = sessionStorage.getItem('recommendations_filters');
@@ -118,6 +121,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   }, [filters.seed_games]);
 
   const lastSearchRef = useRef<string>('');
+  const lastSignificantFiltersRef = useRef<string>('');
 
   const handleSearch = async (currentFilters: RecommendationRequest) => {
     const filterStr = JSON.stringify(currentFilters);
@@ -127,7 +131,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     setLoading(true);
     setError(null);
     try {
-      const results = await recommend({ ...currentFilters, remove_nsfw: false });
+      const results = await recommend(currentFilters);
       setRecommendations(results);
       
       if (results.length === 0 && currentFilters.seed_games.length === 0 && !currentFilters.prompt) {
@@ -146,30 +150,42 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
 
   // Auto-update effect with debouncing
   useEffect(() => {
+    // Define which filters are 'significant' (require a backend re-score)
+    // remove_nsfw (Blur) and debug (Contributions) only affect local rendering.
+    const { remove_nsfw, debug, ...significantFilters } = filters;
+    const sigStr = JSON.stringify(significantFilters);
+
     // Immediate search on mount
     if (isInitialMount.current) {
       isInitialMount.current = false;
       handleSearch(filters);
+      lastSignificantFiltersRef.current = sigStr;
+      return;
+    }
+
+    // Skip if only non-significant filters changed
+    if (sigStr === lastSignificantFiltersRef.current) {
       return;
     }
 
     const timer = setTimeout(() => {
       handleSearch(filters);
+      lastSignificantFiltersRef.current = sigStr;
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [filters]); // Simplified dependency array
+  }, [filters]); // Still watch filters to ensure UI stays in sync
 
   const handleReset = () => {
     setFilters({
       alpha: 1.0,
       beta: 1.0,
-      quality_pref: 4.0,
-      age_pref: 1.4,
-      pop_pref: 1.0,
+      quality_pref: 1.0,
+      age_pref: 0.0,
+      pop_pref: 0.0,
       disc_pref: 0.0,
-      length_pref: 0.25,
-      difficulty_pref: 1.3,
+      length_pref: 0.0,
+      difficulty_pref: 0.0,
       remove_vr: true,
       english_only: true,
       remove_nsfw: true,
@@ -179,7 +195,10 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       prompt: '',
       seed_games: [],
       genres: [],
-      debug: false
+      debug: false,
+      profile_filter: 'none',
+      library_appids: [],
+      rated_appids: []
     });
   };
 
@@ -218,20 +237,22 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       return;
     }
 
-    const meta = profile.metadata;
+    const meta = profile.metadata || {};
     setFilters(prev => ({
       ...prev,
-      quality_pref: parseFloat(meta.quality.toFixed(2)),
-      age_pref: parseFloat(meta.age.toFixed(2)),
-      pop_pref: parseFloat(meta.popularity.toFixed(2)),
-      length_pref: parseFloat(meta.length.toFixed(2)),
-      difficulty_pref: parseFloat(meta.difficulty.toFixed(2)),
+      quality_pref: parseFloat((meta.quality ?? 0).toFixed(2)),
+      age_pref: parseFloat((meta.age ?? 0).toFixed(2)),
+      pop_pref: parseFloat((meta.popularity ?? 0).toFixed(2)),
+      length_pref: parseFloat((meta.length ?? 0).toFixed(2)),
+      difficulty_pref: parseFloat((meta.difficulty ?? 0).toFixed(2)),
       alpha: meta.semantic ?? 1.0,
       beta: meta.tag_match ?? 1.0,
       vibe_vector: profile.vibe_vector,
       metadata_weights: meta,
       intercept: profile.intercept || 0,
-      disc_pref: meta.discovery ?? 0
+      disc_pref: meta.discovery ?? 0,
+      library_appids: profile.library_appids || [],
+      rated_appids: profile.rated_appids || []
     }));
   };
 
