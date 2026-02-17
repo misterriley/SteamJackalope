@@ -2,6 +2,16 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [29] - 2026-02-16
+
+### Fixed
+- **Tag Space Stabilization**: Resolved a critical bug where predictive tags in the "Analyze My Catalogue" view were disconnected from recommendations. The issue was caused by a missing `tag_names.json` file, forcing the solver to fall back to an unstable metadata scan that misaligned tag indices.
+- **Explicit Tag Priors**: Updated the tag vector pipeline to explicitly save the Global Prior counts and Transformed Prior vector. This ensures that centering and transformation logic remain consistent across the pipeline, solver, and recommendation engine, even as the dataset grows.
+- **North Star Alignment**: Verified that "North Star" recommendations are now perfectly aligned with the solved DNA's predictive tags.
+
+### Added
+- **Tag Prior Artifacts**: New production artifacts `tag_prior_counts.npy` and `tag_prior_transformed.npy` provide a stable anchor for the tag embedding space.
+
 ## [28] - 2026-02-16
 
 ### Added

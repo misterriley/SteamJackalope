@@ -20,7 +20,9 @@ from common.constants import (
     W_TAG_FILE,
     DOT_PRODUCT_LAMBDA,
     TAG_GLOBAL_SCALING_FACTOR,
-    TAG_NAMES_FILE
+    TAG_NAMES_FILE,
+    TAG_PRIOR_COUNTS_FILE,
+    TAG_PRIOR_TRANSFORMED_FILE
 )
 
 def solve_user_taste(ground_truth_path, output_path=None):
@@ -166,9 +168,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
         for tag_str in full_metadata_tags['tags']:
             if pd.isna(tag_str) or tag_str == '' or tag_str == '[]': continue
             try:
-                tags_dict = ast.literal_eval(tag_str)
-                if isinstance(tags_dict, dict):
-                    global_tags.update(tags_dict.keys())
+                # Basic cleanup to avoid ast.literal_eval slowness if possible
+                if '{' in tag_str:
+                    tags_dict = ast.literal_eval(tag_str)
+                    if isinstance(tags_dict, dict):
+                        global_tags.update(tags_dict.keys())
             except: continue
         unique_tags = sorted(list(global_tags))
     

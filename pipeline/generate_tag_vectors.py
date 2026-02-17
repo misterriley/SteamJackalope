@@ -22,6 +22,8 @@ from common.constants import (
     USE_TAG_WHITENING,
     W_TAG_FILE,
     TAG_NORMS_FILE,
+    TAG_PRIOR_COUNTS_FILE,
+    TAG_PRIOR_TRANSFORMED_FILE,
     TAG_TRANSFORM_TYPE,
     ROOT_DIR
 )
@@ -406,7 +408,7 @@ def apply_tag_transform(augmented_counts, prior_G, original_total_votes, K, tran
     # This ensures the "regularizing point" (prior) becomes the origin.
     final_vectors = V - V_prior
     
-    return final_vectors
+    return final_vectors, V_prior
 
 def whiten(vectors, variance_threshold=0.80):
     """
@@ -467,7 +469,7 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
     K = optimize_k_stochastic(augmented_counts, sparse_counts, G_final)
     
     # 4. Transform + Dampening
-    transformed_vectors = apply_tag_transform(augmented_counts, G_final, original_total_votes, K, transform_type=TAG_TRANSFORM_TYPE)
+    transformed_vectors, V_prior = apply_tag_transform(augmented_counts, G_final, original_total_votes, K, transform_type=TAG_TRANSFORM_TYPE)
     
     # 5. Whiten
     if USE_TAG_WHITENING:
@@ -490,6 +492,10 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
     final_w_path = w_tag_path if w_tag_path else W_TAG_FILE
     print(f"Saving whitening matrix to {final_w_path}...")
     np.save(final_w_path, W.astype(np.float16))
+
+    print(f"Saving tag priors to {TAG_PRIOR_COUNTS_FILE} and {TAG_PRIOR_TRANSFORMED_FILE}...")
+    np.save(TAG_PRIOR_COUNTS_FILE, G_final.astype(np.float32))
+    np.save(TAG_PRIOR_TRANSFORMED_FILE, V_prior.astype(np.float32))
 
     # Run distribution analysis
     try:
