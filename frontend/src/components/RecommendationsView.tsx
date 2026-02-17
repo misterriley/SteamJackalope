@@ -97,7 +97,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
         }
       } catch (err) {
         console.error("Failed to load initial data", err);
-        setError("Failed to connect to the discovery server at 127.0.0.1:8000. Is the backend running?");
+        setError("Failed to connect to the discovery server. Is the backend running?");
       }
     };
     fetchInitialData();

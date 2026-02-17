@@ -22,7 +22,7 @@ import {
   Anchor
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { searchGames, getMetadata, getTermLinks } from '../api';
+import { searchGames, getMetadata, getTermLinks, API_BASE_URL } from '../api';
 
 interface GameVerification {
   appid: number;
@@ -239,7 +239,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
     if (step === 1.5 && steamId) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`http://127.0.0.1:8000/user/status/${steamId}`);
+          const res = await fetch(`${API_BASE_URL}/user/status/${steamId}`);
           const data = await res.json();
           setStatus(data);
           if (data.has_soft_labels) {
@@ -266,7 +266,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://127.0.0.1:8000/user/fetch', {
+      const res = await fetch(`${API_BASE_URL}/user/fetch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ steam_id: cleanId, review_html: reviewHtml })
@@ -285,7 +285,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
 
   const fetchVerificationData = async (sid: string) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/user/verify/${sid}`);
+      const res = await fetch(`${API_BASE_URL}/user/verify/${sid}`);
       const data = await res.json();
       const sorted = [...data].sort((a, b) => b.predicted_rating - a.predicted_rating);
       setGames(sorted);
@@ -321,13 +321,13 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
         setManualSearch('');
         setShowManualResults(false);
 
-        await fetch('http://127.0.0.1:8000/user/verify', {
+        await fetch(`${API_BASE_URL}/user/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify([{
             steam_id: steamId,
             appid: game.appid,
-            rating: 7,
+            actual_rating: 7,
             ignore: false
           }])
         });
@@ -381,13 +381,13 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
     
     // Sync to server immediately so it's removed from the ground truth file
     try {
-      await fetch('http://127.0.0.1:8000/user/verify', {
+      await fetch(`${API_BASE_URL}/user/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify([{
           steam_id: steamId,
           appid: appid,
-          rating: 0,
+          actual_rating: 0,
           ignore: true // Marking as ignore on the server effectively removes it from solver
         }])
       });
@@ -399,15 +399,15 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
   const handleSaveAndSolve = async () => {
     setLoading(true);
     try {
-      const updates = games.map(g => ({ steam_id: steamId, appid: g.appid, rating: g.actual_rating, ignore: g.ignore }));
-      await fetch('http://127.0.0.1:8000/user/verify', {
+      const updates = games.map(g => ({ steam_id: steamId, appid: g.appid, actual_rating: g.actual_rating, ignore: g.ignore }));
+      await fetch(`${API_BASE_URL}/user/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-      const sRes = await fetch(`http://127.0.0.1:8000/user/solve/${steamId}`, { method: 'POST' });
+      const sRes = await fetch(`${API_BASE_URL}/user/solve/${steamId}`, { method: 'POST' });
       if (!sRes.ok) throw new Error("Solver failed");
-      const iRes = await fetch(`http://127.0.0.1:8000/user/insights/${steamId}`);
+      const iRes = await fetch(`${API_BASE_URL}/user/insights/${steamId}`);
       const iData = await iRes.json();
       setInsights(iData);
       setStep(3);

@@ -365,7 +365,7 @@ class UserFetchRequest(BaseModel):
 class UserVerifyUpdate(BaseModel):
     steam_id: str
     appid: int
-    rating: float
+    actual_rating: float
     ignore: bool
 
 class RecommendationRequest(BaseModel):
@@ -641,10 +641,10 @@ def update_verification_data(updates: List[UserVerifyUpdate]):
         # Update or add
         mask = df['appid'] == up.appid
         if mask.any():
-            df.loc[mask, 'actual_rating'] = up.rating
+            df.loc[mask, 'actual_rating'] = up.actual_rating
             df.loc[mask, 'ignore'] = up.ignore
         else:
-            new_row = pd.DataFrame([{'appid': up.appid, 'actual_rating': up.rating, 'ignore': up.ignore}])
+            new_row = pd.DataFrame([{'appid': up.appid, 'actual_rating': up.actual_rating, 'ignore': up.ignore}])
             df = pd.concat([df, new_row], ignore_index=True)
             
     df.to_csv(gt_path, index=False)
