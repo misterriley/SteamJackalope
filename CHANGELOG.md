@@ -2,33 +2,19 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
-## [40] - 2026-02-17
-
-### Added
-- **Unified Scoring Pathway**: Consolidated all Taste DNA scoring logic into a single shared utility (`calculate_linear_scores` in `common/utils.py`). Both the Solver's preview and the Backend's recommender now utilize this identical code path, ensuring 100% ranking parity.
-
-## [39] - 2026-02-17
-
-### Added
-- **Backend NSFW Filter**: Implemented the previously missing `remove_nsfw` filter in `server.py`, now correctly utilizing the `is_nsfw` tag-based boolean column.
-
-### Fixed
-- **Bit-Perfect Parity**: Achieved 100% mathematical and environmental parity between the Taste DNA Solver and the Recommender page.
-- **Discovery Slider Flip**: Fixed a major bug where discovery preferences were negated in the frontend, causing "Discovery" mode to return "Popularity" results. Corrected UI tooltips to match.
-- **DNA Norm Restoration**: Fixed a scaling bug in `server.py` where unit-length Taste DNA vectors were used without applying the solver's `tag_match` norm.
-- **Solver Preprocessing**: Added Z-score clamping `[-8, 8]` to the solver's training set to unify the feature space with the recommender.
-- **Double-Scaling**: Resolved an issue in Recommender mode where tag contributions were being multiplied by the Tag Match weight twice.
-- **Environmental Parity**: Updated the solver's JSON preview to apply default filters (English Only, SFW, Released) and modified the profile import flow to reset interfering filters (genres, seeds, prompt) to a clean slate.
-
 ## [38] - 2026-02-17
+### Build 38
+### Version 0.0.1-pre-alpha.38
 
-### Fixed
-- **Solver/Recommender Synchronization**: Achieved ranking parity by unifying the feature space (Raw Z-Scores) and implementing a "Pure Linear Mode" in the backend that directly utilizes solver coefficients and intercepts.
-
-## [37] - 2026-02-17
-
-### Changed
-- **LASSO DNA Solver**: Switched the personalization engine to use `LassoCV` with adaptive dimensionality ($K = \text{clip}(N-6, 1, 243)$). This enables sparse, high-fidelity taste profiles that perform automatic feature selection and outperform Ridge in predictive stability for large libraries.
+- **Algorithm**: Achieved 100% mathematical parity between Solver and Recommender using a unified scoring pathway in `common/utils.py`.
+- **Algorithm**: Switched personalization to **LASSO Regression** with adaptive saturation dimensionality ($K = \text{clip}(N-6, 1, 243)$) for sparse, high-fidelity profiles.
+- **Algorithm**: Fixed Discovery slider inversion and calibrated quality grid regularization mapping.
+- **UI/UX**: Implemented **NSFW Blur** architecture: tag-based flagging with frontend CSS blur sync.
+- **UI/UX**: Added **3-way Profile Filtering** (None, Rated, All) to the discovery engine.
+- **UI/UX**: Calibrated Metadata Weights bars (Discovery at 1.0, others at 3.0) for better visual density.
+- **Data**: Expanded library acquisition to include zero-playtime games for comprehensive filtering.
+- **Stability**: Refactored Taste DNA solver to be asynchronous and improved backend error logging.
+- **Stability**: Resolved Windows file-locking issues in the utility library.
 
 ## [36] - 2026-02-16
 

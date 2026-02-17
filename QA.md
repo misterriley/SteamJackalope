@@ -19,8 +19,13 @@ This document serves as the manual verification protocol for human testers and d
     - *Expectation*: A currently popular Steam game is selected as a seed.
 - [ ] **Discovery Slider**: Set Discovery to max ("Wild Cards") and Rating to max ("Loved").
     - *Expectation*: Results shift to high-rated games with < 500 reviews.
-- [ ] **NSFW Blurring**: Toggle "Filter Adult Content" OFF.
-    - *Expectation*: NSFW games appear but are blurred until hovered or clicked.
+- [ ] **NSFW Blurring**: Toggle "Blur NSFW" ON.
+    - *Expectation*: NSFW games appear but header images are blurred. Verify blur state persists between Personalized and Recommender views.
+- [ ] **Profile Filtering**: Load a Taste DNA profile. Toggle the "Filter Profile Games" segmented control.
+    - *Expectation*: 
+        - **None**: Owned games appear in results.
+        - **Rated**: Only games verify-rated in the UI are excluded.
+        - **All**: Every game in the user's Steam library is excluded.
 
 ## 🏷️ Steam Integration (Build 13)
 - [ ] **Card Meta-Links**: Click a Tag or Genre on a game card.
