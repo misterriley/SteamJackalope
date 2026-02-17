@@ -25,7 +25,7 @@ import {
   Anchor
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { searchGames, getMetadata } from '../api';
+import { searchGames, getMetadata, getTermLinks } from '../api';
 
 interface GameVerification {
   appid: number;
@@ -148,6 +148,19 @@ const VerificationTable: React.FC<VerificationTableProps> = ({
 );
 
 const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) => {
+  const [termLinks, setTermLinks] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const fetchLinks = async () => {
+      try {
+        const links = await getTermLinks();
+        setTermLinks(links);
+      } catch (err) {
+        console.error("Failed to fetch term links", err);
+      }
+    };
+    fetchLinks();
+  }, []);
   // Persistence Helper
   const getSaved = () => {
     const saved = sessionStorage.getItem('personalization_state');
@@ -576,7 +589,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                 <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
                   <h3 className="text-lg font-bold flex items-center gap-2"><LineChart size={18} className="text-primary" />Metadata Weights</h3>
                   <div className="space-y-4">
-                    {Object.entries(insights.metadata || {}).map(([key, val]: [string, any]) => (
+                    {Object.entries(insights.metadata || {}).filter(([key]) => key !== 'semantic').map(([key, val]: [string, any]) => (
                       <div key={key} className="space-y-1">
                         <div className="flex justify-between text-xs uppercase tracking-widest font-bold">
                           <span>{key}</span>
@@ -598,9 +611,18 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                       <div className="text-[10px] font-bold uppercase tracking-widest text-green-500">Like...</div>
                       <div className="flex flex-wrap gap-2">
                         {insights.top_tags?.map((t: any) => (
-                          <div key={t.tag} className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500">
-                            {t.tag}
-                          </div>
+                          termLinks[t.tag] ? (
+                            <a 
+                              key={t.tag} href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer"
+                              className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500 hover:bg-green-500/20 transition-colors"
+                            >
+                              {t.tag}
+                            </a>
+                          ) : (
+                            <div key={t.tag} className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500">
+                              {t.tag}
+                            </div>
+                          )
                         ))}
                       </div>
                     </div>
@@ -608,9 +630,18 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                       <div className="text-[10px] font-bold uppercase tracking-widest text-red-500">Dislike...</div>
                       <div className="flex flex-wrap gap-2">
                         {insights.bottom_tags?.map((t: any) => (
-                          <div key={t.tag} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500">
-                            {t.tag}
-                          </div>
+                          termLinks[t.tag] ? (
+                            <a 
+                              key={t.tag} href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer"
+                              className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500 hover:bg-red-500/20 transition-colors"
+                            >
+                              {t.tag}
+                            </a>
+                          ) : (
+                            <div key={t.tag} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500">
+                              {t.tag}
+                            </div>
+                          )
                         ))}
                       </div>
                     </div>

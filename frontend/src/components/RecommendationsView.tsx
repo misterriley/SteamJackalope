@@ -34,12 +34,12 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     const defaults: RecommendationRequest = {
       alpha: 1.0,
       beta: 1.0,
-      quality_pref: 0.5,
-      age_pref: 0.0,
-      pop_pref: 0.0,
+      quality_pref: 4.0,
+      age_pref: 1.4,
+      pop_pref: 1.0,
       disc_pref: 0.0,
-      length_pref: 0.0,
-      difficulty_pref: 0.0,
+      length_pref: 0.25,
+      difficulty_pref: 1.3,
       remove_vr: true,
       english_only: true,
       remove_nsfw: true,
@@ -164,12 +164,12 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     setFilters({
       alpha: 1.0,
       beta: 1.0,
-      quality_pref: 0.5,
-      age_pref: 0.0,
-      pop_pref: 0.0,
+      quality_pref: 4.0,
+      age_pref: 1.4,
+      pop_pref: 1.0,
       disc_pref: 0.0,
-      length_pref: 0.0,
-      difficulty_pref: 0.0,
+      length_pref: 0.25,
+      difficulty_pref: 1.3,
       remove_vr: true,
       english_only: true,
       remove_nsfw: true,
@@ -184,8 +184,8 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   };
 
   const handleRandomizeSliders = () => {
-    const rand = () => parseFloat((Math.random() * 2 - 1).toFixed(1)); // -1.0 to 1.0
-    const randCore = () => parseFloat((Math.random() * 2).toFixed(1)); // 0.0 to 2.0 for alpha/beta
+    const rand = () => parseFloat((Math.random() * 8 - 4).toFixed(1)); // -4.0 to 4.0
+    const randCore = () => parseFloat((Math.random() * 4).toFixed(1)); // 0.0 to 4.0 for alpha/beta
     
     setFilters(prev => ({
       ...prev,
@@ -194,7 +194,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       quality_pref: rand(),
       age_pref: rand(),
       pop_pref: rand(),
-      disc_pref: rand(),
+      disc_pref: 0,
       length_pref: rand(),
       difficulty_pref: rand(),
     }));
@@ -218,20 +218,20 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       return;
     }
 
-    // Apply solved weights (divide by multipliers to get slider positions)
-    // Multipliers from common/constants.py:
-    // Quality: 4.0, Age: 1.4, Pop: 1.0, Length: 0.25, Diff: 1.3
+    const meta = profile.metadata;
     setFilters(prev => ({
       ...prev,
-      quality_pref: parseFloat((profile.metadata.quality / 4.0).toFixed(2)),
-      age_pref: parseFloat((profile.metadata.age / 1.4).toFixed(2)),
-      pop_pref: parseFloat((profile.metadata.popularity / 1.0).toFixed(2)),
-      length_pref: parseFloat((profile.metadata.length / 0.25).toFixed(2)),
-      difficulty_pref: parseFloat((profile.metadata.difficulty / 1.3).toFixed(2)),
+      quality_pref: parseFloat(meta.quality.toFixed(2)),
+      age_pref: parseFloat(meta.age.toFixed(2)),
+      pop_pref: parseFloat(meta.popularity.toFixed(2)),
+      length_pref: parseFloat(meta.length.toFixed(2)),
+      difficulty_pref: parseFloat(meta.difficulty.toFixed(2)),
+      alpha: meta.semantic ?? 1.0,
+      beta: meta.tag_match ?? 1.0,
       vibe_vector: profile.vibe_vector,
-      // Reset alpha/beta to sensible defaults for personalized mode
-      alpha: 1.0,
-      beta: 1.5 
+      metadata_weights: meta,
+      intercept: profile.intercept || 0,
+      disc_pref: meta.discovery ?? 0
     }));
   };
 
@@ -323,7 +323,15 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
               />
               <label htmlFor="trending-random" className="text-xs text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1">
                 <TrendingUp size={12} />
-                Trending
+                <a 
+                  href="https://store.steampowered.com/charts/mostplayed" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="hover:text-primary transition-colors underline decoration-dotted underline-offset-2"
+                >
+                  Trending
+                </a>
               </label>
             </div>
             <div className="text-xs text-muted-foreground italic ml-auto hidden sm:block">

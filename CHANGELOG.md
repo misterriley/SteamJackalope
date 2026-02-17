@@ -2,6 +2,87 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [28] - 2026-02-16
+
+### Added
+- **Interactive Predictive Tags**: Predictive tags in the Taste DNA view are now clickable, linking directly to their validated Steam store pages.
+- **Extended Solver Previews**: Increased the number of "Games You'll Love/Hate" in the personalization view from 20 to 30 items.
+
+### Fixed
+- **Rating Display Calibration**: Predicted ratings in the solver are now clamped to the 0-10 scale, preventing values outside the intuitive range.
+- **Weights UI Cleanup**: Removed the redundant "semantic" entry from the metadata weights display in the personalization view.
+
+## [27] - 2026-02-16
+
+### Fixed
+- **Vanity Name Resolution**: Fixed an infinite polling loop in the personalization engine when using Steam vanity names. The backend now synchronously resolves names to 64-bit SteamIDs before starting the background task, ensuring the frontend polls for the same ID used for file storage.
+
+## [26] - 2026-02-16
+
+### Changed
+- **Expanded Discovery Logging**: The Taste Solver now prints the absolute correlation for **every step** in the discovery grid (21 values), allowing for detailed inspection of the correlation curve.
+
+## [25] - 2026-02-16
+
+### Added
+- **Discovery Debug Logging**: The Taste Solver now prints a "Step-wise Correlation Scan" to the console, showing the absolute correlation for every 10th step of the discovery grid. This provides transparency into how the optimal setting is derived and helps diagnose flat signals.
+
+## [24] - 2026-02-16
+
+### Fixed
+- **Solver NameError**: Fixed a crash in `solve_user_taste.py` where Bayesian variables `s` and `a` were undefined. The solver now correctly uses the precalculated quality grid from the optimal Discovery level for the entire dataset during "Top/Bottom" preview generation.
+
+## [23] - 2026-02-16
+
+### Changed
+- **Refined Discovery Optimization**: The Taste Solver now uses the **maximum absolute correlation** to identify the optimal Discovery level. This ensures that the strongest signal is captured, even for users whose preferences are inversely correlated with global ratings (i.e., preference for "so-bad-it's-good" games).
+
+## [22] - 2026-02-16
+
+### Added
+- **Discovery Optimization**: The Taste DNA Solver now automatically identifies the optimal Discovery setting for each user. It iterates through the quality grid to find the regularization strength that maximizes correlation with the user's provided ratings. This optimal setting is exported and automatically initializes the Discovery slider in the Recommender.
+
+## [21] - 2026-02-16
+
+### Changed
+- **Score De-calibration**: Removed the regression `intercept` from the recommendation engine. While the Taste Solver continues to use the intercept for 1-10 rating prediction, the Recommender now returns purely unitless, relative scores for cleaner ranking.
+
+## [20] - 2026-02-16
+
+### Fixed
+- **Tag Magnitude Double-Scaling**: Resolved a critical 11.28x over-correction bug. Since regression features were already scaled to "Rating Point equivalents," scaling the exported norm again in the UI created a massive mismatch. Sliders and Solver lists now match perfectly.
+- **DNA Import Logic**: Replaced truthy fallbacks (`|| 1.0`) with nullish coalescing (`?? 1.0`) in the frontend to ensure that users who don't care about tags (solved magnitude near 0) aren't forced to a default weight of 1.0.
+
+## [19] - 2026-02-16
+
+### Fixed
+- **Tag Weight Scaling**: Resolved a bug where the solved "Tag Match" magnitude was inversely scaled by the global scaling factor. Sliders now correctly display the absolute rating points importance (Magnitude * 11.283) for the vibe component.
+- **Frontend Fallbacks**: Standardized profile import logic to ensure the solved tag magnitude is used in the slider, preventing hardcoded defaults (1.0 or 1.5) from overriding user DNA.
+
+## [18] - 2026-02-16
+
+### Changed
+- **Unified Absolute Weighting (Rating Points)**: Redesigned the slider system to use absolute rating points rather than relative multipliers. Sliders now represent the direct contribution to the 0-10 predicted rating per standard deviation of a feature.
+- **Import Parity**: Taste DNA profiles now import their solved coefficients directly into the sliders without any transformation, ensuring 100% UI and mathematical parity.
+- **Expanded UI Bounds**: Metadata sliders now range from -5 to 5 (Rating Points), providing consistent "headroom" for both standard and personalized preferences.
+- **Default Calibration**: Standard mode now defaults to established absolute weights (Quality=4.0, Age=1.4, Tags=1.0).
+
+## [17] - 2026-02-16
+
+### Changed
+- **Unified Tag Scoring (Linear Mode)**: Unified the seed-based recommendation path with the Taste DNA solver. Seed games now act as regression coefficients ($\beta_{seed} = V / (\|V\| + \lambda)$), providing 100% mathematical parity between manual seeds and solved DNA profiles.
+- **Eliminated Tag Z-Scoring**: Removed neighborhood-based Z-scoring for the tag component. Tag contributions are now calculated on an absolute rating scale (scaled by 11.283x), ensuring stable rankings that don't drift based on the current result set.
+- **Seed/DNA Blending**: Implemented a robust 50/50 linear blend when both a Personal Taste Profile and manual seed games are provided.
+
+## [16] - 2026-02-16
+
+### Changed
+- **UI Intuition (Labels)**: Renamed "Age" slider and debug labels to "Release Date" across the app (modern React and legacy Streamlit frontends) to improve user intuition.
+- **UI**: Shortened "Release Date Preference" to "Release Date" and updated tooltips to explicitly state that the right side of the slider favors newer games.
+
+### Added
+- **Steam Integration**: Made the "Trending" label in the recommender a direct link to Steam's most played charts while preserving its checkbox functionality.
+
 ## [15] - 2026-02-15
 
 ### Added

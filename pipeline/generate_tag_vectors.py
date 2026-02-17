@@ -517,6 +517,14 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
     with open(output_constants, "w") as f:
         json.dump(reg_constants, f, indent=4)
         
+    # Add parent directory to sys.path
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from common.constants import TAG_NAMES_FILE
+    
+    print(f"Saving master tag list to {TAG_NAMES_FILE}...")
+    with open(TAG_NAMES_FILE, 'w') as f:
+        json.dump(unique_tags, f, indent=4)
+        
     return whitened_vectors, appids
 
 def calculate_dot_product_lambda(vectors):

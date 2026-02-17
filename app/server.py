@@ -470,7 +470,8 @@ async def fetch_user_data(request: UserFetchRequest, background_tasks: Backgroun
     if not input_val:
         raise HTTPException(status_code=400, detail="SteamID is required")
     
-    # Resolve SteamID from URL if necessary
+    # Resolve SteamID from URL or vanity name synchronously
+    # This ensures the frontend and background task use the SAME ID for files/polling.
     steam_id_clean = input_val.rstrip('/')
     if "steamcommunity.com" in input_val:
         profile_match = re.search(r'profiles/(\d+)', input_val)
@@ -481,10 +482,18 @@ async def fetch_user_data(request: UserFetchRequest, background_tasks: Backgroun
             if vanity_match:
                 steam_id_clean = vanity_match.group(1).rstrip('/')
     
-    # If it looks like a vanity name, we'll let the script resolve it, 
-    # but we need a clean string for filenames.
-    # For now, let's assume we want a 17-digit ID if possible for consistent filenames.
-    # The script get_user_stats.py will do the final resolution.
+    # If not numeric, try to resolve as vanity name
+    if not (steam_id_clean.isdigit() and (len(steam_id_clean) == 17 or steam_id_clean.startswith('76'))):
+        from scraping.get_user_stats import resolve_vanity_url
+        logger.info(f"Resolving vanity name: {steam_id_clean}")
+        resolved = resolve_vanity_url(steam_id_clean)
+        if resolved:
+            logger.info(f"Resolved '{steam_id_clean}' to '{resolved}'")
+            steam_id_clean = resolved
+        else:
+            logger.warning(f"Failed to resolve vanity name: {steam_id_clean}")
+            # We'll still proceed and let the script try one more time, 
+            # but usually this means the user entered junk.
     
     # Save review HTML to temp file if provided
     if request.review_html:
@@ -506,13 +515,11 @@ async def fetch_user_data(request: UserFetchRequest, background_tasks: Backgroun
                 logger.error(f"Scraping failed for {sid}: {result.stderr}")
                 return
 
-            # Extract the actual resolved SteamID from output if it was a vanity URL
-            # The script prints "Fetching library for SteamID: [ID]"
+            # Extract the actual resolved SteamID from output just in case
             resolved_id = sid
             match = re.search(r'Fetching library for SteamID: (\d+)', result.stdout)
             if match:
                 resolved_id = match.group(1)
-                logger.info(f"Resolved vanity '{sid}' to '{resolved_id}'")
             
             # 2. Soft Labeling
             logger.info(f"Background: Labeling for {resolved_id}")
@@ -940,51 +947,50 @@ def recommend(request: RecommendationRequest):
                 logger.debug("Used seed-only similarities")
 
     all_tag_sims = np.zeros(len(metadata))
-    is_pure_vibe = False
     if seed_indices.size > 0 or request.vibe_vector:
-        logger.debug("Computing tag similarity...")
+        logger.debug("Computing unified tag scoring (Linear Mode)...")
         
-        if request.vibe_vector and seed_indices.size == 0:
-            # PURE PERSONALIZED PATH: Match the Solver's logic exactly.
-            # Solver uses: V_scaled = (V / (|V| + lambda)) * 11.283
-            # Score = Dot(W, V_scaled) = (Dot(W, V) / (|V| + lambda)) * 11.283
-            is_pure_vibe = True
-            personal_vibe = np.array(request.vibe_vector, dtype=np.float32)
+        # 1. Calculate Seed Beta (if any)
+        # beta_seed = mean( V / (||V|| + lambda) )
+        if seed_indices.size > 0:
+            tag_seed_vectors = data_manager.tag_vectors[seed_indices].astype(np.float32)
+            seed_norms = data_manager.tag_vectors_norms[seed_indices].astype(np.float32)
             
-            dot_products = np.dot(data_manager.tag_vectors, personal_vibe)
-            denom = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
-            
-            all_tag_sims = (dot_products / denom) * TAG_GLOBAL_SCALING_FACTOR
-            logger.info(f"Using globally-scaled personalized dot products. Range: [{all_tag_sims.min():.4f}, {all_tag_sims.max():.4f}]")
+            # Penalized normalization for each seed
+            penalized_seeds = tag_seed_vectors / (seed_norms[:, None] + DOT_PRODUCT_LAMBDA)
+            beta_seed = np.mean(penalized_seeds, axis=0)
         else:
-            # SEED-BASED PATH (includes blended DNA)
-            if seed_indices.size > 0:
-                tag_seed_vectors = data_manager.tag_vectors[seed_indices]
-                combined_tag_query = np.mean(tag_seed_vectors, axis=0)
-                
-                # If a personalized vibe vector is also provided, blend it
-                if request.vibe_vector:
-                    personal_vibe = np.array(request.vibe_vector, dtype=np.float32)
-                    # Normalize both to ensure fair blending
-                    v_mag = np.linalg.norm(personal_vibe)
-                    personal_vibe_norm = personal_vibe / (v_mag if v_mag > EPSILON else 1.0)
-                    
-                    s_mag = np.linalg.norm(combined_tag_query)
-                    seed_vibe_norm = combined_tag_query / (s_mag if s_mag > EPSILON else 1.0)
-                    
-                    combined_tag_query = (personal_vibe_norm + seed_vibe_norm) / 2.0
-            else:
-                # Vibe vector only (fallback, should be handled by pure path above)
-                combined_tag_query = np.array(request.vibe_vector, dtype=np.float32)
-                
-            tag_q_mag = np.linalg.norm(combined_tag_query)
-            
-            dot_products = np.dot(data_manager.tag_vectors, combined_tag_query)
-            denom = (data_manager.tag_vectors_norms * tag_q_mag) + DOT_PRODUCT_LAMBDA
-            denom[denom == 0] = EPSILON
-            
-            all_tag_sims = dot_products / denom
-            logger.info(f"Tag similarities computed: min={all_tag_sims.min():.4f}, max={all_tag_sims.max():.4f}, mean={all_tag_sims.mean():.4f}")
+            beta_seed = None
+
+        # 2. Calculate DNA Beta (if any)
+        # Note: Solver already provides beta solved for SCALED features
+        if request.vibe_vector:
+            beta_dna = np.array(request.vibe_vector, dtype=np.float32)
+        else:
+            beta_dna = None
+
+        # 3. Blend Betas
+        if beta_seed is not None and beta_dna is not None:
+            # If both exist, we blend them. 
+            # Given the request to "import items directly", we treat seeds as temporary DNA override/supplement.
+            # Using 50/50 blend as a robust default for unified scoring.
+            combined_beta = (beta_seed + beta_dna) / 2.0
+            logger.info("Blended Seed Beta and DNA Beta")
+        elif beta_seed is not None:
+            combined_beta = beta_seed
+            logger.info("Using Seed Beta only")
+        else:
+            combined_beta = beta_dna
+            logger.info("Using DNA Beta only")
+
+        # 4. Final Scoring: dot(U_scaled, combined_beta)
+        # U_scaled = (U / (||U|| + lambda)) * TAG_GLOBAL_SCALING_FACTOR
+        # Score = (dot(U, combined_beta) / (||U|| + lambda)) * TAG_GLOBAL_SCALING_FACTOR
+        dot_products = np.dot(data_manager.tag_vectors, combined_beta)
+        denom = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
+        
+        all_tag_sims = (dot_products / denom) * TAG_GLOBAL_SCALING_FACTOR
+        logger.info(f"Unified Tag Scorer: Range=[{all_tag_sims.min():.4f}, {all_tag_sims.max():.4f}]")
 
     semantic_sims = all_semantic_sims[keep_indices]
     tag_sims = all_tag_sims[keep_indices]
@@ -1002,79 +1008,44 @@ def recommend(request: RecommendationRequest):
     z_length = np.clip(metadata.iloc[keep_indices]['playtime_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     z_difficulty = np.clip(metadata.iloc[keep_indices]['difficulty_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
 
-    # 5. Hybrid Scoring
+    # 5. Unified Linear Scoring
+    # All weights (alpha, beta, quality_pref, etc.) are now ABSOLUTE contributions 
+    # (rating points per SD of the feature) to ensure consistent scale between modes.
+    
+    # 5.1 Determine Mode
+    # Intercept is ignored in Recommender mode to keep scores unitless and relative.
     is_linear_mode = request.metadata_weights is not None
     
-    if is_linear_mode:
-        # PURE LINEAR MODE: Use raw regression coefficients (Beta weights)
-        # Match Solver: Score = Intercept + Beta_Q * Q + Beta_Age * Age + ... + Tag_Dot_Scaled
-        # The sliders now act as MULTIPLIERS on the solved weights.
-        w_spps = request.metadata_weights.get('quality', 0) * request.quality_pref * 2.0
-        w_date = request.metadata_weights.get('age', 0) * request.age_pref * 2.0
-        w_pop = request.metadata_weights.get('popularity', 0) * request.pop_pref * 2.0
-        w_length = request.metadata_weights.get('length', 0) * request.length_pref * 2.0
-        w_difficulty = request.metadata_weights.get('difficulty', 0) * request.difficulty_pref * 2.0
-        w_tag = 1.0 * request.beta
-        w_semantic = request.alpha
-        intercept = request.intercept or 0.0
-        
-        logger.info(f"Using LINEAR SCORER mode with intercept {intercept:.4f}")
-    else:
-        # STANDARD HYBRID MODE
-        gamma = QUALITY_WEIGHT_MULTIPLIER * request.quality_pref
-        w_semantic = request.alpha if (request.prompt or seed_appids) else 0.0
-        w_tag = request.beta if (seed_appids or request.vibe_vector) else 0.0
-        w_spps = gamma
-        w_date = AGE_WEIGHT_MULTIPLIER * request.age_pref
-        w_pop = POPULARITY_WEIGHT_MULTIPLIER * request.pop_pref
-        w_length = LENGTH_WEIGHT_MULTIPLIER * request.length_pref
-        w_difficulty = DIFFICULTY_WEIGHT_MULTIPLIER * request.difficulty_pref
-        intercept = 0.0
+    # 5.2 Assign Weights
+    # In both modes, these are now the final absolute weights.
+    w_semantic = request.alpha
+    w_tag = request.beta
+    w_quality = request.quality_pref
+    w_date = request.age_pref
+    w_pop = request.pop_pref
+    w_length = request.length_pref
+    w_difficulty = request.difficulty_pref
 
-    total_weight = (
-        abs(w_semantic) + 
-        abs(w_tag) + 
-        abs(w_spps) + 
-        abs(w_date) + 
-        abs(w_pop) + 
-        abs(w_length) +
-        abs(w_difficulty)
-    )
-
-    logger.debug(f"Weights: semantic={w_semantic:.2f}, tag={w_tag:.2f}, quality={w_spps:.2f}, "
+    logger.debug(f"Weights (Absolute): semantic={w_semantic:.2f}, tag={w_tag:.2f}, quality={w_quality:.2f}, "
                  f"age={w_date:.2f}, pop={w_pop:.2f}, length={w_length:.2f}, difficulty={w_difficulty:.2f}")
 
+    # 5.3 Process Semantic Component (Similarity Match)
+    # Semantic match is still a similarity (0-1), so we Z-score it to put it on the same scale as metadata.
     z_semantic = np.clip(to_z(semantic_sims), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) if (request.prompt or seed_appids) else np.zeros(len(keep_indices))
     
-    if is_pure_vibe or is_linear_mode:
-        # Bypassing Z-scoring for personalized vibes because they are already regression-weighted dot products
-        z_tag = tag_sims
-    else:
-        z_tag = np.clip(to_z(tag_sims, ignore_zeros=True), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) if (seed_appids or request.vibe_vector) else np.zeros(len(keep_indices))
-
-    # Calculate final scores
-    # If linear mode, we don't Z-score the components further (except semantic which is similarity)
-    if is_linear_mode:
-        final_scores = (
-            (z_tag * w_tag) +
-            (z_spps * w_spps) +
-            (z_date * w_date) +
-            (z_pop * w_pop) +
-            (z_length * w_length) +
-            (z_difficulty * w_difficulty) +
-            (z_semantic * w_semantic) +
-            intercept
-        )
-    else:
-        final_scores = calculate_hybrid_score(
-            z_semantic, w_semantic,
-            z_tag, w_tag,
-            z_spps, w_spps,
-            z_date, w_date,
-            z_pop, w_pop,
-            z_length, w_length,
-            z_difficulty, w_difficulty
-        )
+    # 5.4 Unified Scoring Formula
+    # Match Solver / Recommender: Score = sum(Weight_i * Feature_i)
+    # We remove the Intercept here to keep recommendation scores unitless and relative.
+    
+    final_scores = (
+        (z_semantic * w_semantic) +
+        (tag_sims * w_tag) +
+        (z_spps * w_quality) +
+        (z_date * w_date) +
+        (z_pop * w_pop) +
+        (z_length * w_length) +
+        (z_difficulty * w_difficulty)
+    )
 
     logger.debug(f"Final scores: min={final_scores.min():.3f}, max={final_scores.max():.3f}, mean={final_scores.mean():.3f}")
 
@@ -1087,8 +1058,10 @@ def recommend(request: RecommendationRequest):
         logger.debug(f"Excluded {seeds_excluded} seed games from results")
 
     # 6. Sorting and Result Formatting
+    total_weight = abs(w_semantic) + abs(w_tag) + abs(w_quality) + abs(w_date) + abs(w_pop) + abs(w_length) + abs(w_difficulty)
+    
     if total_weight < EPSILON:
-        # All weights zero: all non-seed scores equal (0). Return alphabetical order.
+        # All weights zero: alphabetical fallback
         if seed_appids:
             non_seed_mask = ~seed_mask
         else:
@@ -1098,29 +1071,76 @@ def recommend(request: RecommendationRequest):
             non_seed_names = meta_filt['name'].fillna("").values[non_seed_mask]
             sorted_name_positions = positions[np.argsort(non_seed_names)]
             top_indices = sorted_name_positions[:request.top_k]
-            if len(top_indices) > 0:
-                top_game = meta_filt.iloc[top_indices[0]]
-                logger.info(f"Top recommendation (alphabetical): {top_game['name']}")
         else:
             top_indices = []
-            logger.warning("No non-seed candidates for alphabetical fallback")
     else:
         num_to_extract = min(len(final_scores), request.top_k * TOP_K_SORT_MULTIPLIER)
-        logger.info(f"Extracting top {request.top_k} from {num_to_extract} candidates")
-        
         if num_to_extract > 0:
             partitioned_indices = np.argpartition(-final_scores, num_to_extract-1)[:num_to_extract]
             subset_scores = final_scores[partitioned_indices]
             subset_names = meta_filt['name'].fillna("").values[partitioned_indices]
             subset_sorted_indices = np.lexsort((subset_names, -subset_scores))
             top_indices = partitioned_indices[subset_sorted_indices[:request.top_k]]
-            
-            if len(top_indices) > 0:
-                top_game = meta_filt.iloc[top_indices[0]]
-                logger.info(f"Top recommendation: {top_game['name']} (score={final_scores[top_indices[0]]:.3f})")
         else:
             top_indices = []
-            logger.warning("No candidates to return")
+
+    results = meta_filt.iloc[top_indices].copy()
+    
+    response_items = []
+    
+    for i, idx in enumerate(top_indices):
+        game_meta = results.iloc[i]
+        
+        raw_pop = game_meta['positive'] + game_meta['negative']
+        raw_length = game_meta['estimated_playtime'] / 60.0
+        
+        desc = ""
+        if 'short_description' in game_meta and pd.notna(game_meta['short_description']):
+            desc = str(game_meta['short_description'])
+        
+        item = {
+            "appid": int(game_meta['appid']),
+            "name": str(game_meta['name']),
+            "release_date": str(game_meta['release_date']),
+            "short_description": desc,
+            "release_year": int(game_meta['release_year']) if pd.notna(game_meta['release_year']) else 0,
+            "estimated_playtime": float(game_meta['estimated_playtime']) if pd.notna(game_meta['estimated_playtime']) else 0.0,
+            "difficulty_predicted": float(game_meta['difficulty_predicted']) if pd.notna(game_meta['difficulty_predicted']) else 0.0,
+            "positive": int(game_meta['positive']),
+            "negative": int(game_meta['negative']),
+            "genres": game_meta['genres'], 
+            "tags": game_meta['tags'],     
+            "is_nsfw": bool(game_meta['is_nsfw']),
+            
+            "weighted_score": float(final_scores[idx]),
+            "semantic_match": float(semantic_sims[idx]),
+            "tag_match": float(tag_sims[idx]),
+            "rating": float(z_spps[idx]), 
+            
+            "z_semantic": float(z_semantic[idx]),
+            "w_semantic": float(w_semantic),
+            "z_tag": float(tag_sims[idx]), # tag_sims IS the linear feature
+            "w_tag": float(w_tag),
+            "z_spps": float(z_spps[idx]),
+            "w_spps": float(w_quality),
+            "z_date": float(z_date[idx]),
+            "w_date": float(w_date),
+            "z_pop": float(z_pop[idx]),
+            "w_pop": float(w_pop),
+            "z_length": float(z_length[idx]),
+            "w_length": float(w_length),
+            "z_difficulty": float(z_difficulty[idx]),
+            "w_difficulty": float(w_difficulty),
+            
+            "raw_date": int(game_meta['release_year']) if pd.notna(game_meta['release_year']) else 0,
+            "raw_pop": int(raw_pop),
+            "raw_length": float(raw_length),
+            "raw_difficulty": float(game_meta['difficulty_predicted']) if pd.notna(game_meta['difficulty_predicted']) else 0.0
+        }
+        response_items.append(item)
+        
+    logger.info(f"/recommend returning {len(response_items)} results")
+    return response_items
 
     results = meta_filt.iloc[top_indices].copy()
     

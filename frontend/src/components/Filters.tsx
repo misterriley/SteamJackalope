@@ -211,30 +211,30 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
           <Slider 
             label="Semantic (Prompt)" 
             value={filters.alpha} 
-            min={0} max={2} step={0.1} 
+            min={0} max={5} step={0.1} 
             onChange={(v: number) => handleChange('alpha', v)}
-            tooltip="How much to weight the text prompt or seed game descriptions."
+            tooltip="Absolute points contributed by the text prompt match."
           />
           <Slider 
-            label="Tags (Seed Games)" 
+            label="Tag Match (Vibes)" 
             value={filters.beta} 
-            min={0} max={2} step={0.1} 
+            min={0} max={5} step={0.1} 
             onChange={(v: number) => handleChange('beta', v)}
-            tooltip="How much to weight game tags from seed games."
+            tooltip="Absolute points contributed by the tag vector match (Seeds/DNA)."
           />
           <Slider 
             label="Quality" 
             value={filters.quality_pref} 
-            min={-1} max={1} step={0.1} 
+            min={-5} max={5} step={0.1} 
             onChange={(v: number) => handleChange('quality_pref', v)}
-            tooltip="Weight for reviews and rating quality."
+            tooltip="Absolute points per SD of Bayesian Quality score."
           />
           <Slider 
             label="Discovery" 
             value={filters.disc_pref} 
             min={-1} max={1} step={0.1} 
             onChange={(v: number) => handleChange('disc_pref', v)}
-            tooltip="Negative = Popular/Safe, Positive = Hidden Gems/Niche."
+            tooltip="Controls Bayesian regularization strength (Low = Safe, High = Niche)."
           />
         </div>
 
@@ -243,30 +243,30 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
           <Slider 
             label="Popularity" 
             value={filters.pop_pref} 
-            min={-1} max={1} step={0.1} 
+            min={-5} max={5} step={0.1} 
             onChange={(v: number) => handleChange('pop_pref', v)}
-            tooltip="Negative = Niche titles, Positive = Blockbusters."
+            tooltip="Points per SD of Review Count."
           />
           <Slider 
-            label="Age" 
+            label="Release Date" 
             value={filters.age_pref} 
-            min={-1} max={1} step={0.1} 
+            min={-5} max={5} step={0.1} 
             onChange={(v: number) => handleChange('age_pref', v)}
-            tooltip="Negative = Classic, Positive = Recent."
+            tooltip="Points per SD of Release Date."
           />
           <Slider 
             label="Length" 
             value={filters.length_pref} 
-            min={-1} max={1} step={0.1} 
+            min={-5} max={5} step={0.1} 
             onChange={(v: number) => handleChange('length_pref', v)}
-            tooltip="Negative = Short sessions, Positive = Long epics."
+            tooltip="Points per SD of Estimated Playtime."
           />
           <Slider 
             label="Difficulty" 
             value={filters.difficulty_pref} 
-            min={-1} max={1} step={0.1} 
+            min={-5} max={5} step={0.1} 
             onChange={(v: number) => handleChange('difficulty_pref', v)}
-            tooltip="Negative = Relaxing, Positive = Challenging."
+            tooltip="Points per SD of Predicted Difficulty."
           />
         </div>
 

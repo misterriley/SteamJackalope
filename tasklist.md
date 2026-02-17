@@ -7,19 +7,15 @@
 
 ### Recently Completed
 
+- [x] **UI Intuition (Labels)**: Renamed "Age" slider to "Release Date" across the app (modern and legacy) to improve user intuition.
+- [x] **Steam Integration**: Made the "Trending" label a direct link to Steam's most played charts while preserving checkbox functionality.
 - [x] **Unified Personalized Engine**: Unified the Taste DNA Solver and Discovery Engine into a single mathematical system. Implemented **Linear Scorer Mode**, **Penalized Normalization**, and **Global Scaling (11.28x)** for 100% ranking consistency.
 - [x] **UI Robustness & Recovery**: Added a global **ErrorBoundary**, **Reset App** safety button, and hardened all slider/parsing logic against null/NaN values. Fixed the 'white screen of death' random failure state.
 - [x] **Analyze My Catalogue (Phase 1-3)**: Implemented data acquisition, soft-labeling, verification UI, and regression-based DNA solving. 
 
 ### Bugs (work on these first)
 
-- [ ] "Age" is counterintuitive as a label for the slider on the page - I keep thinking that to the right = higher age = weighting toward older games. Let's rename the slider to "Release Date", which makes it more intuitive with the slider direction.  
-
 ### Next Priority
-
-- [ ] The "Trending" label (next to the checkbox), when clicked on, should open a tab to the most played games list for Steam: https://store.steampowered.com/charts/mostplayed. This should happen only when the text is clicked - the box itself should work as a standard checkbox. 
-
-### Market Research Sprint: User Agency & Visuals
 **⚠️ MANDATORY POLISH CONSTRAINT**: DO NOT start these tasks until the current Unified Personalized Engine (Build 15) is confirmed 100% bug-free, stable, and mathematically perfect in all edge cases.
 
 #### Phase 1: High Impact / Low Effort (The "Agency Update")

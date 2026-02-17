@@ -47,36 +47,30 @@ function App() {
     if (!profile) return;
 
     try {
-      // 1. Pre-calculate filter positions from profile weights
+      // 1. Get current filters
       const savedFiltersStr = sessionStorage.getItem('recommendations_filters');
       let filters = savedFiltersStr ? JSON.parse(savedFiltersStr) : {};
       
-      // 2. Safely extract metadata and vibe
+      // 2. Extract metadata and vibe
       const metadata = profile.metadata || {};
       const vibeVector = (profile.vibe_vector || []).map((v: any) => v || 0);
-      const squaredSum = vibeVector.reduce((acc: number, val: number) => acc + (val * val || 0), 0);
-      let vibeNorm = Math.sqrt(squaredSum);
-      
-      if (isNaN(vibeNorm)) vibeNorm = 0;
-
-      console.log("Calculated Beta Weight (Vibe Norm):", vibeNorm);
 
       const newFilters = {
         ...filters,
-        // In Linear Mode, sliders act as multipliers on the solved weights.
-        // 0.5 = 100% of solved weight, 0.0 = 0%, 1.0 = 200%.
-        quality_pref: 0.5,
-        age_pref: 0.5,
-        pop_pref: 0.5,
-        length_pref: 0.5,
-        difficulty_pref: 0.5,
+        // Direct Translation: Sliders = Absolute Weights
+        quality_pref: metadata.quality || 0,
+        age_pref: metadata.age || 0,
+        pop_pref: metadata.popularity || 0,
+        length_pref: metadata.length || 0,
+        difficulty_pref: metadata.difficulty || 0,
         
         vibe_vector: vibeVector,
         intercept: profile.intercept || 0,
         metadata_weights: metadata,
         
-        alpha: 1.0,
-        beta: 1.0 
+        alpha: metadata.semantic ?? 1.0,
+        beta: metadata.tag_match ?? 1.0,
+        disc_pref: metadata.discovery ?? 0
       };
 
       console.log("New Filters Prepared:", newFilters);
@@ -88,7 +82,7 @@ function App() {
       setAppliedProfile(profile);
       setActiveTab('recommend');
     } catch (err) {
-      console.error("Failed to apply profile:", err);
+      console.error("Failed to apply taste profile:", err);
       alert("Failed to apply taste profile. See console for details.");
     }
   };

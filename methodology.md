@@ -82,9 +82,9 @@ Steam games do not natively have a "Difficulty" rating. To solve this, we built 
 
 The final recommendation list is generated as a hybrid, blending normalized components:
 
-1.  **Semantic Match:** Similarity between the natural language prompt and game text.
+1.  **Semantic Match:** Similarity between the natural language prompt and game text. This component is Z-scored to maintain a consistent scale relative to other features.
 
-2.  **Tag Match:** Similarity between the latent tag vectors. When z-scoring this component, we ignore games with 0 similarity to avoid biasing the distribution by the large number of games with no tag overlap.
+2.  **Tag Match:** Similarity between the latent tag vectors. In Build 16, this was unified with the Linear Scorer model. Every game $V$ used as a seed provides a set of regression coefficients $\beta_{seed} = V / (\|V\| + \lambda)$. The contribution is calculated as the penalized dot product $Score = (U \cdot \beta_{seed} / (\|U\| + \lambda)) \cdot 11.283$. This component is no longer Z-scored, as it operates on an absolute 0-10 rating scale calibrated to the user's taste.
 
 3.  **Quality Score:** Preference for loved vs. hated games, smoothed by the Discovery setting.
 

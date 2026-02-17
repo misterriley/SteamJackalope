@@ -19,7 +19,8 @@ from common.constants import (
     GLOBAL_POSITIVE_RATE,
     W_TAG_FILE,
     DOT_PRODUCT_LAMBDA,
-    TAG_GLOBAL_SCALING_FACTOR
+    TAG_GLOBAL_SCALING_FACTOR,
+    TAG_NAMES_FILE
 )
 
 def solve_user_taste(ground_truth_path, output_path=None):
@@ -63,15 +64,34 @@ def solve_user_taste(ground_truth_path, output_path=None):
         found_mask = [aid in appid_to_idx for aid in user_appids]
         y = y[found_mask]
         
-    # Calculate Global Q for these games
-    p = full_metadata.iloc[user_indices]['positive'].fillna(0).values
-    n = full_metadata.iloc[user_indices]['negative'].fillna(0).values
-    s = QUALITY_SCORE_S_CONST
-    a = GLOBAL_POSITIVE_RATE
-    prob = (p + s * a) / (p + n + s)
-    prob = np.clip(prob, 1e-6, 1 - 1e-6)
-    q_global = norm.ppf(prob)
+    # --- DISCOVERY OPTIMIZATION ---
+    # Find the optimal Discovery setting by maximizing correlation with user ratings
+    print("Optimizing Discovery setting...")
+    quality_grid = np.load(os.path.join(ROOT_DIR, "data", "production", "quality_scores_grid.npy"), mmap_mode='r')
+    num_steps = quality_grid.shape[0]
     
+    correlations = []
+    print("Step-wise Correlation Scan:")
+    for i in range(num_steps):
+        q_step = quality_grid[i][user_indices]
+        # Calculate Pearson correlation
+        if np.std(q_step) > 1e-9 and np.std(y) > 1e-9:
+            corr = np.corrcoef(q_step, y)[0, 1]
+        else:
+            corr = 0.0
+        correlations.append(corr)
+        
+        # Log every step
+        step_disc = (i / (num_steps - 1)) * 2.0 - 1.0
+        print(f"  - Step {i:2d} (Disc {step_disc:+.2f}): Absolute Correlation = {abs(corr):.4f}")
+    
+    best_idx = np.argmax(np.abs(correlations))
+    # Map index back to -1.0 to 1.0
+    optimal_disc_pref = (best_idx / (num_steps - 1)) * 2.0 - 1.0
+    q_global = quality_grid[best_idx][user_indices]
+    
+    print(f"Optimal Discovery: {optimal_disc_pref:+.3f} (Max Absolute Correlation: {correlations[best_idx]:.4f})")
+
     # Load Tag Vectors (128-dim)
     tag_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
     user_tag_features = tag_vectors[user_indices]
@@ -119,25 +139,38 @@ def solve_user_taste(ground_truth_path, output_path=None):
     print("Projecting coefficients back to original tag space...")
     tag_coeffs_whitened = coeffs[5:] # Skip quality + 4 metadata
     
+    # Calculate Tag Norm and Unit Vector for the Recommender
+    tag_norm = np.linalg.norm(tag_coeffs_whitened)
+    
+    if tag_norm > 1e-9:
+        vibe_vector_unit = (tag_coeffs_whitened / tag_norm).tolist()
+    else:
+        vibe_vector_unit = tag_coeffs_whitened.tolist()
+
     # Load whitening matrix W (original_tags x whitened_dim)
     W = np.load(W_TAG_FILE)
     
     # Project: beta_original = W * beta_whitened
     tag_weights_original = np.dot(W, tag_coeffs_whitened)
     
-    # Get tag names from metadata (same logic as generate_tag_vectors.py)
-    print("Extracting tag names for display...")
-    full_metadata_tags = pd.read_parquet(METADATA_FILE, columns=['tags'])
-    global_tags = set()
-    for tag_str in full_metadata_tags['tags']:
-        if pd.isna(tag_str) or tag_str == '' or tag_str == '[]': continue
-        try:
-            tags_dict = ast.literal_eval(tag_str)
-            if isinstance(tags_dict, dict):
-                global_tags.update(tags_dict.keys())
-        except: continue
-    
-    unique_tags = sorted(list(global_tags))
+    # Load Master Tag List for stable indexing
+    if os.path.exists(TAG_NAMES_FILE):
+        print(f"Loading master tag list from {TAG_NAMES_FILE}...")
+        with open(TAG_NAMES_FILE, 'r') as f:
+            unique_tags = json.load(f)
+    else:
+        print(f"Warning: {TAG_NAMES_FILE} not found. Falling back to metadata scan (UNSTABLE).")
+        # Fallback to metadata scan
+        full_metadata_tags = pd.read_parquet(METADATA_FILE, columns=['tags'])
+        global_tags = set()
+        for tag_str in full_metadata_tags['tags']:
+            if pd.isna(tag_str) or tag_str == '' or tag_str == '[]': continue
+            try:
+                tags_dict = ast.literal_eval(tag_str)
+                if isinstance(tags_dict, dict):
+                    global_tags.update(tags_dict.keys())
+            except: continue
+        unique_tags = sorted(list(global_tags))
     
     if len(unique_tags) != len(tag_weights_original):
         print(f"Warning: Tag count mismatch! Names: {len(unique_tags)}, Weights: {len(tag_weights_original)}")
@@ -196,11 +229,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Scoring: Final Score = X_full_whitened * coeffs + intercept
     meta_features_full = full_metadata[meta_cols].values
     
-    # We need Global Q for everyone
-    p_all = full_metadata['positive'].fillna(0).values
-    n_all = full_metadata['negative'].fillna(0).values
-    prob_all = (p_all + s * a) / (p_all + n_all + s)
-    q_all = norm.ppf(np.clip(prob_all, 1e-6, 1 - 1e-6))
+    # Use the precalculated quality scores from the optimal discovery level for everyone
+    q_all = quality_grid[best_idx]
     
     # Apply Penalized Norm and Global Scaling to ALL vectors
     all_norms = np.linalg.norm(all_vectors, axis=1, keepdims=True)
@@ -211,18 +241,20 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     # Predict directly using coefficients (Beta * Z + Intercept)
     scores = np.dot(X_full, coeffs) + intercept
+    # Clamp to 0-10 scale for display
+    scores = np.clip(scores, 0, 10)
     
     # Mask known games for top
     top_scores = scores.copy()
     top_scores[known_indices] = -1e12
-    top_indices = np.argsort(-top_scores)[:20]
+    top_indices = np.argsort(-top_scores)[:30]
     top_games = full_metadata.iloc[top_indices][['appid', 'name']].copy()
     top_games['predicted_rating'] = top_scores[top_indices]
     
     # Mask known games for bottom
     bottom_scores = scores.copy()
     bottom_scores[known_indices] = 1e12
-    bottom_indices = np.argsort(bottom_scores)[:20]
+    bottom_indices = np.argsort(bottom_scores)[:30]
     bottom_games = full_metadata.iloc[bottom_indices][['appid', 'name']].copy()
     bottom_games['predicted_rating'] = bottom_scores[bottom_indices]
     
@@ -233,9 +265,12 @@ def solve_user_taste(ground_truth_path, output_path=None):
             'age': float(coeffs[1]),
             'popularity': float(coeffs[2]),
             'length': float(coeffs[3]),
-            'difficulty': float(coeffs[4])
+            'difficulty': float(coeffs[4]),
+            'tag_match': float(tag_norm),
+            'semantic': 1.0, # Default semantic weight
+            'discovery': float(optimal_disc_pref)
         },
-        'vibe_vector': coeffs[5:].tolist(),
+        'vibe_vector': vibe_vector_unit,
         'intercept': float(intercept),
         'alpha': float(model.alpha_),
         'r2': float(model.score(X, y)),

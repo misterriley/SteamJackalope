@@ -51,7 +51,7 @@ def render_lists_page():
     st.header("Project Insights & Rankings")
     st.write("Explore the extremes of the Steam library through curated lists.")
 
-    list_tabs = st.tabs(["Quality", "Length", "Popularity", "Age", "Difficulty", "Similarity"])
+    list_tabs = st.tabs(["Quality", "Length", "Popularity", "Release Date", "Difficulty", "Similarity"])
 
     with list_tabs[0]:
         st.subheader("Top & Bottom Games by Quality")
