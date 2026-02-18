@@ -17,8 +17,40 @@ from common.constants import (
     REG_PLAYTIME_REVIEWS_THRESHOLD,
     REG_PLAYTIME_SAFETY_FACTOR,
     REG_PLAYTIME_C_MIN,
-    REG_PLAYTIME_C_MAX
+    REG_PLAYTIME_C_MAX,
+    QUALITY_SCORE_S_CONST
 )
+
+from scipy.stats import norm
+
+def calculate_rating_anchors(df, s, a):
+    """
+    Calculates mapping coefficients m and c to map Probit scores to 0-10 ratings.
+    Anchors are derived from the theoretical absolute extremes of the current dataset.
+    """
+    p = df['positive'].fillna(0).values
+    n = df['negative'].fillna(0).values
+    
+    # Calculate Probit Q for all games
+    prob = (p + s * a) / (p + n + s)
+    q = norm.ppf(np.clip(prob, 1e-6, 1-1e-6))
+    
+    q_max = np.max(q)
+    q_min = np.min(q)
+    
+    # Calculate Hard Labels (Personalized Q) for the absolute extremes
+    # p+ = 1 for the best theoretical experience
+    q_pers_max = q_max + norm.pdf(q_max) / norm.cdf(q_max)
+    # p+ = 0 for the worst theoretical experience
+    q_pers_min = q_min - norm.pdf(q_min) / norm.sf(q_min)
+    
+    # Solve for Rating = m * Q_pers + c
+    # 10 = m * q_pers_max + c
+    # 0 = m * q_pers_min + c
+    m = 10.0 / (q_pers_max - q_pers_min)
+    c = -m * q_pers_min
+    
+    return float(m), float(c)
 
 def calculate_global_positive_rate(df):
     """
@@ -274,27 +306,34 @@ def main():
     print(f"Loading {args.csv} for regularization calculation...")
     df = pd.read_csv(args.csv, low_memory=False)
     
+    # Load existing constants to preserve them
     constants_dict = {}
+    if os.path.exists(args.output):
+        try:
+            with open(args.output, "r") as f:
+                constants_dict = json.load(f)
+        except:
+            pass
     
     constants_dict["GLOBAL_POSITIVE_RATE"] = calculate_global_positive_rate(df)
     print(f"Calculated GLOBAL_POSITIVE_RATE: {constants_dict['GLOBAL_POSITIVE_RATE']:.4f}")
     
     # TAG_VECTOR_K is now calculated in generate_tag_vectors.py using Iterative EM Imputation
-    # We set a placeholder or load existing, but generate_tag_vectors.py acts as the source of truth.
-    if os.path.exists(args.output):
-        try:
-            with open(args.output, "r") as f:
-                existing = json.load(f)
-                constants_dict["TAG_VECTOR_K"] = existing.get("TAG_VECTOR_K", 100.0)
-        except:
-            constants_dict["TAG_VECTOR_K"] = 100.0
-    else:
+    if "TAG_VECTOR_K" not in constants_dict:
         constants_dict["TAG_VECTOR_K"] = 100.0
         
     print(f"Using placeholder/existing TAG_VECTOR_K: {constants_dict['TAG_VECTOR_K']:.4f} (will be optimized in generate_tag_vectors.py)")
     
     constants_dict["PLAYTIME_REGULARIZATION_C"] = solve_playtime_regularization(args.reviews)
     print(f"Calculated PLAYTIME_REGULARIZATION_C: {constants_dict['PLAYTIME_REGULARIZATION_C']:.4f}")
+    
+    # Calculate Rating Anchors (m and c)
+    s = QUALITY_SCORE_S_CONST
+    a = constants_dict["GLOBAL_POSITIVE_RATE"]
+    m, c = calculate_rating_anchors(df, s, a)
+    constants_dict["QUALITY_TO_RATING_SLOPE"] = m
+    constants_dict["QUALITY_TO_RATING_INTERCEPT"] = c
+    print(f"Calculated Rating Anchors: m={m:.6f}, c={c:.6f}")
     
     print(f"Saving constants to {args.output}...")
     with open(args.output, "w") as f:

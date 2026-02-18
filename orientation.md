@@ -61,11 +61,15 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
     - **LASSO Regression:** The solver uses **LASSO Regression** to identify the sparse subset of tags and metadata that truly define a user's taste, automatically setting irrelevant features to zero.
     - **Adaptive Saturation:** Tag dimensionality scales dynamically with library size ($K = \text{clip}(N-6, 1, 243)$), ensuring high fidelity for power users while maintaining stability for new libraries.
     - **Unified Pathway:** Both the Solver's preview and the Recommender's rankings utilize the exact same `calculate_linear_scores` logic in `common/utils.py`, achieving 100% bit-perfect parity between profile training and recommendation output.
+    - **Absolute Slider Control:** Build 39 refactored the UI so that sliders directly represent the solved absolute weights, allowing for transparent fine-tuning without "squaring" or multiplier confusion.
 - **Frontend Features:** The modern frontend includes real-time filtering, clickable tag/genre links to Steam, weight contribution visualization, and **NSFW Blurring**. 
 - **Profile Filtering:** Users can toggle between three exclusion modes: **None**, **Rated** (exclude games verify-rated in the UI), or **All** (exclude every game in their Steam library).
 - **Verification:** Automated tests are handled via `run_all_tests.bat`. Manual verification of UI and discovery features is documented in `QA.md`.
 - **Networking:** `127.0.0.1` is preferred over `localhost` for local backend connectivity on Windows to avoid latency and connection issues.
-- **Tool Usage Constraints**: When using `run_shell_command` in this environment, avoid using the `&&` operator to chain commands as it may cause parsing errors in PowerShell. Execute commands sequentially instead.
+- **Tool Usage Constraints**: 
+    - When using `run_shell_command` in this environment (PowerShell), avoid using the `&&` operator to chain commands as it will cause a `ParserError`. Execute commands sequentially instead.
+    - Many data artifacts (`.npy`, `.parquet`) are memory-mapped by the server. If a script fails to update them with a "Permission Denied" or "File in Use" error, the FastAPI server MUST be stopped first.
+    - Large files read via `read_file` will be truncated. Use `offset` and `limit` to paginate through long files like `server.py` or large CSVs.
 - **Memory Footprint Optimization**: The backend server is optimized for efficiency to support standard cloud deployment.
     - **Memory Mapping**: All large NumPy arrays (`embeddings_desc.npy`, `embeddings_structural.npy`, `tag_vectors`, `quality_grid`) now utilize `mmap_mode='r'`. This allows the OS to page data in and out as needed, keeping the active Resident Set Size (RSS) low.
     - **Pre-Normalization**: Semantic embeddings are pre-normalized to unit length.

@@ -57,20 +57,50 @@ function App() {
   }, []);
 
   const handleApplyProfile = (profile: any) => {
-    console.log("Applying Profile:", profile);
-    if (!profile) return;
+    console.log("!!! APP: Applying Profile START !!!", profile);
+    if (!profile) {
+      console.error("Apply Profile called with null profile");
+      return;
+    }
 
     try {
-      // 1. Get current filters
+      // 1. Get current filters or defaults
       const savedFiltersStr = sessionStorage.getItem('recommendations_filters');
-      let filters = savedFiltersStr ? JSON.parse(savedFiltersStr) : {};
+      const defaults = {
+        alpha: 1.0,
+        beta: 1.0,
+        quality_pref: 1.0,
+        age_pref: 0.0,
+        pop_pref: 0.0,
+        disc_pref: 0.0,
+        length_pref: 0.0,
+        difficulty_pref: 0.0,
+        remove_vr: true,
+        english_only: true,
+        remove_nsfw: true,
+        remove_utilities: true,
+        remove_unreleased: true,
+        top_k: 30,
+        prompt: '',
+        seed_games: [],
+        genres: [],
+        debug: false,
+        profile_filter: 'none',
+        library_appids: [],
+        rated_appids: []
+      };
+      
+      let currentFilters = savedFiltersStr ? { ...defaults, ...JSON.parse(savedFiltersStr) } : defaults;
       
       // 2. Extract metadata and vibe
-      const metadata = profile.metadata || {};
+      const meta = profile.metadata || {};
       const vibeVector = (profile.vibe_vector || []).map((v: any) => v || 0);
 
+      console.log("!!! APP: Metadata Keys !!!", Object.keys(meta));
+      console.log("!!! APP: Metadata Values !!!", meta);
+
       const newFilters = {
-        ...filters,
+        ...currentFilters,
         // RESET interfering filters to match solver's "clean" environment
         genres: [],
         seed_games: [],
@@ -83,26 +113,27 @@ function App() {
         remove_utilities: true,
         remove_unreleased: true,
 
-        // Direct Translation: Sliders = Absolute Weights
-        quality_pref: metadata.quality ?? 0,
-        age_pref: metadata.age ?? 0,
-        pop_pref: metadata.popularity ?? 0,
-        length_pref: metadata.length ?? 0,
-        difficulty_pref: metadata.difficulty ?? 0,
+        // Direct Mapping
+        quality_pref: meta.quality ?? 1.0,
+        age_pref: meta.age ?? 0.0,
+        pop_pref: meta.popularity ?? 0.0,
+        length_pref: meta.length ?? 0.0,
+        difficulty_pref: meta.difficulty ?? 0.0,
+        alpha: meta.semantic ?? 1.0,
+        beta: meta.tag_match ?? 1.0,
         
+        // State
         vibe_vector: vibeVector,
         intercept: profile.intercept || 0,
-        metadata_weights: metadata,
+        metadata_weights: meta,
+        disc_pref: meta.discovery ?? 0,
         
-        alpha: metadata.semantic ?? 1.0,
-        beta: metadata.tag_match ?? 1.0,
-        disc_pref: metadata.discovery ?? 0,
-        
+        profile_filter: 'all',
         library_appids: profile.library_appids || [],
         rated_appids: profile.rated_appids || []
       };
 
-      console.log("New Filters Prepared:", newFilters);
+      console.log("!!! APP: Final Filter Payload !!!", newFilters);
 
       // 4. Persist to session storage so RecommendationsView picks it up on mount
       sessionStorage.setItem('recommendations_filters', JSON.stringify(newFilters));
@@ -110,8 +141,9 @@ function App() {
       // 5. Update global state and switch tab
       setAppliedProfile(profile);
       setActiveTab('recommend');
+      console.log("!!! APP: State Updated and Tab Switched !!!");
     } catch (err) {
-      console.error("Failed to apply taste profile:", err);
+      console.error("!!! APP: Failed to apply taste profile !!!", err);
       alert("Failed to apply taste profile. See console for details.");
     }
   };

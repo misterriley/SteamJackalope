@@ -25,7 +25,9 @@ from common.constants import (
     TAG_PRIOR_COUNTS_FILE,
     TAG_PRIOR_TRANSFORMED_FILE,
     ADAPTIVE_DNA_BASE_K,
-    ADAPTIVE_DNA_SLOPE
+    ADAPTIVE_DNA_SLOPE,
+    DIFFICULTY_NEUTRAL_FALLBACK,
+    DNA_UI_SCALING_FACTOR
 )
 
 def solve_user_taste(ground_truth_path, output_path=None):
@@ -143,7 +145,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     # --- STABILIZATION: Add a dummy game ---
     dummy_X = np.zeros((1, X.shape[1]))
-    dummy_y = np.array([5.0])
+    dummy_y = np.array([DIFFICULTY_NEUTRAL_FALLBACK])
     X = np.vstack([X, dummy_X])
     y = np.append(y, dummy_y)
     
@@ -302,25 +304,40 @@ def solve_user_taste(ground_truth_path, output_path=None):
         north_stars = pd.DataFrame()
         abyssal_games = pd.DataFrame()
 
-    # --- TOP & BOTTOM RECOMMENDATIONS ---
-    print("Generating top and bottom recommendations based on solved profile (unified pathway)...")
-    # Using unified scoring utility for bit-perfect parity with Recommender
-    from common.utils import calculate_linear_scores
-    
-    # Restore absolute tag coefficients
-    beta_tag_absolute = tag_coeffs_full
-    
-    # Define weights dictionary for utility
-    meta_weights = {
+    # --- WEIGHT SCALING (Slider Real Estate) ---
+    # We scale metadata weights so the largest absolute value is DNA_UI_SCALING_FACTOR.
+    # This preserves ranking order but makes better use of the UI slider range.
+    weights_to_scale = {
         'quality': float(coeffs[0]),
         'age': float(coeffs[1]),
         'popularity': float(coeffs[2]),
         'length': float(coeffs[3]),
-        'difficulty': float(coeffs[4])
+        'difficulty': float(coeffs[4]),
+        'tag_match': float(tag_norm),
+        'semantic': 1.0  # Default base semantic weight
     }
     
+    max_abs_weight = max(abs(v) for v in weights_to_scale.values())
+    scaling_factor = DNA_UI_SCALING_FACTOR / max_abs_weight if max_abs_weight > 1e-6 else 1.0
+    
+    scaled_metadata = {k: v * scaling_factor for k, v in weights_to_scale.items()}
+    # Keep discovery separate (do not scale)
+    scaled_metadata['discovery'] = float(optimal_disc_pref)
+    
+    # Scale intercept to maintain relative signal-to-bias ratio for the preview scores
+    scaled_intercept = float(intercept) * scaling_factor
+
+    # --- TOP & BOTTOM RECOMMENDATIONS ---
+    print("Generating top and bottom recommendations based on solved profile (unified pathway)...")
+    # Using unified scoring utility for bit-perfect parity with Recommender
+    # We use the SCALED weights and divide by DNA_UI_SCALING_FACTOR to ensure 
+    # identical numerical treatment as the server.
+    from common.utils import calculate_linear_scores
+    
+    # Construct scaled tag beta
+    beta_tag_scaled = (tag_coeffs_full / tag_norm * scaled_metadata['tag_match']) if tag_norm > 1e-9 else tag_coeffs_full
+    
     # Predict directly using unified function
-    # Note: Quality grid is already loaded as quality_grid
     all_tag_norms = np.load(TAG_NORMS_FILE, mmap_mode='r')
     
     scores = calculate_linear_scores(
@@ -331,13 +348,14 @@ def solve_user_taste(ground_truth_path, output_path=None):
         z_difficulty=full_metadata['difficulty_z'].values,
         tag_vectors=all_vectors,
         tag_norms=all_tag_norms,
-        beta_tag=beta_tag_absolute,
-        weights=meta_weights,
-        intercept=intercept,
+        beta_tag=beta_tag_scaled,
+        weights=scaled_metadata,
+        intercept=scaled_intercept,
         tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
         dot_product_lambda=DOT_PRODUCT_LAMBDA,
         z_clamp_min=Z_SCORE_CLAMP_MIN,
-        z_clamp_max=Z_SCORE_CLAMP_MAX
+        z_clamp_max=Z_SCORE_CLAMP_MAX,
+        dna_scaling_factor=DNA_UI_SCALING_FACTOR
     )
     
     # Clamp to 0-10 scale for display
@@ -384,29 +402,6 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     bottom_games = full_metadata.iloc[bottom_indices][['appid', 'name']].copy()
     bottom_games['predicted_rating'] = bottom_scores[bottom_indices]
-    
-    # --- WEIGHT SCALING (Slider Real Estate) ---
-    # We scale metadata weights so the largest absolute value is 3.0.
-    # This preserves ranking order but makes better use of the UI slider range.
-    weights_to_scale = {
-        'quality': float(coeffs[0]),
-        'age': float(coeffs[1]),
-        'popularity': float(coeffs[2]),
-        'length': float(coeffs[3]),
-        'difficulty': float(coeffs[4]),
-        'tag_match': float(tag_norm),
-        'semantic': 1.0  # Default base semantic weight
-    }
-    
-    max_abs_weight = max(abs(v) for v in weights_to_scale.values())
-    scaling_factor = 3.0 / max_abs_weight if max_abs_weight > 1e-6 else 1.0
-    
-    scaled_metadata = {k: v * scaling_factor for k, v in weights_to_scale.items()}
-    # Keep discovery separate (do not scale)
-    scaled_metadata['discovery'] = float(optimal_disc_pref)
-    
-    # Scale intercept to maintain relative signal-to-bias ratio for the preview scores
-    scaled_intercept = float(intercept) * scaling_factor
 
     # Map back to feature names
     weights = {
@@ -425,18 +420,25 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'bottom_recommendations': bottom_games.to_dict(orient='records')
     }
 
-    # Clean NaN values for JSON safety
-    def clean_nan(obj):
+    # Clean NaN values and NumPy types for JSON safety
+    def clean_json_types(obj):
         if isinstance(obj, dict):
-            return {k: clean_nan(v) for k, v in obj.items()}
+            return {k: clean_json_types(v) for k, v in obj.items()}
         elif isinstance(obj, list):
-            return [clean_nan(v) for v in obj]
-        elif isinstance(obj, float):
+            return [clean_json_types(v) for v in obj]
+        elif isinstance(obj, (np.int64, np.int32, np.int16, np.int8)):
+            return int(obj)
+        elif isinstance(obj, (np.float64, np.float32, np.float16)):
             if np.isnan(obj) or np.isinf(obj):
                 return None
+            return float(obj)
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        elif pd.isna(obj):
+            return None
         return obj
 
-    weights = clean_nan(weights)
+    weights = clean_json_types(weights)
     
     # Print Summary
     print("\n--- Solved Slider Weights ---")

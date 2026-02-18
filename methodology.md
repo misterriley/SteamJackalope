@@ -162,11 +162,13 @@ To ensure perfect alignment between a user's library analysis and their discover
 
 - **Portable Beta Weights:** By removing user-specific scaling, the DNA Solver learns **Beta Weights** that are directly portable. These weights represent the absolute importance of each feature (e.g., "how many rating points is one unit of Difficulty worth to this specific user?").
 
-- **Direct Execution:** When a Taste Profile is applied, the Recommendation Engine switches into **Linear Mode**. Instead of using internal biases, it calculates the final Match Score by directly running the user's solved regression model: $\text{Match Score} = \text{Intercept} + \sum (\beta_i \cdot x_i)$. 
+- **Direct Execution:** When a Taste Profile is applied, the Recommendation Engine switches into **Linear Mode**. Instead of using internal biases, it calculates the final Match Score by directly running the user's solved regression model: $\text{Match Score} = (\text{Intercept} + \sum (\beta_i \cdot x_i)) / 3.0$. 
 
-- **Predictive Sliders:** In this mode, the UI sliders transition from absolute biases to **Multipliers**. A slider at 0.5 uses the solved DNA weight exactly (100%), while 0.0 ignores the preference and 1.0 doubles its impact. This allows users to fine-tune their DNA in real-time.
+- **Absolute Sliders:** In this mode, the UI sliders represent the **Absolute Weights** of the solved DNA profile. A user can directly see and adjust the solved coefficients (e.g., "Quality weight = 2.5"). Moving a slider updates the profile's baseline in real-time, allowing for intuitive and transparent fine-tuning of the "Taste DNA."
 
-- **Predicted Ratings:** Because the math is unified, the "Match Score" displayed on game cards becomes a calibrated **Predicted 0-10 Rating** for that game, ensuring that the "Games You'll Love" list in the analyzer and the Recommendation results are always mathematically identical.
+- **Predicted Ratings:** Because the math is unified and utilizes a global scaling factor (3.0), the "Match Score" displayed on game cards becomes a calibrated **Predicted 0-10 Rating** for that game. This ensures bit-perfect parity between the "Games You'll Love" list in the analyzer and the Recommender results.
+
+- **Numerical Stability:** To prevent precision-based ranking swaps, the unified scoring path utilizes explicit **float32** casting for all vector operations and tag normalization.
 
 ## 13. Robust Personalization (Build 36)
 

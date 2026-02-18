@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 import argparse
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from common.constants import DIFFICULTY_PREDICTIONS_FILE
+from common.constants import DIFFICULTY_PREDICTIONS_FILE, DIFFICULTY_NEUTRAL_FALLBACK
 
 # Roman to Arabic numeral mapping
 ROMAN_MAP = {
@@ -229,9 +229,9 @@ def main():
         intercept = reg_final.intercept_
         coefs = reg_final.coef_
     else:
-        print("Insufficient training data. Using default prediction (5.0).")
+        print(f"Insufficient training data. Using default prediction ({DIFFICULTY_NEUTRAL_FALLBACK}).")
         selected = []
-        intercept = 5.0
+        intercept = DIFFICULTY_NEUTRAL_FALLBACK
         coefs = []
     
     print("Step 5: Saving Predictions...")

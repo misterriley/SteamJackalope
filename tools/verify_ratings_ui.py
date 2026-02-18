@@ -7,7 +7,7 @@ import sys
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from common.constants import ROOT_DIR
+from common.constants import ROOT_DIR, QUALITY_TO_RATING_SLOPE, QUALITY_TO_RATING_INTERCEPT
 
 st.set_page_config(page_title="Steam Jackalope - Verify Ratings", layout="wide")
 
@@ -128,7 +128,7 @@ for idx, row in subset.iterrows():
     user_review = row.get('user_review_text', "")
     
     # Calculate Global Rating on 0-10 scale
-    global_rating = int(np.clip(np.round(3.277190 + 3.008809 * global_q), 0, 10))
+    global_rating = int(np.clip(np.round(QUALITY_TO_RATING_INTERCEPT + QUALITY_TO_RATING_SLOPE * global_q), 0, 10))
     
     # Master Values
     current_rating = int(st.session_state['master_ratings'].get(appid, pred_rating))

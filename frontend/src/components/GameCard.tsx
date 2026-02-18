@@ -167,6 +167,13 @@ const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, i
           {game.release_year}
         </div>
 
+        {/* Price Label */}
+        {game.price && (
+          <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-white border border-white/20 z-10">
+            {game.price}
+          </div>
+        )}
+
         {/* Seed Badge */}
         {isSeed && (
           <div className="absolute top-2 left-2 bg-primary px-2 py-1 rounded text-[10px] font-bold text-primary-foreground shadow-lg z-10 flex items-center gap-1 uppercase tracking-wider">

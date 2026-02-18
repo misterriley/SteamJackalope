@@ -8,7 +8,7 @@ from tqdm import tqdm
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from common.constants import PLAYTIME_REGULARIZATION_C, DIFFICULTY_PREDICTIONS_FILE, METADATA_FILE
+from common.constants import PLAYTIME_REGULARIZATION_C, DIFFICULTY_PREDICTIONS_FILE, METADATA_FILE, DIFFICULTY_NEUTRAL_FALLBACK
 from common.utils import to_z
 
 def clean_release_date(date_str):
@@ -242,7 +242,7 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
             # Exclude 'name' to avoid collision
             diff_cols = [c for c in diff_df.columns if c != 'name']
             df = df.merge(diff_df[diff_cols], on='appid', how='left')
-            df['difficulty_predicted'] = df['difficulty_predicted'].fillna(3.0) # Neutral fallback
+            df['difficulty_predicted'] = df['difficulty_predicted'].fillna(DIFFICULTY_NEUTRAL_FALLBACK) # Neutral fallback
             
             # Identify games with valid tags for z-score calculation
             # Games with blank tag lists are ignored to prevent skewing the distribution
@@ -258,22 +258,35 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
                 df['difficulty_z'] = 0.0
         except Exception as e:
             print(f"Warning: Failed to integrate difficulty predictions: {e}")
-            df['difficulty_predicted'] = 3.0
+            df['difficulty_predicted'] = DIFFICULTY_NEUTRAL_FALLBACK
             df['difficulty_z'] = 0.0
     else:
         print("Warning: difficulty_predictions.csv not found. Using defaults.")
-        df['difficulty_predicted'] = 3.0
+        df['difficulty_predicted'] = DIFFICULTY_NEUTRAL_FALLBACK
         df['difficulty_z'] = 0.0
 
     print("Saving metadata to metadata.parquet...")
     # Ensure all required columns exist (including dynamic contribution columns)
-    required_cols = ['appid', 'name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 'final_release_date', 'positive', 'negative', 'mature_content', 'date_z', 'pop_z', 'median_playtime', 'playtime_z', 'estimated_playtime', 'release_year', 'difficulty_predicted', 'difficulty_z', 'intercept', 'difficulty_predicted_raw']
+    required_cols = ['appid', 'name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 'final_release_date', 'positive', 'negative', 'mature_content', 'price', 'date_z', 'pop_z', 'median_playtime', 'playtime_z', 'estimated_playtime', 'release_year', 'difficulty_predicted', 'difficulty_z', 'intercept', 'difficulty_predicted_raw']
     # Add contribution columns if they exist
     contrib_cols = [c for c in df.columns if c.startswith('contrib_')]
     required_cols.extend(contrib_cols)
     
     available_cols = [c for c in required_cols if c in df.columns]
     metadata_df = df[available_cols].copy()
+    
+    # Ensure string columns are actually strings (preventing 'double' inference for empty columns)
+    string_cols = ['name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 'price', 'final_release_date']
+    for col in string_cols:
+        if col in metadata_df.columns:
+            metadata_df[col] = metadata_df[col].fillna('').astype(str)
+
+    # Ensure numeric columns don't have NaNs which force them to double/float
+    int_cols = ['appid', 'positive', 'negative', 'mature_content', 'release_year']
+    for col in int_cols:
+        if col in metadata_df.columns:
+            metadata_df[col] = pd.to_numeric(metadata_df[col], errors='coerce').fillna(0).astype(np.int64)
+
     metadata_df.rename(columns={'final_release_date': 'release_date'}, inplace=True)
     metadata_df.to_parquet(output_path, compression='snappy')
     print(f"Metadata saved to {output_path}")

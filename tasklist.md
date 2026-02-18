@@ -7,32 +7,18 @@
 
 ### Recently Completed
 
-- [x] **Unified Scoring Pathway (Build 40)**: Consolidated personalization math into `common/utils.py`. Both the Solver and Recommender now use the exact same code path for Taste DNA scoring, eliminating implementation drift.
-- [x] **Solver/Recommender Parity Sync (Build 39)**: Achieved 100% mathematical and environmental parity by fixing discovery mapping, restoring DNA scaling, implementating NSFW filters, and unifying preprocessing (clamping).
-- [x] **Solver/Recommender Synchronization (Build 38)**: Achieved 100% ranking parity by unifying the feature space (Raw Z-Scores) and implementing a "Pure Linear Mode" in the backend that directly utilizes solver coefficients and intercepts.
-- [x] **LASSO DNA Solver (Build 37)**: Switched the personalization engine to use LassoCV with K=N-6 dimensionality, enabling sparse, high-fidelity taste profiles that outperform Ridge in predictive stability.
-- [x] **Solver/Recommender Synchronization (Build 37)**: Achieved 100% ranking parity between library analysis and discovery by synchronizing Z-score clamping, lexicographical sorting, and tag normalization logic.
-- [x] **Smooth Adaptive DNA (Build 36)**: Implemented a linear complexity function ($K = 40 + 0.7 \times N$) to organically scale Taste DNA fidelity with library size.
-- [x] **Adaptive DNA Dimensionality (Build 35)**: Implemented dynamic feature scaling based on library size to prevent overfitting.
-- [x] **Predictive Tag Sanity Check (Build 34)**: Implemented support-based filtering in `solve_user_taste.py` to eliminate statistical aliasing (phantom tags) from the DNA view.
-- [x] **Whitening Optimization**: Re-calibrated the tag pipeline to a 95% variance threshold for improved regularization.
-- [x] **Windows File Locking Fix (Build 33)**: Resolved persistent `OSError [Errno 22]` and `PermissionError` in the data pipeline by implementing a robust rename-and-replace strategy for `.npy` artifacts.
-- [x] **Pipeline Stability**: Fixed `NameError` and `ImportError` in tag vector generation; restored missing `whiten` function and centralized `calculate_dot_product_lambda`.
-- [x] **Robust Artifact Saving**: Implemented a "temp-and-move" strategy (`safe_save_npy`) for all pipeline artifacts to resolve Windows file locking errors when the FastAPI server is active.
-- [x] **Tag List Recovery**: Resolved a mismatch between the tag whitening matrix and the master tag name list, ensuring correct predictive tag mapping.
-- [x] **DNA Solver Refinement**: Increased the ridge regression alpha range to $10^{-2}-10^{6}$ to ensure optimal regularization is captured for all user profiles.
-- [x] **Inclusive Personalization**: Removed the "minimum review playtime" filter from soft-labeling, allowing all games with positive playtime to contribute to taste DNA.
-- [x] **Tag Space Stabilization**: Fixed misaligned predictive tags by ensuring `tag_names.json` is always saved and introducing explicit prior anchors (`tag_prior_counts.npy`, `tag_prior_transformed.npy`).
-- [x] **UI Intuition (Labels)**: Renamed "Age" slider to "Release Date" across the app (modern and legacy) to improve user intuition.
-- [x] **Steam Integration**: Made the "Trending" label a direct link to Steam's most played charts while preserving checkbox functionality.
-- [x] **Unified Personalized Engine**: Unified the Taste DNA Solver and Discovery Engine into a single mathematical system. Implemented **Linear Scorer Mode**, **Penalized Normalization**, and **Global Scaling (11.28x)** for 100% ranking consistency.
-- [x] **UI Robustness & Recovery**: Added a global **ErrorBoundary**, **Reset App** safety button, and hardened all slider/parsing logic against null/NaN values.
-- [x] **Analyze My Catalogue (Phase 1-3)**: Implemented data acquisition, soft-labeling, verification UI, and regression-based DNA solving.
+- [x] **Bit-Perfect Parity**: Achieved perfect scoring agreement between the Taste DNA solver and the Recommender by unifying the scoring path in `common/utils.py`.
+- [x] **Absolute Slider Logic**: Refactored `server.py` and `App.tsx` so sliders act as absolute weights in both DNA and standard modes, eliminating the "squaring bug" and multiplier confusion.
+- [x] **Profile Exclusion**: Updated `App.tsx` to set `profile_filter: 'all'` by default when applying a profile, ensuring library games are automatically excluded from the "Love List" in the recommender.
+- [x] **Robust Error Handling**: Added extensive logging and type-checking to the profile application pipeline to prevent metadata-related crashes and UI drift.
+- [x] **Dota 2 Searchability**: Verified AppID 570 presence and ensured searching for "Dota" or "Dota 2" works correctly.
 
 ### Bugs (work on these first)
 
+- [ ] No need for adding the coefficient in the recommender page. Scale the end result so that the maximum value for the largest slider is +3 or -3. 
+- [ ] Games You'll love isn't filtering out added games
+
 ### Next Priority
-**⚠️ MANDATORY POLISH CONSTRAINT**: DO NOT start these tasks until the current Unified Personalized Engine (Build 15) is confirmed 100% bug-free, stable, and mathematically perfect in all edge cases.
 
 #### Phase 1: High Impact / Low Effort (The "Agency Update")
 - [ ] **Visual Previews**: Implement "Hover-to-Play" gameplay clips in `GameCard` using the `movies` metadata.

@@ -14,7 +14,9 @@ from common.constants import (
     QUALITY_SCORE_S_CONST,
     PLAYTIME_SENTIMENT_GAMMA,
     PLAYTIME_SENTIMENT_S,
-    METADATA_FILE
+    METADATA_FILE,
+    QUALITY_TO_RATING_SLOPE,
+    QUALITY_TO_RATING_INTERCEPT
 )
 from common.utils import calculate_personalized_quality
 from research.analyze_playtime_sentiment import estimate_ppp_vectorized
@@ -134,7 +136,7 @@ def generate_soft_labels(user_library_path, reviews_path='scraped_reviews.csv', 
         personalized_q = calculate_personalized_quality(np.array([q_global]), np.array([p_plus_t]))[0]
         
         # 4. Map to 0-10 scale using calibrated anchors
-        rating = 3.277190 + 3.008809 * personalized_q
+        rating = QUALITY_TO_RATING_INTERCEPT + QUALITY_TO_RATING_SLOPE * personalized_q
         rating = int(np.clip(np.round(rating), 0, 10))
         
         results.append({

@@ -509,6 +509,12 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
     from common.utils import calculate_dot_product_lambda
     lambda_val = calculate_dot_product_lambda(whitened_vectors)
     
+    # Calculate TAG_GLOBAL_SCALING_FACTOR
+    # This is the mean norm of the whitened vectors, used to scale tag contributions
+    # to be comparable with z-scores (variance ~1.0).
+    tag_scaling_factor = float(np.mean(tag_norms))
+    print(f"Calculated TAG_GLOBAL_SCALING_FACTOR: {tag_scaling_factor:.4f}")
+    
     # Save Constants
     reg_constants = {}
     if os.path.exists(output_constants):
@@ -520,6 +526,7 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
             
     reg_constants["TAG_VECTOR_K"] = float(K)
     reg_constants["DOT_PRODUCT_LAMBDA"] = float(lambda_val)
+    reg_constants["TAG_GLOBAL_SCALING_FACTOR"] = tag_scaling_factor
     
     print(f"Saving constants to {output_constants}...")
     with open(output_constants, "w") as f:

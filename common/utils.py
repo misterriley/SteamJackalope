@@ -46,7 +46,8 @@ def calculate_linear_scores(
     tag_scaling_factor, 
     dot_product_lambda,
     z_clamp_min, 
-    z_clamp_max
+    z_clamp_max,
+    dna_scaling_factor=1.0
 ):
     """
     Unified linear scoring function for Taste DNA parity.
@@ -61,9 +62,9 @@ def calculate_linear_scores(
     
     # 2. Tag Scoring: dot(U / (||U|| + lambda) * Scale, beta_absolute)
     # beta_tag should already be the absolute coefficient vector (unit * tag_match_norm)
-    dot_products = np.dot(tag_vectors, beta_tag)
+    dot_products = np.dot(tag_vectors.astype(np.float32), beta_tag.astype(np.float32))
     # Ensure tag_norms is a vector matching tag_vectors length
-    denom = tag_norms.reshape(-1) + dot_product_lambda
+    denom = tag_norms.astype(np.float32).reshape(-1) + dot_product_lambda
     tag_contrib = (dot_products / denom) * tag_scaling_factor
     
     # 3. Summation: Intercept + sum(beta_i * feature_i)
@@ -76,7 +77,7 @@ def calculate_linear_scores(
         tag_contrib +
         intercept
     )
-    return scores
+    return scores / dna_scaling_factor
 
 def calculate_hybrid_score(
     z_semantic, w_semantic,

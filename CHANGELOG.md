@@ -2,6 +2,17 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [39] - 2026-02-17
+### Build 39
+### Version 0.0.1-pre-alpha.39
+
+- **Algorithm**: Achieved **bit-perfect parity** between Taste DNA solver and Recommender by unifying the scoring path in `common/utils.py`.
+- **Algorithm**: Implemented **Absolute Slider Logic** across the entire stack, eliminating the "squaring bug" and multiplier confusion. Sliders now directly represent solved weights.
+- **Algorithm**: Enhanced numerical stability with explicit `float32` casting during linear scoring to prevent precision-based ranking swaps.
+- **UI/UX**: Refactored profile application in `App.tsx` to correctly map metadata weights to sliders and automatically enable **All-Profile Filtering**.
+- **Stability**: Added extensive **Trace Logging** to both frontend and backend to monitor DNA profile data flow and vector integrity.
+- **Data**: Verified **Dota 2 (AppID 570)** searchability and metadata integrity.
+
 ## [38] - 2026-02-17
 ### Build 38
 ### Version 0.0.1-pre-alpha.38

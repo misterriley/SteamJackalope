@@ -60,16 +60,31 @@ if os.path.exists(REGULARIZATION_FILE):
             GLOBAL_POSITIVE_RATE = reg_data.get("GLOBAL_POSITIVE_RATE", 0.8)
             DOT_PRODUCT_LAMBDA = reg_data.get("DOT_PRODUCT_LAMBDA", 0.1)
             PLAYTIME_REGULARIZATION_C = reg_data.get("PLAYTIME_REGULARIZATION_C", 0.781171)
+            TAG_GLOBAL_SCALING_FACTOR = reg_data.get("TAG_GLOBAL_SCALING_FACTOR", 11.283)
+            QUALITY_TO_RATING_SLOPE = reg_data.get("QUALITY_TO_RATING_SLOPE", 3.008809)
+            QUALITY_TO_RATING_INTERCEPT = reg_data.get("QUALITY_TO_RATING_INTERCEPT", 3.277190)
     except:
         TAG_VECTOR_K = 100.0
         GLOBAL_POSITIVE_RATE = 0.8
         DOT_PRODUCT_LAMBDA = 0.5
         PLAYTIME_REGULARIZATION_C = 0.781171
+        TAG_GLOBAL_SCALING_FACTOR = 11.283
+        QUALITY_TO_RATING_SLOPE = 3.008809
+        QUALITY_TO_RATING_INTERCEPT = 3.277190
 else:
     TAG_VECTOR_K = 100.0
     GLOBAL_POSITIVE_RATE = 0.8
     DOT_PRODUCT_LAMBDA = 0.5
     PLAYTIME_REGULARIZATION_C = 0.781171
+    TAG_GLOBAL_SCALING_FACTOR = 11.283
+    QUALITY_TO_RATING_SLOPE = 3.008809
+    QUALITY_TO_RATING_INTERCEPT = 3.277190
+
+# Difficulty Model Constants
+DIFFICULTY_NEUTRAL_FALLBACK = 5.0
+
+# User Taste DNA Constants
+DNA_UI_SCALING_FACTOR = 3.0
 
 # Globally optimized playtime sentiment parameters
 PLAYTIME_SENTIMENT_GAMMA = 0.688395
@@ -91,7 +106,6 @@ CHI_FIT_NORM_THRESHOLD = 5.0
 CHI_FIT_PERCENTILE = 0.95
 USE_TAG_WHITENING = True
 TAG_TRANSFORM_TYPE = 'clr' # 'anscombe', or 'clr', or 'none
-TAG_GLOBAL_SCALING_FACTOR = 11.283 # Multiplier to bring tag variance to ~1.0
 
 # Adaptive DNA Complexity (Linear Scaling)
 # Formula: K = clamp(BASE + SLOPE * N_ratings, BASE, MAX)
@@ -278,7 +292,3 @@ SEMANTIC_PROMPT_SEED_BLEND = 0.5 # 50% prompt, 50% seeds for semantic vector
 MODEL_NAME = 'all-MiniLM-L6-v2'
 SENTENCE_TRANSFORMER_BACKEND = 'onnx'
 SENTENCE_TRANSFORMER_MODEL_KWARGS = {"file_name": "onnx/model_quint8_avx2.onnx"}
-
-# NSFW Definitions
-NSFW_TAGS = ['sexual content', 'nudity', 'nsfw', 'hentai', 'mature', 'adult only']
-NSFW_NAME_PATTERNS = [r'\b18\+\b', 'uncensored', 'adult only']

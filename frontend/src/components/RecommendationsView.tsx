@@ -59,14 +59,19 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        console.log("RecommendationsView: Initializing filters from sessionStorage", parsed);
         return { ...defaults, ...parsed };
-      } catch (e) {}
+      } catch (e) {
+        console.error("RecommendationsView: Failed to parse saved filters", e);
+      }
     }
+    console.log("RecommendationsView: Initializing filters with defaults");
     return defaults;
   });
 
   // Save filters to session storage
   useEffect(() => {
+    console.log("RecommendationsView: Persisting filters to sessionStorage", filters);
     sessionStorage.setItem('recommendations_filters', JSON.stringify(filters));
   }, [filters]);
 
@@ -238,19 +243,26 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     }
 
     const meta = profile.metadata || {};
+    const vibeVector = (profile.vibe_vector || []).map((v: any) => v || 0);
+    
+    console.log("RecommendationsView: Manual Profile Upload", profile);
+
     setFilters(prev => ({
       ...prev,
-      quality_pref: parseFloat((meta.quality ?? 0).toFixed(2)),
-      age_pref: parseFloat((meta.age ?? 0).toFixed(2)),
-      pop_pref: parseFloat((meta.popularity ?? 0).toFixed(2)),
-      length_pref: parseFloat((meta.length ?? 0).toFixed(2)),
-      difficulty_pref: parseFloat((meta.difficulty ?? 0).toFixed(2)),
-      alpha: meta.semantic ?? 1.0,
-      beta: meta.tag_match ?? 1.0,
-      vibe_vector: profile.vibe_vector,
+      quality_pref: typeof meta.quality === 'number' ? meta.quality : 1.0,
+      age_pref: typeof meta.age === 'number' ? meta.age : 0.0,
+      pop_pref: typeof meta.popularity === 'number' ? meta.popularity : 0.0,
+      length_pref: typeof meta.length === 'number' ? meta.length : 0.0,
+      difficulty_pref: typeof meta.difficulty === 'number' ? meta.difficulty : 0.0,
+      alpha: typeof meta.semantic === 'number' ? meta.semantic : 1.0,
+      beta: typeof meta.tag_match === 'number' ? meta.tag_match : 1.0,
+      
+      vibe_vector: vibeVector,
       metadata_weights: meta,
       intercept: profile.intercept || 0,
-      disc_pref: meta.discovery ?? 0,
+      disc_pref: typeof meta.discovery === 'number' ? meta.discovery : 0,
+      
+      profile_filter: 'all',
       library_appids: profile.library_appids || [],
       rated_appids: profile.rated_appids || []
     }));

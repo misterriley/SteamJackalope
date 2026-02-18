@@ -78,7 +78,7 @@ class TestEMPipeline(unittest.TestCase):
         K = 100.0
         
         # apply_tag_transform expects original_total_votes as (N,)
-        anscombe = apply_tag_transform(self.counts_dense, G_prior, self.original_votes, K, transform_type='anscombe')
+        anscombe, _ = apply_tag_transform(self.counts_dense, G_prior, self.original_votes, K, transform_type='anscombe')
         self.assertEqual(anscombe.shape, (self.num_games, self.num_tags))
         
         # Whiten

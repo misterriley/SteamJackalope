@@ -10,6 +10,7 @@ export interface GameMetadata {
   negative: number;
   genres: string;
   tags: string;
+  price?: string;
   is_nsfw?: boolean;
   raw_pop?: number;
   raw_length?: number;
