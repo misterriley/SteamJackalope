@@ -54,7 +54,6 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       seed_games: [],
       genres: [],
       tags: [],
-      debug: false,
       profile_filter: 'none',
       library_appids: [],
       rated_appids: []
@@ -166,8 +165,8 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   // Auto-update effect with debouncing
   useEffect(() => {
     // Define which filters are 'significant' (require a backend re-score)
-    // remove_nsfw (Blur) and debug (Contributions) only affect local rendering.
-    const { remove_nsfw, debug, ...significantFilters } = filters;
+    // remove_nsfw (Blur) only affects local rendering.
+    const { remove_nsfw, ...significantFilters } = filters;
     const sigStr = JSON.stringify(significantFilters);
 
     // Immediate search on mount
@@ -212,7 +211,6 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       seed_games: [],
       genres: [],
       tags: [],
-      debug: false,
       profile_filter: 'none',
       library_appids: [],
       rated_appids: []
@@ -464,7 +462,6 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
                   >
                     <GameCard 
                       game={game} 
-                      debugMode={false} 
                       hideNSFW={filters.remove_nsfw}
                       isSeed={true}
                       termLinks={termLinks}
@@ -483,7 +480,6 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
                   >
                     <GameCard 
                       game={game} 
-                      debugMode={filters.debug} 
                       hideNSFW={filters.remove_nsfw} 
                       termLinks={termLinks}
                     />

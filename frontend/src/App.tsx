@@ -87,7 +87,6 @@ function App() {
         seed_games: [],
         genres: [],
         tags: [],
-        debug: false,
         profile_filter: 'none',
         library_appids: [],
         rated_appids: []

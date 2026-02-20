@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import type { GameMetadata } from '../types';
-import { Star, Clock, Trophy, ExternalLink, ImageOff, Bug, AlertTriangle, Sparkles } from 'lucide-react';
+import { Star, Clock, Trophy, ExternalLink, Bug, AlertTriangle, Sparkles } from 'lucide-react';
 
 interface GameCardProps {
   game: GameMetadata;
-  debugMode?: boolean;
   hideNSFW?: boolean;
   isSeed?: boolean;
   termLinks?: Record<string, string>;
 }
 
-const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, isSeed = false, termLinks = {} }) => {
+const GameCard: React.FC<GameCardProps> = ({ game, hideNSFW = true, isSeed = false, termLinks = {} }) => {
   const [imgError, setImgError] = useState(false);
   const steamUrl = `https://store.steampowered.com/app/${game.appid}/`;
   const headerUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`;

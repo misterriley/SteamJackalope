@@ -64,7 +64,6 @@ export interface RecommendationRequest {
   seed_games: string[];
   genres: string[];
   tags: string[];
-  debug?: boolean;
   vibe_vector?: number[];
   metadata_weights?: Record<string, number>;
   intercept?: number;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sparkles, BarChart2, UserCheck, Search, BookOpen, Info } from 'lucide-react';
-import { TabType } from './Layout';
+import type { TabType } from './Layout';
 
 interface SplashViewProps {
   onTabChange: (tab: TabType) => void;
