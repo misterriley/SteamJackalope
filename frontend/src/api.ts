@@ -19,6 +19,11 @@ export const getTags = async (): Promise<string[]> => {
   return response.data;
 };
 
+export const getTagDimensions = async (): Promise<Record<string, any>> => {
+  const response = await api.get('/tag_dimensions');
+  return response.data;
+};
+
 export const getTermLinks = async (): Promise<Record<string, string>> => {
   const response = await api.get('/term_links');
   return response.data;

@@ -198,21 +198,28 @@ def solve_user_taste(ground_truth_path, output_path=None):
     full_coeffs[:6] = coeffs[:6] # Quality + Metadata
     full_coeffs[6:] = tag_coeffs_full
     
-    # Calculate Tag Norm and Unit Vector for the Recommender (using padded full vector)
-    tag_norm = np.linalg.norm(tag_coeffs_full)
+    # --- TAG DIMENSIONS ANALYSIS ---
+    # Find the top 5 predictive dimensions from the whitened coefficients
+    # These are dimensions that have the largest absolute weights in the LASSO model
+    print("Extracting top predictive dimensions...")
+    dim_impacts = []
+    for i, w in enumerate(tag_coeffs_adaptive):
+        if abs(w) > 1e-9:
+            dim_impacts.append({
+                'index': i,
+                'weight': float(w),
+                'abs_weight': abs(float(w))
+            })
     
-    if tag_norm > 1e-9:
-        vibe_vector_unit = (tag_coeffs_full / tag_norm).tolist()
+    # Sort by absolute weight descending
+    dim_impacts = sorted(dim_impacts, key=lambda x: x['abs_weight'], reverse=True)
+    
+    # Take top 5 or just positive if sparse (as requested)
+    if len(dim_impacts) < 5:
+        top_dims = [d for d in dim_impacts if d['weight'] > 0]
     else:
-        vibe_vector_unit = tag_coeffs_full.tolist()
+        top_dims = dim_impacts[:5]
 
-    # Load whitening matrix W (original_tags x whitened_dim)
-    W = np.load(W_TAG_FILE)
-    
-    # Project: beta_original = W * beta_whitened
-    # Using the full padded vector ensures we multiply by the correct columns of W
-    tag_weights_original = np.dot(W, tag_coeffs_full)
-    
     # Load Master Tag List for stable indexing
     if os.path.exists(TAG_NAMES_FILE):
         print(f"Loading master tag list from {TAG_NAMES_FILE}...")
@@ -233,13 +240,6 @@ def solve_user_taste(ground_truth_path, output_path=None):
                         global_tags.update(tags_dict.keys())
             except: continue
         unique_tags = sorted(list(global_tags))
-    
-    if len(unique_tags) != len(tag_weights_original):
-        print(f"Warning: Tag count mismatch! Names: {len(unique_tags)}, Weights: {len(tag_weights_original)}")
-        # Truncate or pad to match (shouldn't happen if dataset is synced)
-        min_len = min(len(unique_tags), len(tag_weights_original))
-        unique_tags = unique_tags[:min_len]
-        tag_weights_original = tag_weights_original[:min_len]
 
     # --- SANITY CHECK: Support-Based Filtering ---
     # We calculate how many games in the user's library actually contain each tag.
@@ -264,7 +264,76 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # For now, N=1 is sufficient to kill "bogus" associations.
     SUPPORT_THRESHOLD = 1
     support_mask = tag_support >= SUPPORT_THRESHOLD
+    supported_tag_set = set([unique_tags[i] for i in range(len(unique_tags)) if support_mask[i]])
+
+    # Load dimension descriptions to filter their tags
+    desc_path = os.path.join(ROOT_DIR, "data", "production", "tag_dimension_descriptions.json")
+    dim_descriptions = {}
+    if os.path.exists(desc_path):
+        with open(desc_path, 'r') as f:
+            dim_descriptions = json.load(f)
+
+    # Calculate correlation data for each top dimension
+    dim_correlations = {}
+    dim_verified_tags = {}
+    for dim in top_dims:
+        idx = dim['index']
+        dim_str = str(idx)
+        # x is the loading of rated games on that factor (dimension)
+        # y is their rating
+        dim_loadings = user_tag_features_raw[:len(user_indices), idx]
+        dim_correlations[dim_str] = [
+            {'x': float(load), 'y': float(rat)}
+            for load, rat in zip(dim_loadings, y[:len(user_indices)])
+        ]
+
+        # Sanity check tags for this dimension
+        if dim_str in dim_descriptions:
+            raw_pos = dim_descriptions[dim_str].get('top_positive', [])
+            raw_neg = dim_descriptions[dim_str].get('top_negative', [])
+            
+            # Filter to only tags existing in user library
+            verified_pos = [t for t in raw_pos if t in supported_tag_set]
+            verified_neg = [t for t in raw_neg if t in supported_tag_set]
+            
+            # Create dynamic label: A/B vs. C/D
+            a = verified_pos[0] if len(verified_pos) > 0 else "?"
+            b = verified_pos[1] if len(verified_pos) > 1 else ""
+            c = verified_neg[0] if len(verified_neg) > 0 else "?"
+            d = verified_neg[1] if len(verified_neg) > 1 else ""
+            
+            pos_part = f"{a}/{b}" if b else a
+            neg_part = f"{c}/{d}" if d else c
+            dynamic_label = f"{pos_part} vs. {neg_part}"
+            
+            dim_verified_tags[dim_str] = {
+                'positive': verified_pos[:5],
+                'negative': verified_neg[:5],
+                'dynamic_label': dynamic_label
+            }
+
+    # Calculate Tag Norm and Unit Vector for the Recommender (using padded full vector)
+    tag_norm = np.linalg.norm(tag_coeffs_full)
     
+    if tag_norm > 1e-9:
+        vibe_vector_unit = (tag_coeffs_full / tag_norm).tolist()
+    else:
+        vibe_vector_unit = tag_coeffs_full.tolist()
+
+    # Load whitening matrix W (original_tags x whitened_dim)
+    W = np.load(W_TAG_FILE)
+    
+    # Project: beta_original = W * beta_whitened
+    # Using the full padded vector ensures we multiply by the correct columns of W
+    tag_weights_original = np.dot(W, tag_coeffs_full)
+    
+    if len(unique_tags) != len(tag_weights_original):
+        print(f"Warning: Tag count mismatch! Names: {len(unique_tags)}, Weights: {len(tag_weights_original)}")
+        # Truncate or pad to match (shouldn't happen if dataset is synced)
+        min_len = min(len(unique_tags), len(tag_weights_original))
+        unique_tags = unique_tags[:min_len]
+        tag_weights_original = tag_weights_original[:min_len]
+
     # Filter the impacts: only tags with sufficient support are eligible for top/bottom lists
     eligible_impacts = [
         (t, float(w)) for i, (t, w) in enumerate(zip(unique_tags, tag_weights_original)) 
@@ -460,6 +529,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
     weights = {
         'metadata': scaled_metadata,
         'correlations': correlations_data,
+        'tag_dimensions': {
+            'top_dims': top_dims,
+            'correlations': dim_correlations,
+            'verified_tags': dim_verified_tags
+        },
         'vibe_vector': vibe_vector_unit,
         'alpha': float(model.alpha_),
         'r2': float(r2_train), # Use the high-precision training R2

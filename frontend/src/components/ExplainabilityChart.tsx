@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScatterChart, Scatter, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Label } from 'recharts';
+import { ScatterChart, Scatter, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Label, Line } from 'recharts';
 import { motion } from 'framer-motion';
 
 interface DataPoint {
@@ -13,14 +13,15 @@ interface ExplainabilityChartProps {
   xLabel: string;
   isLog?: boolean;
   type?: 'scatter' | 'bar';
+  showTrendline?: boolean;
 }
 
-const ExplainabilityChart: React.FC<ExplainabilityChartProps> = ({ data, title, xLabel, isLog = false, type = 'scatter' }) => {
+const ExplainabilityChart: React.FC<ExplainabilityChartProps> = ({ data, title, xLabel, isLog = false, type = 'scatter', showTrendline = false }) => {
   const currentYear = new Date().getFullYear();
 
   // Filter out any anomalous 0 values for Year/Age to prevent bunching
   // Also filter out future dates for Age chart
-  const filteredData = title === 'age' 
+  const filteredData = (title === 'age' || title === 'age_pref' || title === 'Release Date') 
     ? data.filter(p => p.x > 1900 && p.x <= currentYear) 
     : data;
 
@@ -61,14 +62,58 @@ const ExplainabilityChart: React.FC<ExplainabilityChartProps> = ({ data, title, 
     return ticks;
   };
 
-  const ticks = isLog ? getLogTicks(sortedData) : (title === 'age' ? getAgeTicks(sortedData) : undefined);
+  const isAgeTitle = title === 'age' || title === 'age_pref' || title === 'Release Date';
+  const ticks = isLog ? getLogTicks(sortedData) : (isAgeTitle ? getAgeTicks(sortedData) : undefined);
+
+  // Simple Linear Regression for Trendline
+  const getTrendlineData = (data: DataPoint[]) => {
+    if (data.length < 2) return [];
+    
+    // Use log(x) for log-scaled features
+    const points = isLog 
+      ? data.map(p => ({ x: Math.log10(p.x), y: p.y }))
+      : data;
+
+    const n = points.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    for (const p of points) {
+      sumX += p.x;
+      sumY += p.y;
+      sumXY += p.x * p.y;
+      sumX2 += p.x * p.x;
+    }
+
+    const denominator = (n * sumX2 - sumX * sumX);
+    if (Math.abs(denominator) < 1e-10) return [];
+
+    const slope = (n * sumXY - sumX * sumY) / denominator;
+    const intercept = (sumY - slope * sumX) / n;
+
+    const minX = Math.min(...points.map(p => p.x));
+    const maxX = Math.max(...points.map(p => p.x));
+
+    return [
+      { 
+        x: isLog ? Math.pow(10, minX) : minX, 
+        y: slope * minX + intercept 
+      },
+      { 
+        x: isLog ? Math.pow(10, maxX) : maxX, 
+        y: slope * maxX + intercept 
+      }
+    ];
+  };
+
+  const trendlineData = showTrendline ? getTrendlineData(sortedData) : [];
 
   // Domain handling
   const minYear = sortedData.length > 0 ? Math.min(...sortedData.map(p => p.x)) : 1990;
-  const xDomain = title === 'age' ? [minYear, currentYear] : ['auto', 'auto'];
+  let xDomain: any = ['auto', 'auto'];
+  if (isAgeTitle) xDomain = [minYear, currentYear];
+  if (title === 'difficulty') xDomain = [0, 10];
 
   return (
-    <div className="w-full h-48 space-y-2">
+    <div className="w-full h-52 space-y-2 pb-4">
       <div className="flex justify-between items-center px-1">
         <span className="text-[10px] font-bold uppercase tracking-widest text-primary">{title}</span>
         <span className="text-[8px] text-muted-foreground italic">Rating vs {xLabel}{isLog ? ' (Log Scale)' : ''}</span>
@@ -112,7 +157,7 @@ const ExplainabilityChart: React.FC<ExplainabilityChartProps> = ({ data, title, 
               </Bar>
             </BarChart>
           ) : (
-            <ScatterChart margin={{ top: 10, right: 10, bottom: 30, left: 10 }}>
+            <ScatterChart margin={{ top: 10, right: 35, bottom: 30, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
               <XAxis 
                 type="number" 
@@ -126,7 +171,9 @@ const ExplainabilityChart: React.FC<ExplainabilityChartProps> = ({ data, title, 
                 ticks={ticks}
                 tickFormatter={(val) => {
                   if (val === 0.1) return '0';
-                  if (title === 'age' && val >= 1900 && val <= 2100) return val.toFixed(0);
+                  if (isAgeTitle && val >= 1800 && val <= 2200) return val.toFixed(0);
+                  if (title === 'price') return `$${val.toFixed(0)}`;
+                  if (title === 'length') return `${val.toFixed(0)}m`;
                   if (val >= 1000000) return `${(val/1000000).toFixed(1)}M`;
                   if (val >= 1000) return `${(val/1000).toFixed(0)}k`;
                   return val.toFixed(0);
@@ -157,6 +204,15 @@ const ExplainabilityChart: React.FC<ExplainabilityChartProps> = ({ data, title, 
                 animationBegin={0}
                 animationEasing="ease-out"
               />
+              {showTrendline && trendlineData.length > 0 && (
+                <Scatter 
+                  data={trendlineData} 
+                  line={{ stroke: '#ffffff', strokeWidth: 1.5, opacity: 0.4 }} 
+                  shape={() => null} 
+                  tooltipType="none"
+                  enableBackground={false}
+                />
+              )}
             </ScatterChart>
           )}
         </ResponsiveContainer>

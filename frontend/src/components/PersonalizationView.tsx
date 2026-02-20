@@ -23,7 +23,7 @@ import {
   Anchor
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { searchGames, getMetadata, getTermLinks, API_BASE_URL } from '../api';
+import { searchGames, getMetadata, getTermLinks, getTagDimensions, API_BASE_URL } from '../api';
 import ExplainabilityChart from './ExplainabilityChart';
 
 interface GameVerification {
@@ -150,18 +150,21 @@ const VerificationTable: React.FC<VerificationTableProps> = ({
 
 const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) => {
   const [termLinks, setTermLinks] = useState<Record<string, string>>({});
+  const [tagDimensions, setTagDimensions] = useState<Record<string, any>>({});
   const [hoveredWeight, setHoveredWeight] = useState<string | null>(null);
+  const [hoveredDimension, setHoveredDimension] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchLinks = async () => {
+    const fetchData = async () => {
       try {
-        const links = await getTermLinks();
+        const [links, dims] = await Promise.all([getTermLinks(), getTagDimensions()]);
         setTermLinks(links);
+        setTagDimensions(dims);
       } catch (err) {
-        console.error("Failed to fetch term links", err);
+        console.error("Failed to fetch term links or tag dimensions", err);
       }
     };
-    fetchLinks();
+    fetchData();
   }, []);
   // Persistence Helper
   const getSaved = () => {
@@ -645,18 +648,30 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                       return (
                         <div 
                           key={key} 
-                          className="space-y-1 group/weight cursor-help"
+                          className="space-y-1 group/weight cursor-help relative"
                           onMouseEnter={() => setHoveredWeight(key)}
                           onMouseLeave={() => setHoveredWeight(null)}
                         >
                           <div className="flex justify-between text-xs uppercase tracking-widest font-bold">
-                            <span className="group-hover/weight:text-primary transition-colors">{key}</span>
+                            <span className="group-hover/weight:text-primary transition-colors">{key.replace('_', ' ')}</span>
                             <span className={(val || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>{(val || 0) >= 0 ? '+' : ''}{(val || 0).toFixed(4)}</span>
                           </div>
                           <div className="h-2 bg-secondary rounded-full overflow-hidden">
                             <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (Math.abs(val || 0) / denominator) * 100)}%` }} className={`h-full ${(val || 0) >= 0 ? 'bg-green-500' : 'bg-red-500'}`} />
                           </div>
                           
+                          {/* Tag Match Hint */}
+                          <AnimatePresence>
+                            {hoveredWeight === 'tag_match' && key === 'tag_match' && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
+                                className="absolute -top-8 left-0 z-[110] whitespace-nowrap bg-primary text-primary-foreground text-[10px] font-bold py-1 px-2 rounded shadow-lg"
+                              >
+                                see Key Vibe Dimensions
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
                           {/* Explainability Chart Popup */}
                           <AnimatePresence>
                             {hoveredWeight === key && (insights.correlations?.[key] || (key === 'discovery' && insights.correlations?.['discovery'])) && (
@@ -664,15 +679,16 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                                 initial={{ opacity: 0, x: 20, scale: 0.9 }}
                                 animate={{ opacity: 1, x: 0, scale: 1 }}
                                 exit={{ opacity: 0, x: 20, scale: 0.9 }}
-                                className="absolute left-[calc(100%+1rem)] top-0 z-[100] w-64 md:w-80 pointer-events-none"
+                                className="absolute left-[calc(100%+1rem)] top-0 z-[100] w-72 md:w-96 pointer-events-none"
                               >
-                                <div className="bg-card border border-primary/30 rounded-2xl shadow-2xl p-4 backdrop-blur-xl">
+                                <div className="bg-card border border-primary/30 rounded-2xl shadow-2xl p-6 pb-10 backdrop-blur-xl">
                                   <ExplainabilityChart 
                                     data={insights.correlations[key]} 
-                                    title={key}
+                                    title={key === 'age' ? 'Release Date' : key}
                                     xLabel={key === 'age' ? 'Year' : key}
                                     isLog={['popularity', 'length', 'price'].includes(key)}
                                     type={key === 'discovery' ? 'bar' : 'scatter'}
+                                    showTrendline={key !== 'discovery'}
                                   />
                                 </div>
                               </motion.div>
@@ -683,6 +699,81 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                     })}
                   </div>
                 </div>
+
+                {/* Predictive Tag Dimensions */}
+                {insights.tag_dimensions?.top_dims?.length > 0 && (
+                  <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative overflow-visible">
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                      <Compass size={18} className="text-primary" />
+                      Key Vibe Dimensions
+                    </h3>
+                    <div className="space-y-4">
+                      {insights.tag_dimensions.top_dims.map((dim: any) => {
+                        const dimId = dim.index.toString();
+                        const verified = insights.tag_dimensions.verified_tags?.[dimId];
+                        const desc = verified?.dynamic_label || tagDimensions[dimId]?.description || `Dimension ${dimId}`;
+                        const val = dim.weight;
+                        const topPos = verified?.positive || tagDimensions[dimId]?.top_positive || [];
+                        const topNeg = verified?.negative || tagDimensions[dimId]?.top_negative || [];
+                        
+                        return (
+                          <div 
+                            key={dimId} 
+                            className="space-y-1 group/dim cursor-help"
+                            onMouseEnter={() => setHoveredDimension(dimId)}
+                            onMouseLeave={() => setHoveredDimension(null)}
+                          >
+                            <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold">
+                              <span className="group-hover/dim:text-primary transition-colors truncate max-w-[150px]">{desc}</span>
+                              <span className={val >= 0 ? 'text-green-500' : 'text-red-500'}>{val >= 0 ? '+' : ''}{val.toFixed(4)}</span>
+                            </div>
+                            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (Math.abs(val) / 0.5) * 100)}%` }} className={`h-full ${val >= 0 ? 'bg-green-500' : 'bg-red-500'}`} />
+                            </div>
+
+                            {/* Dimension Explanation Hover */}
+                            <AnimatePresence>
+                              {hoveredDimension === dimId && (
+                                <motion.div 
+                                  initial={{ opacity: 0, x: 20, scale: 0.9 }}
+                                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                                  exit={{ opacity: 0, x: 20, scale: 0.9 }}
+                                  className="absolute left-[calc(100%+1rem)] top-0 z-[110] w-[400px] md:w-[500px] pointer-events-none"
+                                >
+                                  <div className="bg-card border border-primary/30 rounded-2xl shadow-2xl p-6 pb-8 backdrop-blur-2xl space-y-6">
+                                    <div className="space-y-4">
+                                      <div className="text-xs font-bold uppercase tracking-widest text-primary border-b border-primary/10 pb-2">{desc}</div>
+                                      
+                                      <div className="space-y-3">
+                                        <div className="flex gap-2">
+                                          {topPos.map((tag: string) => (
+                                            <span key={tag} className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[9px] font-bold text-green-500 whitespace-nowrap">{tag}</span>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          {topNeg.map((tag: string) => (
+                                            <span key={tag} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] font-bold text-red-500 whitespace-nowrap">{tag}</span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <ExplainabilityChart 
+                                      data={insights.tag_dimensions.correlations[dimId]} 
+                                      title="Personal Rating Correlation"
+                                      xLabel="Dimension Loading"
+                                      type="scatter"
+                                      showTrendline={true}
+                                    />
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Predictive Tags */}
                 <div className="bg-card border border-border rounded-2xl p-6 space-y-6">

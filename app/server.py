@@ -113,6 +113,7 @@ class DataManager:
         self.all_tags = []
         self.trending_names = []
         self.term_links = {}
+        self.tag_dimension_descriptions = {}
         self.lists_cache = {}
 
     def normalize_string(self, s):
@@ -430,6 +431,19 @@ class DataManager:
         else:
             logger.warning(f"Validated Steam links file NOT FOUND at {links_path}")
 
+        # Load tag dimension descriptions
+        desc_path = os.path.join(ROOT_DIR, "data", "production", "tag_dimension_descriptions.json")
+        if os.path.exists(desc_path):
+            logger.info(f"Loading tag dimension descriptions from {desc_path}...")
+            try:
+                with open(desc_path, 'r') as f:
+                    self.tag_dimension_descriptions = json.load(f)
+                logger.info(f"Loaded {len(self.tag_dimension_descriptions)} dimension descriptions")
+            except Exception as e:
+                logger.error(f"Failed to load tag dimension descriptions: {e}")
+        else:
+            logger.warning(f"Tag dimension descriptions file NOT FOUND at {desc_path}")
+
         # 5. Load SentenceTransformer model
         logger.info("Loading SentenceTransformer model...")
         from sentence_transformers import SentenceTransformer
@@ -521,6 +535,12 @@ def get_tags():
     logger.info("GET /tags called")
     # Tags are already extracted from metadata which was filtered for dead tags
     return data_manager.all_tags
+
+@app.get("/tag_dimensions")
+def get_tag_dimensions():
+    """Returns the pre-calculated tag dimension descriptions."""
+    logger.info("GET /tag_dimensions called")
+    return data_manager.tag_dimension_descriptions
 
 @app.get("/term_links")
 def get_term_links():
