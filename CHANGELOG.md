@@ -2,6 +2,21 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [40] - 2026-02-19
+### Build 40
+### Version 0.0.1-pre-alpha.40
+
+- **Algorithm**: Upgraded semantic model to **`all-mpnet-base-v2`** (768 dimensions), providing superior qualitative and thematic matching.
+- **Algorithm**: Implemented **Descriptive-Only Semantic Path**, focusing semantic search strictly on narrative text (descriptions and reviews) to reduce noise from categorical matches.
+- **Algorithm**: Introduced **Uncentered ZCA Whitening** for semantic vectors, preserving the origin while decorrelating narrative features.
+- **Algorithm**: Established a **Calibrated Natural Range** for semantic similarities based on a 10,000-pair simulation, ensuring stable slider impact.
+- **Algorithm**: Integrated **Price** as a first-class feature across the stack, including Price Z-scoring in the metadata pipeline and Price weighting in the Taste DNA regression.
+- **UI/UX**: Created a central **Splash Page** navigation hub for clearer user orientation between tools.
+- **UI/UX**: Refactored scoring visualization to be **Always On**, providing transparent weight breakdowns on every game card by default.
+- **UI/UX**: Optimized for **Mobile** with a collapsible preferences sidebar and removal of nested scrollbars.
+- **Infrastructure**: Configured **GPU Acceleration (CUDA 12.8)** support for Blackwell-series (RTX 50) GPUs via a dedicated `venv310` environment.
+- **Infrastructure**: Hardened metadata pipeline to clamp future release dates to "Today" for distribution stability.
+
 ## [39] - 2026-02-17
 ### Build 39
 ### Version 0.0.1-pre-alpha.39

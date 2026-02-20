@@ -3,6 +3,10 @@
 This document serves as the manual verification protocol for human testers and developers. Perform these tests before any major push or build increment.
 
 ## 🏗️ Core Navigation & UI
+- [ ] **Splash Page Routing**: Click the "SteamJackalope" logo in the header.
+    - *Expectation*: Redirects to the central Splash Page hub.
+- [ ] **Hub Actions**: Click "Find Games", "Analyze My Catalogue", and "Explore Data" buttons on the Splash Page.
+    - *Expectation*: Correctly routes to Recommender, DNA Solver, and Lists views respectively.
 - [ ] **Tab Switching**: Click through Recommender, Lists, About, Methodology, and Changelog.
     - *Expectation*: Content updates instantly; active tab is highlighted.
 - [ ] **Mobile Responsiveness**: Resize window to narrow width.
@@ -19,6 +23,10 @@ This document serves as the manual verification protocol for human testers and d
     - *Expectation*: A currently popular Steam game is selected as a seed.
 - [ ] **Discovery Slider**: Set Discovery to max ("Wild Cards") and Rating to max ("Loved").
     - *Expectation*: Results shift to high-rated games with < 500 reviews.
+- [ ] **Price Slider**: Adjust the "Price" slider to max left ("Cheap").
+    - *Expectation*: "Free" and low-cost games dominate the top results. Match score reflects the price contribution.
+- [ ] **Weight Contributions**: View any game card in the recommender.
+    - *Expectation*: The "Weight Contributions" debug bars are always visible. Ensure "Pr" (Price) is included in the list.
 - [ ] **NSFW Blurring**: Toggle "Blur NSFW" ON.
     - *Expectation*: NSFW games appear but header images are blurred. Verify blur state persists between Personalized and Recommender views.
 - [ ] **Profile Filtering**: Load a Taste DNA profile. Toggle the "Filter Profile Games" segmented control.
