@@ -66,7 +66,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     print(f"Loading metadata and tag vectors...")
     # Get metadata for needed columns
-    full_metadata = pd.read_parquet(METADATA_FILE, columns=['appid', 'name', 'pop_z', 'date_z', 'playtime_z', 'difficulty_z', 'positive', 'negative', 'tags'])
+    full_metadata = pd.read_parquet(METADATA_FILE, columns=['appid', 'name', 'pop_z', 'date_z', 'playtime_z', 'difficulty_z', 'price_z', 'positive', 'negative', 'tags'])
     
     # Map user appids to indices in the full dataset
     appid_to_idx = {appid: idx for idx, appid in enumerate(full_metadata['appid'])}
@@ -116,12 +116,13 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     # --- ADAPTIVE DIMENSIONALITY ---
     # Based on parametric study, K = N - 6 reaches the saturation point for df
+    # We reduce K by 1 to account for the new Price metadata feature
     num_ratings = len(y) - 1 # Exclude dummy
     
     k_max = tag_vectors.shape[1] # Production max (e.g. 243)
-    k_adaptive = int(np.clip(num_ratings - 6, 1, k_max))
+    k_adaptive = int(np.clip(num_ratings - 7, 1, k_max))
     
-    print(f"Adaptive DNA: Using saturation dimensionality K = {k_adaptive} for library size {num_ratings}.")
+    print(f"Adaptive DNA: Using saturation dimensionality K = {k_adaptive} for library size {num_ratings} (Price-adjusted).")
     
     # 1. Use the FULL norm for penalized normalization (consistency with Recommender)
     full_norms = np.load(TAG_NORMS_FILE, mmap_mode='r')
@@ -131,7 +132,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     user_tag_features = user_tag_features_raw[:, :k_adaptive].astype(np.float32)
     
     # Load Metadata Features
-    meta_cols = ['date_z', 'pop_z', 'playtime_z', 'difficulty_z']
+    meta_cols = ['date_z', 'pop_z', 'playtime_z', 'difficulty_z', 'price_z']
     # Apply Clamping to match Recommender exactly during training
     user_meta_features = np.clip(full_metadata.iloc[user_indices][meta_cols].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     
@@ -140,7 +141,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     user_tag_features_norm = user_tag_features / (user_tag_norms + DOT_PRODUCT_LAMBDA)
     user_tag_features_scaled = user_tag_features_norm * TAG_GLOBAL_SCALING_FACTOR
     
-    # Combine features: [Q (1)] + [Metadata (4)] + [Tags (k)]
+    # Combine features: [Q (1)] + [Metadata (5)] + [Tags (k)]
     X = np.hstack([q_global.reshape(-1, 1), user_meta_features, user_tag_features_scaled])
     
     # --- STABILIZATION: Add a dummy game ---
@@ -174,17 +175,17 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # --- TAG PROJECTION ---
     # Project whitened coefficients back to original tag space to find predictive tags
     print("Projecting coefficients back to original tag space...")
-    tag_coeffs_adaptive = coeffs[5:] # Skip quality + 4 metadata
+    tag_coeffs_adaptive = coeffs[6:] # Skip quality + 5 metadata
     
     # PAD coefficients back to the full production K (e.g., 243)
     full_k = tag_vectors.shape[1]
     tag_coeffs_full = np.zeros(full_k)
     tag_coeffs_full[:k_adaptive] = tag_coeffs_adaptive
     
-    # Create full coefficient vector for scoring: [Q] + [4 Metadata] + [Full Tags]
-    full_coeffs = np.zeros(5 + full_k)
-    full_coeffs[:5] = coeffs[:5] # Quality + Metadata
-    full_coeffs[5:] = tag_coeffs_full
+    # Create full coefficient vector for scoring: [Q] + [5 Metadata] + [Full Tags]
+    full_coeffs = np.zeros(6 + full_k)
+    full_coeffs[:6] = coeffs[:6] # Quality + Metadata
+    full_coeffs[6:] = tag_coeffs_full
     
     # Calculate Tag Norm and Unit Vector for the Recommender (using padded full vector)
     tag_norm = np.linalg.norm(tag_coeffs_full)
@@ -313,6 +314,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'popularity': float(coeffs[2]),
         'length': float(coeffs[3]),
         'difficulty': float(coeffs[4]),
+        'price': float(coeffs[5]),
         'tag_match': float(tag_norm),
         'semantic': 1.0  # Default base semantic weight
     }
@@ -346,16 +348,17 @@ def solve_user_taste(ground_truth_path, output_path=None):
         z_pop=full_metadata['pop_z'].values,
         z_playtime=full_metadata['playtime_z'].values,
         z_difficulty=full_metadata['difficulty_z'].values,
+        z_price=full_metadata['price_z'].values,
         tag_vectors=all_vectors,
         tag_norms=all_tag_norms,
         beta_tag=beta_tag_scaled,
         weights=scaled_metadata,
-        intercept=scaled_intercept,
         tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
         dot_product_lambda=DOT_PRODUCT_LAMBDA,
         z_clamp_min=Z_SCORE_CLAMP_MIN,
         z_clamp_max=Z_SCORE_CLAMP_MAX,
-        dna_scaling_factor=DNA_UI_SCALING_FACTOR
+        dna_scaling_factor=DNA_UI_SCALING_FACTOR,
+        intercept=scaled_intercept
     )
     
     # Clamp to 0-10 scale for display
@@ -408,6 +411,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'metadata': scaled_metadata,
         'vibe_vector': vibe_vector_unit,
         'intercept': scaled_intercept,
+        'scaling_factor': scaling_factor,
         'alpha': float(model.alpha_),
         'r2': float(model.score(X, y)),
         'library_appids': all_library_appids,

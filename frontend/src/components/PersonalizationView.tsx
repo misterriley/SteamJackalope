@@ -92,7 +92,7 @@ const VerificationTable: React.FC<VerificationTableProps> = ({
                     src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
                     alt={game.name} 
                     className={`w-16 h-8 object-cover rounded shadow-sm border border-border/50 ${game.is_nsfw && blurNSFW ? 'blur-sm scale-110' : ''}`}
-                    onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/460x215?text=No+Image')}
+                    onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
                   />
                 </a>
               </td>
@@ -721,7 +721,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <img 
                           src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
                           className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`} 
-                          onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/460x215?text=No+Image')}
+                          onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
                         />
                         <div className="flex-grow min-w-0">
                           <div className="font-bold text-[11px] truncate group-hover:text-primary transition-colors">{game.name}</div>
@@ -747,7 +747,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <img 
                           src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
                           className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`} 
-                          onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/460x215?text=No+Image')}
+                          onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
                         />
                         <div className="flex-grow min-w-0">
                           <div className="font-bold text-[11px] truncate group-hover:text-red-500 transition-colors">{game.name}</div>

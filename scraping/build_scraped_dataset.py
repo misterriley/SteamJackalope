@@ -75,13 +75,24 @@ def parse_storefront_html(app_id, html_content):
     data['price'] = clean_text(price_match.group(1)) if price_match else ""
 
     # 7. Dev/Pub
-    dev_match = re.search(r'<b>Developer:</b>.*?href="[^"]*">([^<]*)</a>', html_content, re.DOTALL)
-    pub_match = re.search(r'<b>Publisher:</b>.*?href="[^"]*">([^<]*)</a>', html_content, re.DOTALL)
-    data['developers'] = clean_text(dev_match.group(1)) if dev_match else ""
-    data['publishers'] = clean_text(pub_match.group(1)) if pub_match else ""
+    # Capture all developer/publisher links if multiple exist
+    dev_section = re.search(r'<b>Developer:</b>(.*?)(?=<b>|</div>|<br>|$)', html_content, re.DOTALL)
+    if dev_section:
+        devs = re.findall(r'<a[^>]*>([^<]*)</a>', dev_section.group(1))
+        data['developers'] = ",".join([clean_text(d) for d in devs])
+    else:
+        data['developers'] = ""
+
+    pub_section = re.search(r'<b>Publisher:</b>(.*?)(?=<b>|</div>|<br>|$)', html_content, re.DOTALL)
+    if pub_section:
+        pubs = re.findall(r'<a[^>]*>([^<]*)</a>', pub_section.group(1))
+        data['publishers'] = ",".join([clean_text(p) for p in pubs])
+    else:
+        data['publishers'] = ""
 
     # 8. Genres
-    genre_section = re.search(r'<b>Genre:</b>(.*?)</div>', html_content, re.DOTALL)
+    # Stop at the next <b> tag to avoid capturing Developer/Publisher links
+    genre_section = re.search(r'<b>Genre:</b>(.*?)(?=<b>|</div>|<br>|$)', html_content, re.DOTALL)
     if genre_section:
         genres = re.findall(r'<a[^>]*>([^<]*)</a>', genre_section.group(1))
         data['genres'] = ",".join([clean_text(g) for g in genres])
@@ -97,6 +108,25 @@ def parse_storefront_html(app_id, html_content):
     categories = re.findall(r'<a class="name" href="https://store.steampowered.com/search/\?(?:category2|category3)=\d+">([^<]*)</a>', html_content)
     data['categories'] = ",".join(set(categories))
 
+    # 11. Languages
+    lang_table = re.search(r'<table class="game_language_options".*?>(.*?)</table>', html_content, re.DOTALL)
+    if lang_table:
+        langs = re.findall(r'<td class="ellipsis">\s*([^<]*)\s*</td>', lang_table.group(1))
+        data['supported_languages'] = ",".join([clean_text(l) for l in langs])
+    else:
+        data['supported_languages'] = ""
+
+    # 12. Breadcrumbs (Software/Game Detection)
+    breadcrumb_section = re.search(r'<div class="blockbg">.*?</div>', html_content, re.DOTALL)
+    if breadcrumb_section:
+        bc_links = re.findall(r'<a[^>]*>([^<]*)</a>', breadcrumb_section.group(0))
+        breadcrumbs = [l.strip() for l in bc_links]
+        if breadcrumbs and breadcrumbs[0] == "All Software":
+            if data['genres']:
+                data['genres'] += ",Software"
+            else:
+                data['genres'] = "Software"
+
     # Mature Content
     data['mature_content'] = 1 if "Adult Only" in html_content else 0
     
@@ -106,9 +136,84 @@ def parse_storefront_html(app_id, html_content):
 
     return data
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
+def process_single_appid(app_id):
+    """
+    Process a single app_id: storefront, stats, and reviews.
+    Returns (game_data, reviews_list) or None if storefront is missing.
+    """
+    # 1. Process Storefront
+    html_path = os.path.join(RAW_DOWNLOAD_PATH, f"{app_id}_storefront.html")
+    if not os.path.exists(html_path):
+        return None
+        
+    try:
+        with open(html_path, 'r', encoding='utf-8') as f:
+            game_data = parse_storefront_html(app_id, f.read())
+    except Exception as e:
+        return None
+        
+    if not game_data:
+        return None
+
+    # 2. Process Review Stats
+    stats_path = os.path.join(RAW_DOWNLOAD_PATH, f"{app_id}_stats_english.json")
+    if not os.path.exists(stats_path):
+        stats_path = os.path.join(RAW_DOWNLOAD_PATH, f"{app_id}_stats.json")
+        
+    if os.path.exists(stats_path):
+        try:
+            with open(stats_path, 'r', encoding='utf-8') as f:
+                stats = json.load(f)
+                game_data['positive'] = stats.get('total_positive', 0)
+                game_data['negative'] = stats.get('total_negative', 0)
+                game_data['user_score'] = stats.get('review_score', 0)
+                game_data['recommendations'] = stats.get('total_reviews', 0)
+        except:
+            pass
+    
+    # Defaults
+    game_data.setdefault('positive', 0)
+    game_data.setdefault('negative', 0)
+    game_data.setdefault('user_score', 0)
+    game_data.setdefault('recommendations', 0)
+    game_data['owners'] = "0 .. 20,000"
+    game_data['average_forever'] = 0
+    game_data['median_forever'] = 0
+    game_data['is_dlc'] = 'Downloadable Content' in game_data.get('categories', '')
+    game_data['movies'] = ""
+    game_data['required_age'] = 0
+    
+    # 3. Process Reviews
+    app_reviews = []
+    for page in range(10):
+        rev_path = os.path.join(RAW_DOWNLOAD_REVIEWS_PATH, f"{app_id}_reviews_p{page}.json")
+        if not os.path.exists(rev_path):
+            break
+        try:
+            with open(rev_path, 'r', encoding='utf-8') as f:
+                rev_data = json.load(f)
+                for r in rev_data.get('reviews', []):
+                    rev_text = r.get('review', '')
+                    if is_english(rev_text):
+                        author = r.get('author', {})
+                        app_reviews.append({
+                            'appid': app_id,
+                            'review_id': r.get('recommendationid'),
+                            'review_text': clean_text(rev_text),
+                            'timestamp_created': r.get('timestamp_created'),
+                            'voted_up': r.get('voted_up'),
+                            'author_playtime_forever': author.get('playtime_forever', 0)
+                        })
+        except:
+            break
+            
+    return game_data, app_reviews
+
 def build_dataset(output_file="scraped_games.csv", reviews_file="scraped_reviews.csv"):
     """
-    Step 2: Parse cached raw files into CSVs.
+    Step 2: Parse cached raw files into CSVs using parallel processing.
     """
     if not os.path.exists(RAW_DOWNLOAD_PATH):
         logger.error(f"Raw download path {RAW_DOWNLOAD_PATH} does not exist.")
@@ -120,75 +225,26 @@ def build_dataset(output_file="scraped_games.csv", reviews_file="scraped_reviews
         if f.endswith("_storefront.html"):
             app_ids.add(f.split("_")[0])
     
-    logger.info(f"Found {len(app_ids)} cached games to process.")
+    app_ids = sorted(list(app_ids)) # Sort for deterministic progress
+    logger.info(f"Found {len(app_ids)} cached games to process using multiprocessing.")
 
     all_games = []
     all_reviews = []
     
-    for app_id in tqdm(app_ids, desc="Building dataset"):
-        # Process Storefront
-        html_path = os.path.join(RAW_DOWNLOAD_PATH, f"{app_id}_storefront.html")
-        try:
-            with open(html_path, 'r', encoding='utf-8') as f:
-                game_data = parse_storefront_html(app_id, f.read())
-        except Exception as e:
-            logger.warning(f"Error parsing {app_id} storefront: {e}")
-            game_data = None
-            
-        if not game_data:
-            continue
-
-        # Process Review Stats
-        stats_path = os.path.join(RAW_DOWNLOAD_PATH, f"{app_id}_stats_english.json")
-        if not os.path.exists(stats_path):
-            stats_path = os.path.join(RAW_DOWNLOAD_PATH, f"{app_id}_stats.json")
-            
-        if os.path.exists(stats_path):
-            try:
-                with open(stats_path, 'r', encoding='utf-8') as f:
-                    stats = json.load(f)
-                    game_data['positive'] = stats.get('total_positive', 0)
-                    game_data['negative'] = stats.get('total_negative', 0)
-                    game_data['user_score'] = stats.get('review_score', 0)
-                    game_data['recommendations'] = stats.get('total_reviews', 0)
-            except:
-                pass
+    # Use max available cores
+    max_workers = os.cpu_count() or 4
+    
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_appid = {executor.submit(process_single_appid, aid): aid for aid in app_ids}
         
-        # Defaults
-        game_data.setdefault('positive', 0)
-        game_data.setdefault('negative', 0)
-        game_data.setdefault('user_score', 0)
-        game_data.setdefault('recommendations', 0)
-        game_data['owners'] = "0 .. 20,000"
-        game_data['average_forever'] = 0
-        game_data['median_forever'] = 0
-        game_data['is_dlc'] = 'Downloadable Content' in game_data.get('categories', '')
-        game_data['movies'] = ""
-        game_data['required_age'] = 0
-        
-        all_games.append(game_data)
-        
-        # Process Reviews
-        for page in range(10):
-            rev_path = os.path.join(RAW_DOWNLOAD_REVIEWS_PATH, f"{app_id}_reviews_p{page}.json")
-            if not os.path.exists(rev_path):
-                break
-            try:
-                with open(rev_path, 'r', encoding='utf-8') as f:
-                    rev_data = json.load(f)
-                    for r in rev_data.get('reviews', []):
-                        rev_text = r.get('review', '')
-                        if is_english(rev_text):
-                            author = r.get('author', {})
-                            all_reviews.append({
-                                'appid': app_id,
-                                'review_id': r.get('recommendationid'),
-                                'review_text': clean_text(rev_text),
-                                'timestamp_created': r.get('timestamp_created'),
-                                'voted_up': r.get('voted_up')
-                            })
-            except:
-                break
+        # Process results as they complete
+        for future in tqdm(as_completed(future_to_appid), total=len(app_ids), desc="Building dataset"):
+            result = future.result()
+            if result:
+                game_data, app_reviews = result
+                all_games.append(game_data)
+                all_reviews.extend(app_reviews)
 
     # Save to CSV
     if all_games:

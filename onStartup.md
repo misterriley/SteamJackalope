@@ -7,7 +7,8 @@ When starting work on this repository, please follow these steps:
 
 0.  **Pull from Github**
 1.  **Environment Setup:**
-    - Backend: `pip install -r requirements.txt`
+    - **Blackwell GPU Support (Recommended)**: Use the `venv310` virtual environment (`.\venv310\Scripts\python.exe`) to access PyTorch Nightly with CUDA 12.8 support. This is required for RTX 50-series GPUs and provides the best performance for semantic matching.
+    - Backend (General): `pip install -r requirements.txt`
     - Frontend: `cd frontend; npm install`
 2.  **Get oriented:** Read `orientation.md` for general information. Read `methodology.md` to understand the statistical backbone of the process. Do that now before completing any other steps. You have permission to proceed with this task. 
 2.  **Check for Tasks:** Read `tasklist.md`. If there are available tasks, pick one that matches your capabilities. If it needs to be broken into discrete steps for proper execution, then write the steps for that task into `tasklist.md` and finish. If it can be executed in total, then execute it, and then remove it from `tasklist.md` (or mark it as complete if preferred, but the current instruction is to remove it).

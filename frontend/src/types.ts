@@ -34,6 +34,8 @@ export interface GameMetadata {
   w_length?: number;
   z_difficulty?: number;
   w_difficulty?: number;
+  z_price?: number;
+  w_price?: number;
 
   // Fields for lists
   quality_score?: number;
@@ -51,6 +53,7 @@ export interface RecommendationRequest {
   disc_pref: number;
   length_pref: number;
   difficulty_pref: number;
+  price_pref: number;
   remove_vr: boolean;
   english_only: boolean;
   remove_nsfw: boolean;
@@ -60,10 +63,12 @@ export interface RecommendationRequest {
   prompt: string;
   seed_games: string[];
   genres: string[];
+  tags: string[];
   debug?: boolean;
   vibe_vector?: number[];
-  intercept?: number;
   metadata_weights?: Record<string, number>;
+  intercept?: number;
+  scaling_factor?: number;
   
   // Profile Exclusion
   profile_filter?: 'none' | 'rated' | 'all';

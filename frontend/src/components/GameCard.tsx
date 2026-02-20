@@ -104,6 +104,7 @@ const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, i
       { label: 'Qual', z: game.z_spps, w: game.w_spps, color: 'text-yellow-400' },
       { label: 'Age', z: game.z_date, w: game.w_date, color: 'text-green-400' },
       { label: 'Pop', z: game.z_pop, w: game.w_pop, color: 'text-blue-400' },
+      { label: 'Pr', z: game.z_price, w: game.w_price, color: 'text-emerald-400' },
       { label: 'Len', z: game.z_length, w: game.w_length, color: 'text-cyan-400' },
       { label: 'Diff', z: game.z_difficulty, w: game.w_difficulty, color: 'text-orange-400' },
     ];
@@ -154,9 +155,8 @@ const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, i
             onError={() => setImgError(true)}
           />
         ) : (
-          <div className={`w-full h-full flex flex-col items-center justify-center p-4 text-center bg-gradient-to-br from-secondary/50 to-card transition-opacity duration-500 animate-in fade-in ${shouldBlur ? 'blur-xl' : ''}`}>
-            <ImageOff size={32} className="text-muted-foreground mb-2 opacity-20" />
-            <span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest line-clamp-2 px-2">
+          <div className={`w-full h-full flex flex-col items-center justify-center p-4 text-center bg-secondary/80 ${shouldBlur ? 'blur-xl' : ''}`}>
+            <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider line-clamp-2 px-2">
               {game.name}
             </span>
           </div>
@@ -256,7 +256,7 @@ const GameCard: React.FC<GameCardProps> = ({ game, debugMode, hideNSFW = true, i
           </div>
         )}
 
-        {debugMode && !isSeed && renderDebugInfo()}
+        {!isSeed && renderDebugInfo()}
       </div>
     </div>
   );

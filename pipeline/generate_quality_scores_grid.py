@@ -7,7 +7,7 @@ import sys
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from common.constants import AP_SLIDER_VALUES, QUALITY_SCORE_S_CONST, QUALITY_SCORE_S_BASE, QUALITY_SCORE_MIN_VOTES_FOR_RELIABLE, QUALITY_SCORE_CLIP, QUALITY_SCORE_PIN_GROUP, PIN_QUALITY_DISTRIBUTION, Z_SCORE_CLAMP_MAX, Z_SCORE_CLAMP_MIN, METADATA_FILE, QUALITY_GRID_FILE
+from common.constants import DISC_SLIDER_VALUES, QUALITY_SCORE_S_CONST, QUALITY_SCORE_S_BASE, QUALITY_SCORE_MIN_VOTES_FOR_RELIABLE, QUALITY_SCORE_CLIP, QUALITY_SCORE_PIN_GROUP, PIN_QUALITY_DISTRIBUTION, Z_SCORE_CLAMP_MAX, Z_SCORE_CLAMP_MIN, METADATA_FILE, QUALITY_GRID_FILE
 from common.utils import safe_save_npy
 
 def generate_quality_grid(metadata_path, output_path):
@@ -47,7 +47,7 @@ def generate_quality_grid(metadata_path, output_path):
     
     a = np.mean(reliable_ps)
 
-    slider_values = AP_SLIDER_VALUES
+    slider_values = DISC_SLIDER_VALUES
     num_games = len(df)
     num_steps = len(slider_values)
     

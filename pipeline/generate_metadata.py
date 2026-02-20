@@ -14,11 +14,26 @@ from common.utils import to_z
 def clean_release_date(date_str):
     """
     Parses various Steam release date formats into a standard datetime object.
+    Handle "coming soon" by setting it to 1 year in the future.
     """
     if pd.isna(date_str) or date_str == "":
         return pd.NaT
     
     s = str(date_str).strip()
+    
+    # Handle "coming soon", "TBD", "Maybe", etc.
+    placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
+    if s.lower() in placeholders:
+        return pd.Timestamp.now().normalize() + pd.DateOffset(years=1)
+    
+    # Handle extreme placeholder dates (e.g., 9998, 6969, 9000)
+    extreme_match = re.search(r'\b(9998|6969|9000|2099)\b', s)
+    if extreme_match:
+        return pd.Timestamp.now().normalize() + pd.DateOffset(years=1)
+
+    # Handle Quarterly dates (e.g., Q1 2026) -> Map to end of that quarter or just 1yr out
+    if re.match(r'^[Qq][1-4]\s+\d{4}$', s):
+        return pd.Timestamp.now().normalize() + pd.DateOffset(years=1)
     
     # Match "YYYY-MM-DD"
     if re.match(r'^\d{4}-\d{2}-\d{2}$', s):
@@ -43,12 +58,10 @@ def clean_release_date(date_str):
 def calculate_date_z_scores(df):
     """
     Calculates z-scores for release dates, clamping future dates and handling unknowns.
+    Future dates are clamped to today to prevent distribution skew.
     """
-    # Clamp future dates to today to avoid scoring them as newer than today
+    # Clamp future dates to today
     now = pd.Timestamp.now().normalize()
-    
-    # We need to operate on a copy or modify inplace safely
-    # If df has NaT in parsed_date, logical ops might fail if not handled
     
     # Create a working copy of the date series to modify
     working_dates = df['parsed_date'].copy()
@@ -231,6 +244,23 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
     reviews_count = df['positive'] + df['negative']
     log_rev = np.log1p(reviews_count)
     df['pop_z'] = to_z(log_rev)
+
+    # --- Process Price ---
+    print("Calculating price z-scores...")
+    def parse_price(p):
+        if pd.isna(p) or p == "": return 0.0
+        s = str(p).lower()
+        if "free" in s: return 0.0
+        # Extract numbers like 19.99 from $19.99
+        match = re.search(r'(\d+\.\d+)', s)
+        if match: return float(match.group(1))
+        # Handle cases like "19,99€" or "$19"
+        s_clean = re.sub(r'[^\d,.]', '', s).replace(',', '.')
+        try: return float(s_clean)
+        except: return 0.0
+
+    df['price_numeric'] = df['price'].apply(parse_price)
+    df['price_z'] = to_z(df['price_numeric'])
 
     # --- Process Difficulty ---
     difficulty_preds_path = DIFFICULTY_PREDICTIONS_FILE

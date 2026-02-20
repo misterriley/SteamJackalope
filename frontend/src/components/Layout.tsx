@@ -1,7 +1,7 @@
 import React from 'react';
 import { Sparkles, BarChart2, Github, Info, BookOpen, History, RotateCcw } from 'lucide-react';
 
-export type TabType = 'recommend' | 'lists' | 'personalize' | 'about' | 'methodology' | 'changelog';
+export type TabType = 'splash' | 'recommend' | 'lists' | 'personalize' | 'about' | 'methodology' | 'changelog';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,7 +15,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
       {/* Header */}
       <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 shrink-0">
+          <div 
+            className="flex items-center gap-2 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => onTabChange('splash')}
+          >
             <div className="w-8 h-8 rounded-full overflow-hidden border border-primary/20">
               <img src="/assets/jackalopeVR.jpg" alt="Jackalope" className="w-full h-full object-cover" />
             </div>

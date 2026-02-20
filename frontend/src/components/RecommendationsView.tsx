@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { GameMetadata, RecommendationRequest } from '../types';
-import { recommend, getGenres, getTermLinks, getRandomGame, getRandomTrendingGame, getMetadata } from '../api';
+import { recommend, getGenres, getTags, getTermLinks, getRandomGame, getRandomTrendingGame, getMetadata } from '../api';
 import GameCard from './GameCard';
 import Filters from './Filters';
 import SeedSelector from './SeedSelector';
 import GenreSelector from './GenreSelector';
+import TagSelector from './TagSelector';
 import { Search, RotateCcw, AlertCircle, Dices, Sparkles, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -20,14 +21,16 @@ interface RecommendationsViewProps {
   onProfileClear?: () => void;
 }
 
-const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClear: _onProfileClear }) => {
+const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClear }) => {
   const [genresList, setGenresList] = useState<string[]>(DEFAULT_GENRES);
+  const [tagsList, setTagsList] = useState<string[]>([]);
   const [termLinks, setTermLinks] = useState<Record<string, string>>({});
   const [recommendations, setRecommendations] = useState<GameMetadata[]>([]);
   const [seedGamesMetadata, setSeedGamesMetadata] = useState<GameMetadata[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useTrendingRandom, setUseTrendingRandom] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const isInitialMount = useRef(true);
 
   const [filters, setFilters] = useState<RecommendationRequest>(() => {
@@ -40,6 +43,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       disc_pref: 0.0,
       length_pref: 0.0,
       difficulty_pref: 0.0,
+      price_pref: 0.0,
       remove_vr: true,
       english_only: true,
       remove_nsfw: true,
@@ -49,6 +53,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       prompt: '',
       seed_games: [],
       genres: [],
+      tags: [],
       debug: false,
       profile_filter: 'none',
       library_appids: [],
@@ -85,16 +90,21 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   // Initial data load
   useEffect(() => {
     const fetchInitialData = async () => {
-      console.log("Fetching initial data (genres, links)...");
+      console.log("Fetching initial data (genres, tags, links)...");
       try {
-        const [genres, links] = await Promise.all([
+        const [genres, tags, links] = await Promise.all([
           getGenres(),
+          getTags(),
           getTermLinks()
         ]);
         
         console.log("Genres received:", genres);
         if (genres && genres.length > 0) {
           setGenresList(genres);
+        }
+
+        if (tags && tags.length > 0) {
+          setTagsList(tags);
         }
         
         if (links) {
@@ -191,6 +201,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       disc_pref: 0.0,
       length_pref: 0.0,
       difficulty_pref: 0.0,
+      price_pref: 0.0,
       remove_vr: true,
       english_only: true,
       remove_nsfw: true,
@@ -200,6 +211,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       prompt: '',
       seed_games: [],
       genres: [],
+      tags: [],
       debug: false,
       profile_filter: 'none',
       library_appids: [],
@@ -208,8 +220,8 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   };
 
   const handleRandomizeSliders = () => {
-    const rand = () => parseFloat((Math.random() * 8 - 4).toFixed(1)); // -4.0 to 4.0
-    const randCore = () => parseFloat((Math.random() * 4).toFixed(1)); // 0.0 to 4.0 for alpha/beta
+    const rand = () => parseFloat((Math.random() * 4 - 2).toFixed(2)); // -2.00 to 2.00
+    const randCore = () => parseFloat((Math.random() * 2).toFixed(2)); // 0.00 to 2.00 for alpha/beta
     
     setFilters(prev => ({
       ...prev,
@@ -221,6 +233,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       disc_pref: 0,
       length_pref: rand(),
       difficulty_pref: rand(),
+      price_pref: rand(),
     }));
   };
 
@@ -254,12 +267,14 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       pop_pref: typeof meta.popularity === 'number' ? meta.popularity : 0.0,
       length_pref: typeof meta.length === 'number' ? meta.length : 0.0,
       difficulty_pref: typeof meta.difficulty === 'number' ? meta.difficulty : 0.0,
+      price_pref: typeof meta.price === 'number' ? meta.price : 0.0,
       alpha: typeof meta.semantic === 'number' ? meta.semantic : 1.0,
       beta: typeof meta.tag_match === 'number' ? meta.tag_match : 1.0,
       
       vibe_vector: vibeVector,
       metadata_weights: meta,
-      intercept: profile.intercept || 0,
+      intercept: typeof profile.intercept === 'number' ? profile.intercept : 0.0,
+      scaling_factor: typeof profile.scaling_factor === 'number' ? profile.scaling_factor : 1.0,
       disc_pref: typeof meta.discovery === 'number' ? meta.discovery : 0,
       
       profile_filter: 'all',
@@ -269,17 +284,42 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8">
+    <div className="flex flex-col lg:flex-row gap-8 relative">
+      {/* Mobile Filter Toggle */}
+      <button 
+        onClick={() => setShowMobileFilters(!showMobileFilters)}
+        className="lg:hidden fixed bottom-6 right-6 z-[60] bg-primary text-primary-foreground p-4 rounded-full shadow-2xl flex items-center gap-2 font-bold animate-in fade-in zoom-in"
+      >
+        <RotateCcw className={`transition-transform duration-500 ${showMobileFilters ? 'rotate-180' : ''}`} size={20} />
+        {showMobileFilters ? 'Close Preferences' : 'Preferences'}
+      </button>
+
       {/* Sidebar - Filters */}
-      <aside className="w-full lg:w-80 shrink-0">
-        <Filters 
-          filters={filters} 
-          onChange={setFilters} 
-          onSearch={() => handleSearch(filters)} 
-          loading={loading}
-          onProfileUpload={handleProfileUpload}
-        />
-      </aside>
+      <AnimatePresence>
+        {(showMobileFilters || window.innerWidth >= 1024) && (
+          <motion.aside 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className={`w-full lg:w-80 shrink-0 ${showMobileFilters ? 'fixed inset-0 z-[55] bg-background/95 backdrop-blur-md p-4 overflow-y-auto' : 'hidden lg:block'}`}
+          >
+            <Filters 
+              filters={filters} 
+              onChange={setFilters} 
+              onSearch={() => {
+                handleSearch(filters);
+                setShowMobileFilters(false);
+              }} 
+              loading={loading}
+              onProfileUpload={(profile) => {
+                handleProfileUpload(profile);
+                setShowMobileFilters(false);
+              }}
+              onProfileClear={onProfileClear}
+            />
+          </motion.aside>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <div className="flex-grow space-y-8">
@@ -306,8 +346,8 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-2 lg:col-span-1">
               <label className="text-sm font-medium text-muted-foreground">Seed Games</label>
               <SeedSelector 
                 selected={filters.seed_games} 
@@ -320,6 +360,14 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
                 options={genresList} 
                 selected={filters.genres} 
                 onChange={(genres) => setFilters({ ...filters, genres: genres })} 
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">Tags (Require All)</label>
+              <TagSelector 
+                options={tagsList} 
+                selected={filters.tags} 
+                onChange={(tags) => setFilters({ ...filters, tags: tags })} 
               />
             </div>
           </div>

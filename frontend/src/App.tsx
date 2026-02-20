@@ -7,13 +7,14 @@ import PersonalizationView from './components/PersonalizationView';
 import AboutView from './components/AboutView';
 import MethodologyView from './components/MethodologyView';
 import ChangelogView from './components/ChangelogView';
+import SplashView from './components/SplashView';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     try {
-      return (sessionStorage.getItem('activeTab') as TabType) || 'recommend';
+      return (sessionStorage.getItem('activeTab') as TabType) || 'splash';
     } catch (e) {
-      return 'recommend';
+      return 'splash';
     }
   });
   const [appliedProfile, setAppliedProfile] = useState<any>(() => {
@@ -75,6 +76,7 @@ function App() {
         disc_pref: 0.0,
         length_pref: 0.0,
         difficulty_pref: 0.0,
+        price_pref: 0.0,
         remove_vr: true,
         english_only: true,
         remove_nsfw: true,
@@ -84,6 +86,7 @@ function App() {
         prompt: '',
         seed_games: [],
         genres: [],
+        tags: [],
         debug: false,
         profile_filter: 'none',
         library_appids: [],
@@ -103,6 +106,7 @@ function App() {
         ...currentFilters,
         // RESET interfering filters to match solver's "clean" environment
         genres: [],
+        tags: [],
         seed_games: [],
         prompt: '',
         
@@ -119,13 +123,15 @@ function App() {
         pop_pref: meta.popularity ?? 0.0,
         length_pref: meta.length ?? 0.0,
         difficulty_pref: meta.difficulty ?? 0.0,
+        price_pref: meta.price ?? 0.0,
         alpha: meta.semantic ?? 1.0,
         beta: meta.tag_match ?? 1.0,
         
         // State
         vibe_vector: vibeVector,
-        intercept: profile.intercept || 0,
         metadata_weights: meta,
+        intercept: profile.intercept ?? 0.0,
+        scaling_factor: profile.scaling_factor ?? 1.0,
         disc_pref: meta.discovery ?? 0,
         
         profile_filter: 'all',
@@ -150,6 +156,7 @@ function App() {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'splash': return <SplashView onTabChange={setActiveTab} />;
       case 'recommend': return (
         <RecommendationsView 
           onProfileClear={handleProfileClear} 

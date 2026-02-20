@@ -38,16 +38,17 @@ def calculate_linear_scores(
     z_pop, 
     z_playtime, 
     z_difficulty,
+    z_price,
     tag_vectors, 
     tag_norms, 
     beta_tag,
     weights, 
-    intercept,
     tag_scaling_factor, 
     dot_product_lambda,
     z_clamp_min, 
     z_clamp_max,
-    dna_scaling_factor=1.0
+    dna_scaling_factor=1.0,
+    intercept=0.0
 ):
     """
     Unified linear scoring function for Taste DNA parity.
@@ -59,6 +60,7 @@ def calculate_linear_scores(
     p = np.clip(z_pop, z_clamp_min, z_clamp_max)
     l = np.clip(z_playtime, z_clamp_min, z_clamp_max)
     diff = np.clip(z_difficulty, z_clamp_min, z_clamp_max)
+    pr = np.clip(z_price, z_clamp_min, z_clamp_max)
     
     # 2. Tag Scoring: dot(U / (||U|| + lambda) * Scale, beta_absolute)
     # beta_tag should already be the absolute coefficient vector (unit * tag_match_norm)
@@ -67,17 +69,18 @@ def calculate_linear_scores(
     denom = tag_norms.astype(np.float32).reshape(-1) + dot_product_lambda
     tag_contrib = (dot_products / denom) * tag_scaling_factor
     
-    # 3. Summation: Intercept + sum(beta_i * feature_i)
+    # 3. Summation: sum(beta_i * feature_i)
     scores = (
         q * weights.get('quality', 0.0) +
         d * weights.get('age', 0.0) +
         p * weights.get('popularity', 0.0) +
         l * weights.get('length', 0.0) +
         diff * weights.get('difficulty', 0.0) +
-        tag_contrib +
-        intercept
+        pr * weights.get('price', 0.0) +
+        tag_contrib
     )
-    return scores / dna_scaling_factor
+    # Add intercept and divide by scaling factor to map back to original regression scale
+    return (scores + intercept) / dna_scaling_factor
 
 def calculate_hybrid_score(
     z_semantic, w_semantic,
@@ -86,7 +89,8 @@ def calculate_hybrid_score(
     z_date, w_date,
     z_pop, w_pop,
     z_length, w_length,
-    z_difficulty, w_difficulty
+    z_difficulty, w_difficulty,
+    z_price, w_price
 ):
     """
     Calculates the final hybrid score by blending multiple components.
@@ -106,6 +110,8 @@ def calculate_hybrid_score(
         w_length (float): Adjusted weight for length preference.
         z_difficulty (np.array): Difficulty z-scores.
         w_difficulty (float): Adjusted weight for difficulty preference.
+        z_price (np.array): Price z-scores.
+        w_price (float): Adjusted weight for price preference.
         
     Returns:
         np.array: Final blended scores.
@@ -117,7 +123,8 @@ def calculate_hybrid_score(
         z_date * w_date +
         z_pop * w_pop +
         z_length * w_length +
-        z_difficulty * w_difficulty
+        z_difficulty * w_difficulty +
+        z_price * w_price
     )
 
     total_weight = (
@@ -127,7 +134,8 @@ def calculate_hybrid_score(
         abs(w_date) + 
         abs(w_pop) + 
         abs(w_length) +
-        abs(w_difficulty)
+        abs(w_difficulty) +
+        abs(w_price)
     )
 
     if total_weight == 0:

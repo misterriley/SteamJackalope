@@ -12,8 +12,11 @@ from common.constants import (
     METADATA_FILE,
     QUALITY_GRID_FILE,
     AP_SLIDER_VALUES,
+    DISC_SLIDER_VALUES,
     AP_SLIDER_MIN,
     AP_SLIDER_STEP,
+    DISC_SLIDER_MIN,
+    DISC_SLIDER_STEP,
     QUALITY_WEIGHT_MULTIPLIER,
     AGE_WEIGHT_MULTIPLIER,
     POPULARITY_WEIGHT_MULTIPLIER,
@@ -65,8 +68,8 @@ def run_simulation(num_samples=20000):
         w_length = LENGTH_WEIGHT_MULTIPLIER * prefs['length']
         w_difficulty = DIFFICULTY_WEIGHT_MULTIPLIER * prefs['difficulty']
         
-        grid_idx = int(round((prefs['discovery'] - AP_SLIDER_MIN) / AP_SLIDER_STEP))
-        grid_idx = max(0, min(len(AP_SLIDER_VALUES) - 1, grid_idx))
+        grid_idx = int(round((prefs['discovery'] - DISC_SLIDER_MIN) / DISC_SLIDER_STEP))
+        grid_idx = max(0, min(len(DISC_SLIDER_VALUES) - 1, grid_idx))
         z_spps = q_grid_clamped[grid_idx]
         
         return calculate_hybrid_score(
@@ -85,7 +88,7 @@ def run_simulation(num_samples=20000):
             'quality': random.choice(AP_SLIDER_VALUES),
             'age': random.choice(AP_SLIDER_VALUES),
             'popularity': random.choice(AP_SLIDER_VALUES),
-            'discovery': random.choice(AP_SLIDER_VALUES),
+            'discovery': random.choice(DISC_SLIDER_VALUES),
             'length': random.choice(AP_SLIDER_VALUES),
             'difficulty': random.choice(AP_SLIDER_VALUES)
         }
@@ -102,12 +105,18 @@ def run_simulation(num_samples=20000):
         
         # 4. Move it one notch
         current_val = current_prefs[slider_to_change]
-        current_idx = AP_SLIDER_VALUES.index(current_val)
+        
+        if slider_to_change == 'discovery':
+            vals = DISC_SLIDER_VALUES
+        else:
+            vals = AP_SLIDER_VALUES
+            
+        current_idx = vals.index(current_val)
         
         if current_idx == 0:
             # Must go up
             new_idx = 1
-        elif current_idx == len(AP_SLIDER_VALUES) - 1:
+        elif current_idx == len(vals) - 1:
             # Must go down
             new_idx = current_idx - 1
         else:
@@ -115,7 +124,7 @@ def run_simulation(num_samples=20000):
             new_idx = current_idx + random.choice([-1, 1])
             
         new_prefs = current_prefs.copy()
-        new_prefs[slider_to_change] = AP_SLIDER_VALUES[new_idx]
+        new_prefs[slider_to_change] = vals[new_idx]
         
         # Calculate new scores
         new_scores = get_scores(new_prefs)

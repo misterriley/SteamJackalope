@@ -24,7 +24,7 @@ For detailed documentation of each directory, see the individual README files:
 
 ### Key Components
 
-- `app/server.py`: The backend FastAPI server that handles data loading and hybrid score calculations. Start with `python -m uvicorn app.server:app --host 127.0.0.1 --port 8000`.
+- `app/server.py`: The backend FastAPI server that handles data loading and hybrid score calculations. Start with `.\venv310\Scripts\python.exe -m uvicorn app.server:app --host 127.0.0.1 --port 8000`.
 - `frontend/`: Modern React 19 + TypeScript + Vite + Tailwind CSS v4 frontend. Located in the `frontend/` directory. Start with `cd frontend; npm run dev`.
 - `app/app.py`: Legacy frontend Streamlit UI that communicates with the backend server. Start with `streamlit run app/app.py`.
 - `run_test_env.bat`: The primary Windows entry point for local development. It pulls the latest code, updates dependencies, and launches both the FastAPI backend and the React frontend.
@@ -32,6 +32,13 @@ For detailed documentation of each directory, see the individual README files:
 - `deployment/deploy.sh`: The production deployment script for Linux servers. It builds the React frontend for optimized serving via the unified FastAPI process.
 - `onPush.md`: Guidelines for updating the changelog and maintaining versioning before pushing to the remote repository.
 - `pipeline/run_pipeline.py`: Orchestrates the data processing pipeline (tags -> semantic vectors -> metadata -> quality scores). Uses `pipeline/pipeline_config.json` for path and interval settings.
+
+### GPU & Environment (Blackwell Support)
+
+- **Python 3.10 Venv (`venv310`)**: This project utilizes a specialized Python 3.10 virtual environment to ensure compatibility with **PyTorch Nightly (CUDA 12.8)**. This is required to support **NVIDIA Blackwell (RTX 50-series)** GPUs. Always use `.\venv310\Scripts\python.exe` for running scripts to ensure GPU acceleration is available.
+- **GPU Acceleration**: Both the backend server and the data pipeline automatically detect and utilize CUDA if available. This significantly speeds up prompt embedding and artifact generation.
+- **Semantic Model**: The project uses the high-quality **`all-mpnet-base-v2`** model (768 dimensions) for descriptive embeddings.
+- **Descriptive-Only Path**: Semantic similarity is calculated strictly using narrative text (descriptions and reviews). Structural metadata (tags/genres) is excluded from the semantic slider to avoid redundant categorical matching and focus on qualitative "vibes."
 
 ### Push Workflow (`onPush.md`)
 
@@ -60,7 +67,8 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
     - **Async Solver:** The `/user/solve` endpoint runs an asynchronous subprocess to build a user's mathematical profile from their Steam history.
     - **LASSO Regression:** The solver uses **LASSO Regression** to identify the sparse subset of tags and metadata that truly define a user's taste, automatically setting irrelevant features to zero.
     - **Adaptive Saturation:** Tag dimensionality scales dynamically with library size ($K = \text{clip}(N-6, 1, 243)$), ensuring high fidelity for power users while maintaining stability for new libraries.
-    - **Unified Pathway:** Both the Solver's preview and the Recommender's rankings utilize the exact same `calculate_linear_scores` logic in `common/utils.py`, achieving 100% bit-perfect parity between profile training and recommendation output.
+    - **Ordinal vs. Mathematical Parity:** While the system was designed for bit-perfect parity, the primary requirement is **Ordinal Parity**. The order of games retrieved from "Analyze My Catalogue" must match the order in "Recommendations" after exporting the profile. A linear transformation between the scoring spaces is acceptable as long as the relative ranking of games is preserved.
+    - **Unified Pathway:** Both the Solver's preview and the Recommender's rankings utilize the exact same `calculate_linear_scores` logic in `common/utils.py`.
     - **Absolute Slider Control:** Build 39 refactored the UI so that sliders directly represent the solved absolute weights, allowing for transparent fine-tuning without "squaring" or multiplier confusion.
 - **Frontend Features:** The modern frontend includes real-time filtering, clickable tag/genre links to Steam, weight contribution visualization, and **NSFW Blurring**. 
 - **Profile Filtering:** Users can toggle between three exclusion modes: **None**, **Rated** (exclude games verify-rated in the UI), or **All** (exclude every game in their Steam library).

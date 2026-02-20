@@ -15,6 +15,7 @@ import logging
 import subprocess
 import asyncio
 import json
+import unicodedata
 
 # Configure logging
 logging.basicConfig(
@@ -40,7 +41,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from common.constants import (
     EMBEDDINGS_DESC_FILE,
+    EMBEDDINGS_DESC_NORMS_FILE,
     EMBEDDINGS_TAG_FILE,
+    EMBEDDINGS_STRUCTURAL_NORMS_FILE,
     QUALITY_GRID_FILE,
     W_DESC_FILE,
     W_STRUCTURAL_FILE,
@@ -51,6 +54,7 @@ from common.constants import (
     METADATA_FILE,
     TRENDING_APPIDS_FILE,
     DOT_PRODUCT_LAMBDA,
+    SEMANTIC_DOT_PRODUCT_LAMBDA,
     EPSILON,
     Z_SCORE_CLAMP_MIN,
     Z_SCORE_CLAMP_MAX,
@@ -72,7 +76,10 @@ from common.constants import (
     DIFFICULTY_PREDICTIONS_FILE,
     DNA_UI_SCALING_FACTOR,
     ROOT_DIR,
-    TAG_GLOBAL_SCALING_FACTOR
+    TAG_GLOBAL_SCALING_FACTOR,
+    SEMANTIC_GLOBAL_SCALING_FACTOR,
+    SEMANTIC_SIMILARITY_MEAN,
+    SEMANTIC_SIMILARITY_STD
 )
 from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores
 
@@ -103,9 +110,23 @@ class DataManager:
         self.mean_structural = None
         self.model = None
         self.all_genres = []
+        self.all_tags = []
         self.trending_names = []
         self.term_links = {}
         self.lists_cache = {}
+
+    def normalize_string(self, s):
+        """Removes accents and special characters for fuzzy matching."""
+        if not s or not isinstance(s, str):
+            return ""
+        # Remove accents and convert to lowercase
+        s = "".join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
+        s = s.lower()
+        # Remove common special characters that users often omit
+        s = re.sub(r'[™®©:]', '', s)
+        # Replace non-alphanumeric with space and clean up double spaces
+        s = re.sub(r'[^a-z0-9]', ' ', s)
+        return " ".join(s.split())
 
     def filter_dead_tags(self, tags_str):
         """Filters out tags that are not in the term_links mapping (dead tags)."""
@@ -129,6 +150,20 @@ class DataManager:
             return pd.NaT
         
         s = str(date_str).strip()
+        
+        # Handle "coming soon", "TBD", "Maybe", etc.
+        placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
+        if s.lower() in placeholders:
+            return pd.Timestamp.now().normalize() + pd.DateOffset(years=1)
+        
+        # Handle extreme placeholder dates (e.g., 9998, 6969, 9000)
+        extreme_match = re.search(r'\b(9998|6969|9000|2099)\b', s)
+        if extreme_match:
+            return pd.Timestamp.now().normalize() + pd.DateOffset(years=1)
+
+        # Handle Quarterly dates (e.g., Q1 2026)
+        if re.match(r'^[Qq][1-4]\s+\d{4}$', s):
+            return pd.Timestamp.now().normalize() + pd.DateOffset(years=1)
         
         # Match "YYYY-MM-DD"
         if re.match(r'^\d{4}-\d{2}-\d{2}$', s):
@@ -184,7 +219,7 @@ class DataManager:
         needed_cols = [
             'appid', 'name', 'release_date', 'positive', 'negative', 
             'genres', 'tags', 'categories', 'supported_languages',
-            'mature_content', 'price', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z',
+            'mature_content', 'price', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z', 'price_z',
             'estimated_playtime', 'difficulty_predicted'
         ]
         # Only request short_description if it exists
@@ -214,20 +249,37 @@ class DataManager:
         self.metadata['is_vr_only'] = self.metadata['categories'].fillna('').astype(str).str.contains('VR Only', case=False).astype(bool)
         
         # English Filter Safety: if data is completely missing, default to True for all.
-        # Otherwise, default empty strings to True (assume English if unknown)
+        # Otherwise, only return True if 'English' is explicitly found.
         langs = self.metadata['supported_languages'].fillna('').astype(str)
         if (langs == '').all():
             logger.warning("All games have empty supported_languages. Defaulting is_english to True for all.")
             self.metadata['is_english'] = True
         else:
-            # Contains 'English' or is empty
-            self.metadata['is_english'] = langs.str.contains('English', case=False) | (langs == '')
+            # Contains 'English' explicitly. 
+            # We no longer assume empty strings are English if data is present for other games.
+            self.metadata['is_english'] = langs.str.contains('English', case=False).values
             
         self.metadata['is_utility'] = self.metadata['tags'].fillna('').astype(str).str.contains('Utilities', case=False).astype(bool)
         
         logger.info("Identifying NSFW games...")
-        # mature_content > 0 is the source of truth
-        self.metadata['is_nsfw'] = (self.metadata['mature_content'] > 0).values
+        # Combine official mature flag with the 'Hentai' tag.
+        # Other tags (NSFW, Sexual Content, Nudity) are excluded as they often don't 
+        # imply lewd storefront imagery.
+        nsfw_tags_pattern = r"'Hentai':"
+        self.metadata['is_nsfw'] = (
+            (self.metadata['mature_content'] > 0) | 
+            (self.metadata['tags'].fillna('').astype(str).str.contains(nsfw_tags_pattern, regex=True, case=False))
+        ).values
+        logger.info(f"NSFW games identified: {np.sum(self.metadata['is_nsfw'])}")
+        
+        # Content Check for Semantic Match
+        # Identify games that lack any descriptive content or are likely "ghost" entries
+        self.metadata['is_hollow'] = (
+            (self.metadata['short_description'].str.len() < 10) & 
+            (self.metadata['tags'] == '{}') &
+            (self.metadata['genres'] == '')
+        ).values
+        logger.info(f"Hollow games identified: {np.sum(self.metadata['is_hollow'])}")
         
         self.metadata.drop(columns=['categories', 'supported_languages'], inplace=True)
         logger.info(f"Boolean features extracted. Metadata shape: {self.metadata.shape}")
@@ -241,6 +293,7 @@ class DataManager:
         self.metadata['pop_z'] = self.metadata['pop_z'].astype(np.float16)
         self.metadata['playtime_z'] = self.metadata['playtime_z'].astype(np.float16)
         self.metadata['difficulty_z'] = self.metadata['difficulty_z'].astype(np.float16)
+        self.metadata['price_z'] = self.metadata['price_z'].astype(np.float16)
         self.metadata['estimated_playtime'] = self.metadata['estimated_playtime'].astype(np.float32)
         self.metadata['difficulty_predicted'] = self.metadata['difficulty_predicted'].astype(np.float32)
         self.metadata['mature_content'] = self.metadata['mature_content'].fillna(0).astype(np.int8)
@@ -248,6 +301,10 @@ class DataManager:
         # Parse dates
         logger.info("Parsing release dates...")
         self.metadata['parsed_date'] = self.metadata['release_date'].apply(self.clean_release_date)
+
+        # Pre-calculate normalized names for fuzzy search
+        logger.info("Pre-calculating normalized names for search...")
+        self.metadata['normalized_name'] = self.metadata['name'].apply(self.normalize_string)
         
         logger.info(f"Metadata loaded: {len(self.metadata)} rows, {len(self.metadata.columns)} columns")
         
@@ -288,6 +345,11 @@ class DataManager:
         if not loaded_norms:
              logger.warning("Computing tag norms on the fly (may cause RAM spike)...")
              self.tag_vectors_norms = np.linalg.norm(self.tag_vectors.astype(np.float32), axis=1).astype(np.float16)
+
+        # Load semantic norms
+        logger.info("Loading semantic norms...")
+        self.embeddings_desc_norms = np.load(EMBEDDINGS_DESC_NORMS_FILE).astype(np.float16) if os.path.exists(EMBEDDINGS_DESC_NORMS_FILE) else None
+        self.embeddings_structural_norms = np.load(EMBEDDINGS_STRUCTURAL_NORMS_FILE).astype(np.float16) if os.path.exists(EMBEDDINGS_STRUCTURAL_NORMS_FILE) else None
         
         # Extract genres
         logger.info("Extracting unique genres...")
@@ -306,6 +368,20 @@ class DataManager:
             all_genres_set.update(parse_genres_safe(g_str))
         self.all_genres = sorted(list(all_genres_set))
         logger.info(f"Extracted {len(self.all_genres)} unique genres")
+
+        # Extract unique tags for the UI
+        logger.info("Extracting unique tags...")
+        all_tags_set = set()
+        for t_str in self.metadata['tags'].dropna().unique():
+            if t_str.startswith('{') and t_str.endswith('}'):
+                try:
+                    # Using regex for speed over ast.literal_eval for just keys
+                    tag_keys = re.findall(r"'([^']+)':", t_str)
+                    all_tags_set.update(tag_keys)
+                except:
+                    pass
+        self.all_tags = sorted(list(all_tags_set))
+        logger.info(f"Extracted {len(self.all_tags)} unique tags")
         
         # Load trending games
         if os.path.exists(TRENDING_APPIDS_FILE):
@@ -344,8 +420,13 @@ class DataManager:
         # 5. Load SentenceTransformer model
         logger.info("Loading SentenceTransformer model...")
         from sentence_transformers import SentenceTransformer
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Using device: {device}")
+        
         self.model = SentenceTransformer(
             MODEL_NAME,
+            device=device,
             backend=SENTENCE_TRANSFORMER_BACKEND,
             model_kwargs=SENTENCE_TRANSFORMER_MODEL_KWARGS
         )
@@ -387,6 +468,7 @@ class RecommendationRequest(BaseModel):
     disc_pref: float
     length_pref: float
     difficulty_pref: float
+    price_pref: float
     remove_vr: bool
     english_only: bool
     remove_nsfw: bool
@@ -396,11 +478,13 @@ class RecommendationRequest(BaseModel):
     prompt: str
     seed_games: List[str]
     genres: Optional[List[str]] = []
+    tags: Optional[List[str]] = []
     
     # Taste DNA Extensions
     vibe_vector: Optional[List[float]] = None
-    intercept: Optional[float] = None
     metadata_weights: Optional[Dict[str, float]] = None
+    intercept: Optional[float] = 0.0
+    scaling_factor: Optional[float] = 1.0
     
     # Profile Exclusion
     profile_filter: Optional[str] = "none" # "none", "rated", "all"
@@ -417,6 +501,13 @@ def get_genres():
     genres = [g for g in data_manager.all_genres if data_manager.term_links.get(g) is not None]
     logger.debug(f"Returning {len(genres)} filtered genres")
     return genres
+
+@app.get("/tags")
+def get_tags():
+    """Returns a list of all unique tags available in the dataset, filtered for validity."""
+    logger.info("GET /tags called")
+    # Tags are already extracted from metadata which was filtered for dead tags
+    return data_manager.all_tags
 
 @app.get("/term_links")
 def get_term_links():
@@ -437,17 +528,44 @@ def get_games():
 
 @app.get("/games/search")
 def search_games(q: str = "", limit: int = 50):
-    """Returns game names matching the query string."""
+    """Returns game names matching the query string, prioritized by relevance and popularity."""
     if data_manager.metadata is None:
         raise HTTPException(status_code=503, detail="Data not loaded yet")
     
     if not q or len(q) < 2:
-        # Return empty or top games if query is too short
         return []
         
-    mask = data_manager.metadata['name'].str.contains(re.escape(q), case=False, na=False)
-    matches = data_manager.metadata[mask]['name'].head(limit).tolist()
-    return sorted(matches)
+    query_norm = data_manager.normalize_string(q)
+    # 1. Get all matches using normalized names
+    mask = data_manager.metadata['normalized_name'].str.contains(re.escape(query_norm), case=False, na=False)
+    matches_df = data_manager.metadata[mask][['name', 'normalized_name', 'pop_z']].copy()
+    
+    if matches_df.empty:
+        return []
+        
+    # 2. Add scoring columns for sorting
+    # Priority 1: Exact match (ignoring case/symbols)
+    matches_df['exact'] = matches_df['normalized_name'] == query_norm
+    # Priority 2: Starts with query
+    matches_df['starts_with'] = matches_df['normalized_name'].str.startswith(query_norm)
+    
+    # 3. Sort by: Exact Match > Starts With > Popularity (pop_z)
+    # We use popularity to choose WHICH games make the top 50.
+    # Cast pop_z to float32 for sorting compatibility.
+    matches_df['pop_z_f32'] = matches_df['pop_z'].astype(np.float32)
+    matches_df = matches_df.sort_values(
+        by=['exact', 'starts_with', 'pop_z_f32'],
+        ascending=[False, False, False]
+    )
+    
+    # 4. Take the top results
+    top_matches = matches_df.head(limit).copy()
+    
+    # 5. Re-sort the final selection alphabetically (case-insensitive) for UI predictability
+    top_matches['names_lower'] = top_matches['name'].str.lower()
+    top_matches = top_matches.sort_values(by='names_lower', ascending=True)
+    
+    return top_matches['name'].tolist()
 
 @app.get("/games/random")
 def get_random_game():
@@ -966,6 +1084,17 @@ def recommend(request: RecommendationRequest):
         mask &= genre_mask
         logger.debug(f"Genre filter ({request.genres}): {np.sum(mask)} remaining")
 
+    if request.tags:
+        tag_mask = np.ones(len(metadata), dtype=bool)
+        for tag in request.tags:
+            # Requirement: AND logic - all tags must be present
+            escaped_tag = re.escape(tag)
+            # Match 'Tag': as a key in the dictionary string
+            pattern = rf"'{escaped_tag}':"
+            tag_mask &= metadata['tags'].fillna('').astype(str).str.contains(pattern, regex=True).values
+        mask &= tag_mask
+        logger.debug(f"Tag filter ({request.tags}): {np.sum(mask)} remaining")
+
     keep_indices = np.where(mask)[0]
     logger.info(f"Final filtered pool: {len(keep_indices)} games")
     
@@ -978,54 +1107,61 @@ def recommend(request: RecommendationRequest):
     
     try:
         if request.prompt or seed_appids:
+            # Helper to normalize vectors to unit length
+            def norm_vec(v):
+                mag = np.linalg.norm(v)
+                return v / (mag if mag > EPSILON else 1.0)
+
             if request.prompt:
                 logger.info(f"Processing prompt: '{request.prompt}'")
                 prompt_vec = data_manager.model.encode([request.prompt])[0]
                 
-                p_desc_centered = (prompt_vec - data_manager.mean_desc) if data_manager.mean_desc is not None else prompt_vec
-                p_struct_centered = (prompt_vec - data_manager.mean_structural) if data_manager.mean_structural is not None else prompt_vec
+                # Uncentered Whitening: origin is preserved
+                p_desc = np.dot(prompt_vec, data_manager.w_desc) if data_manager.w_desc is not None else prompt_vec
                 
-                p_desc = np.dot(p_desc_centered, data_manager.w_desc) if data_manager.w_desc is not None else p_desc_centered
-                p_struct = np.dot(p_struct_centered, data_manager.w_structural) if data_manager.w_structural is not None else p_struct_centered
-                
-                def norm_vec(v):
-                    mag = np.linalg.norm(v)
-                    return v / (mag if mag > EPSILON else 1.0)
-                
+                # Unit Normalization
                 p_desc_norm = norm_vec(p_desc)
-                p_struct_norm = norm_vec(p_struct)
                 
+                # Dot Product Similarity
                 prompt_desc_sims = np.dot(data_manager.embeddings_desc_norm, p_desc_norm)
-                prompt_structural_sims = np.dot(data_manager.embeddings_structural_norm, p_struct_norm)
                 
-                all_semantic_sims = (prompt_desc_sims + prompt_structural_sims) / 2.0
+                # Apply scaling and regularization (which are 1.0 and 0.0 in the new model)
+                if data_manager.embeddings_desc_norms is not None:
+                    denom_desc = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
+                    prompt_desc_sims = (prompt_desc_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
+
+                all_semantic_sims = prompt_desc_sims
+                all_semantic_sims[data_manager.metadata['is_hollow'].values] = 0.0
                 logger.info(f"Prompt similarities computed: max={all_semantic_sims.max():.4f}")
 
             if seed_indices.size > 0:
                 logger.info(f"Processing {len(seed_indices)} seeds for semantic similarity")
-                # Use mean of normalized vectors
+                # Seeds are already unit-normalized in the new pipeline
                 avg_seed_desc = np.mean(data_manager.embeddings_desc_norm[seed_indices], axis=0)
-                sd_mag = np.linalg.norm(avg_seed_desc)
-                sd_norm = avg_seed_desc / (sd_mag if sd_mag > EPSILON else 1.0)
+                sd_norm = norm_vec(avg_seed_desc)
                 seed_desc_sims = np.dot(data_manager.embeddings_desc_norm, sd_norm)
                 
-                avg_seed_structural = np.mean(data_manager.embeddings_structural_norm[seed_indices], axis=0)
-                ss_mag = np.linalg.norm(avg_seed_structural)
-                ss_norm = avg_seed_structural / (ss_mag if ss_mag > EPSILON else 1.0)
-                seed_structural_sims = np.dot(data_manager.embeddings_structural_norm, ss_norm)
-                
-                seed_combined_sims = (seed_desc_sims + seed_structural_sims) / 2.0
+                if data_manager.embeddings_desc_norms is not None:
+                    denom_desc = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
+                    seed_desc_sims = (seed_desc_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
+
+                seed_combined_sims = seed_desc_sims
+                seed_combined_sims[data_manager.metadata['is_hollow'].values] = 0.0
                 
                 if request.prompt:
-                    # Blend prompt and seeds
                     all_semantic_sims = (all_semantic_sims * (1.0 - SEMANTIC_PROMPT_SEED_BLEND)) + (seed_combined_sims * SEMANTIC_PROMPT_SEED_BLEND)
                     logger.info("Blended prompt and seed semantic similarities")
                 else:
                     all_semantic_sims = seed_combined_sims
                     logger.info("Used seed-only semantic similarities")
     except Exception as e:
-        logger.error(f"Semantic similarity calculation failed: {e}")
+        logger.exception(f"Semantic similarity calculation failed: {e}")
         # Non-fatal: all_semantic_sims remains zeros
+
+    # 2.1 Z-Score Semantic similarities to natural range
+    if request.prompt or seed_appids:
+        all_semantic_sims = (all_semantic_sims - SEMANTIC_SIMILARITY_MEAN) / (SEMANTIC_SIMILARITY_STD + EPSILON)
+        logger.info(f"Z-scored semantic similarities: max={all_semantic_sims.max():.4f}")
 
     all_tag_sims = np.zeros(len(metadata))
     if seed_indices.size > 0 or request.vibe_vector:
@@ -1097,6 +1233,7 @@ def recommend(request: RecommendationRequest):
     z_pop = np.clip(metadata.iloc[keep_indices]['pop_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     z_length = np.clip(metadata.iloc[keep_indices]['playtime_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     z_difficulty = np.clip(metadata.iloc[keep_indices]['difficulty_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    z_price = np.clip(metadata.iloc[keep_indices]['price_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
 
     # Initialize variables for the response to prevent UnboundLocalError
     z_semantic = np.zeros(len(keep_indices))
@@ -1123,11 +1260,11 @@ def recommend(request: RecommendationRequest):
             'age': request.age_pref,
             'popularity': request.pop_pref,
             'length': request.length_pref,
-            'difficulty': request.difficulty_pref
+            'difficulty': request.difficulty_pref,
+            'price': request.price_pref
         }
         
         logger.info(f"DNA Effective Weights: {effective_weights}")
-        logger.info(f"DNA Intercept: {request.intercept}")
         logger.info(f"DNA Tag Match Norm: {np.linalg.norm(beta_to_use)}")
         
         # Handle Seed blending if present (Seeds use beta multiplier)
@@ -1146,16 +1283,17 @@ def recommend(request: RecommendationRequest):
             z_pop=metadata['pop_z'].values,
             z_playtime=metadata['playtime_z'].values,
             z_difficulty=metadata['difficulty_z'].values,
+            z_price=metadata['price_z'].values,
             tag_vectors=data_manager.tag_vectors,
             tag_norms=data_manager.tag_vectors_norms,
             beta_tag=beta_to_use,
             weights=effective_weights,
-            intercept=request.intercept or 0.0,
             tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
             dot_product_lambda=DOT_PRODUCT_LAMBDA,
             z_clamp_min=Z_SCORE_CLAMP_MIN,
             z_clamp_max=Z_SCORE_CLAMP_MAX,
-            dna_scaling_factor=DNA_UI_SCALING_FACTOR
+            dna_scaling_factor=request.scaling_factor or 1.0,
+            intercept=request.intercept or 0.0
         )
         
         # Final selection
@@ -1186,16 +1324,20 @@ def recommend(request: RecommendationRequest):
         w_pop = request.pop_pref
         w_length = request.length_pref
         w_difficulty = request.difficulty_pref
+        w_price = request.price_pref
 
         logger.debug(f"Weights (Absolute): semantic={w_semantic:.2f}, tag={w_tag:.2f}, quality={w_quality:.2f}, "
-                    f"age={w_date:.2f}, pop={w_pop:.2f}, length={w_length:.2f}, difficulty={w_difficulty:.2f}")
+                    f"age={w_date:.2f}, pop={w_pop:.2f}, length={w_length:.2f}, difficulty={w_difficulty:.2f}, price={w_price:.2f}")
 
         # Process Semantic Component
         if request.prompt or seed_appids:
-            z_semantic = np.clip(to_z(semantic_sims), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+            # Semantic sims are already penalized dot products scaled to variance ~1.0
+            z_semantic = semantic_sims
             
         # Process Tag Component
-        z_tag = np.clip(to_z(tag_sims), Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+        # Use the raw penalized dot product similarity (absolute contribution)
+        # to ensure that adding filters doesn't change the score of remaining games.
+        z_tag = np.clip(tag_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
 
         final_scores = (
             (z_semantic * w_semantic) +
@@ -1204,7 +1346,8 @@ def recommend(request: RecommendationRequest):
             (z_date * w_date) +
             (z_pop * w_pop) +
             (z_length * w_length) +
-            (z_difficulty * w_difficulty)
+            (z_difficulty * w_difficulty) +
+            (z_price * w_price)
         )
 
     logger.debug(f"Final scores: min={final_scores.min():.3f}, max={final_scores.max():.3f}, mean={final_scores.mean():.3f}")
@@ -1241,7 +1384,7 @@ def recommend(request: RecommendationRequest):
                 logger.debug(f"Profile Filter ({request.profile_filter}): No matches found in current results.")
 
     # 6. Sorting and Result Formatting
-    total_weight = abs(w_semantic) + abs(w_tag) + abs(w_quality) + abs(w_date) + abs(w_pop) + abs(w_length) + abs(w_difficulty)
+    total_weight = abs(w_semantic) + abs(w_tag) + abs(w_quality) + abs(w_date) + abs(w_pop) + abs(w_length) + abs(w_difficulty) + abs(w_price)
     
     if total_weight < EPSILON:
         # All weights zero: alphabetical fallback
@@ -1316,6 +1459,8 @@ def recommend(request: RecommendationRequest):
             "w_length": w_length,
             "z_difficulty": z_difficulty[idx],
             "w_difficulty": w_difficulty,
+            "z_price": z_price[idx],
+            "w_price": w_price,
             
             "raw_date": game_meta['release_year'],
             "raw_pop": raw_pop,

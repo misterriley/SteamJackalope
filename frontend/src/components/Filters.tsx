@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { RecommendationRequest } from '../types';
-import { Settings2, Info, Upload, UserCheck } from 'lucide-react';
+import { Settings2, Info, Upload, UserCheck, RotateCcw } from 'lucide-react';
 
 // Robust Tooltip component using Portals to avoid overflow clipping
 const Tooltip = ({ text }: { text: string }) => {
@@ -86,10 +86,11 @@ interface SliderProps {
   max: number;
   step: number;
   onChange: (v: number) => void;
+  onReset?: () => void;
   tooltip?: string;
 }
 
-const Slider = ({ label, value, min, max, step, onChange, tooltip }: SliderProps) => {
+const Slider = ({ label, value, min, max, step, onChange, onReset, tooltip }: SliderProps) => {
   const [localValue, setLocalValue] = React.useState(value || 0);
 
   React.useEffect(() => {
@@ -97,13 +98,29 @@ const Slider = ({ label, value, min, max, step, onChange, tooltip }: SliderProps
   }, [value]);
 
   return (
-    <div className="mb-3">
+    <div className="mb-3 group/slider">
       <div className="flex justify-between items-center mb-1">
         <label className="text-xs font-medium text-foreground flex items-center gap-1">
           {label}
           {tooltip && <Tooltip text={tooltip} />}
         </label>
-        <span className="text-[10px] font-mono text-primary font-bold">{(localValue || 0).toFixed(2)}</span>
+        <div className="flex items-center gap-2">
+          {onReset && (
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                onReset();
+              }}
+              className="opacity-0 group-hover/slider:opacity-100 transition-opacity text-muted-foreground hover:text-primary p-0.5"
+              title="Reset to default"
+            >
+              <RotateCcw size={10} />
+            </button>
+          )}
+          <span className="text-[10px] font-mono text-primary font-bold min-w-8 text-right">
+            {(localValue || 0).toFixed(2)}
+          </span>
+        </div>
       </div>
       <input
         type="range"
@@ -161,9 +178,10 @@ interface FiltersProps {
   onSearch: () => void;
   loading: boolean;
   onProfileUpload?: (profile: any) => void;
+  onProfileClear?: () => void;
 }
 
-const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload }) => {
+const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, onProfileClear }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (key: keyof RecommendationRequest, value: any) => {
@@ -187,7 +205,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm sticky top-20 h-[calc(100vh-6rem)] flex flex-col">
+    <div className="bg-card border border-border rounded-xl shadow-sm lg:sticky lg:top-20 lg:h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
       <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <Settings2 size={18} className="text-primary" />
@@ -201,7 +219,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
         )}
       </div>
 
-      <div className="p-4 overflow-y-auto flex-grow custom-scrollbar space-y-4">
+      <div className="p-4 lg:overflow-y-auto flex-grow custom-scrollbar space-y-4">
         <div className="pb-2 border-b border-border/50">
           <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Personalization</h3>
           <input 
@@ -221,16 +239,25 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
           {filters.vibe_vector && (
             <button 
               onClick={() => {
-                const { 
-                  vibe_vector, 
-                  intercept, 
-                  metadata_weights, 
-                  library_appids, 
-                  rated_appids, 
-                  profile_filter,
-                  ...rest 
-                } = filters;
-                onChange({ ...rest, profile_filter: 'none', library_appids: [], rated_appids: [] });
+                // Reset to default weights while removing personalization
+                onChange({ 
+                  ...filters,
+                  alpha: 1.0,
+                  beta: 1.0,
+                  quality_pref: 1.0,
+                  age_pref: 0.0,
+                  pop_pref: 0.0,
+                  disc_pref: 0.0,
+                  length_pref: 0.0,
+                  difficulty_pref: 0.0,
+                  price_pref: 0.0,
+                  vibe_vector: undefined, 
+                  metadata_weights: undefined, 
+                  library_appids: [], 
+                  rated_appids: [], 
+                  profile_filter: 'none' 
+                });
+                if (onProfileClear) onProfileClear();
               }}
               className="w-full mt-2 text-[10px] text-muted-foreground hover:text-destructive underline transition-colors"
             >
@@ -243,22 +270,25 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
           <Slider 
             label="Semantic (Prompt)" 
             value={filters.alpha} 
-            min={0} max={5} step={0.1} 
+            min={0} max={2} step={0.01} 
             onChange={(v: number) => handleChange('alpha', v)}
+            onReset={() => handleChange('alpha', 1.0)}
             tooltip="Absolute points contributed by the text prompt match."
           />
           <Slider 
             label="Tag Match (Vibes)" 
             value={filters.beta} 
-            min={0} max={5} step={0.1} 
+            min={0} max={2} step={0.01} 
             onChange={(v: number) => handleChange('beta', v)}
+            onReset={() => handleChange('beta', 1.0)}
             tooltip="Absolute points contributed by the tag vector match (Seeds/DNA)."
           />
           <Slider 
             label="Quality" 
             value={filters.quality_pref} 
-            min={-5} max={5} step={0.1} 
+            min={-2} max={2} step={0.01} 
             onChange={(v: number) => handleChange('quality_pref', v)}
+            onReset={() => handleChange('quality_pref', 1.0)}
             tooltip="Absolute points per SD of Bayesian Quality score."
           />
           <Slider 
@@ -266,6 +296,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
             value={filters.disc_pref} 
             min={-1} max={1} step={0.1} 
             onChange={(v: number) => handleChange('disc_pref', v)}
+            onReset={() => handleChange('disc_pref', 0.0)}
             tooltip="Controls Bayesian regularization strength (Left = Safe/Mainstream, Right = Wild Cards/Discovery)."
           />
         </div>
@@ -275,29 +306,41 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
           <Slider 
             label="Popularity" 
             value={filters.pop_pref} 
-            min={-5} max={5} step={0.1} 
+            min={-2} max={2} step={0.01} 
             onChange={(v: number) => handleChange('pop_pref', v)}
+            onReset={() => handleChange('pop_pref', 0.0)}
             tooltip="Points per SD of Review Count."
+          />
+          <Slider 
+            label="Price" 
+            value={filters.price_pref} 
+            min={-2} max={2} step={0.01} 
+            onChange={(v: number) => handleChange('price_pref', v)}
+            onReset={() => handleChange('price_pref', 0.0)}
+            tooltip="Points per SD of Price (Left = Cheap, Right = Expensive)."
           />
           <Slider 
             label="Release Date" 
             value={filters.age_pref} 
-            min={-5} max={5} step={0.1} 
+            min={-2} max={2} step={0.01} 
             onChange={(v: number) => handleChange('age_pref', v)}
+            onReset={() => handleChange('age_pref', 0.0)}
             tooltip="Points per SD of Release Date."
           />
           <Slider 
             label="Length" 
             value={filters.length_pref} 
-            min={-5} max={5} step={0.1} 
+            min={-2} max={2} step={0.01} 
             onChange={(v: number) => handleChange('length_pref', v)}
+            onReset={() => handleChange('length_pref', 0.0)}
             tooltip="Points per SD of Estimated Playtime."
           />
           <Slider 
             label="Difficulty" 
             value={filters.difficulty_pref} 
-            min={-5} max={5} step={0.1} 
+            min={-2} max={2} step={0.01} 
             onChange={(v: number) => handleChange('difficulty_pref', v)}
+            onReset={() => handleChange('difficulty_pref', 0.0)}
             tooltip="Points per SD of Predicted Difficulty."
           />
         </div>
@@ -326,7 +369,6 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload })
           <Toggle label="Blur NSFW" checked={filters.remove_nsfw} onChange={(v: boolean) => handleChange('remove_nsfw', v)} />
           <Toggle label="Hide Utilities" checked={filters.remove_utilities} onChange={(v: boolean) => handleChange('remove_utilities', v)} />
           <Toggle label="Released Only" checked={filters.remove_unreleased} onChange={(v: boolean) => handleChange('remove_unreleased', v)} />
-          <Toggle label="Visualize Contributions" checked={!!filters.debug} onChange={(v: boolean) => handleChange('debug', v)} />
         </div>
       </div>
 

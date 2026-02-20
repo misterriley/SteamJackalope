@@ -110,6 +110,11 @@ def main():
     reg_json = config.get("regularization_json", os.path.join(SCRIPT_DIR, "regularization_constants.json"))
     run_script(os.path.join(SCRIPT_DIR, "calculate_regularization.py"), ["--csv", args.games, "--reviews", args.reviews, "--output", reg_json])
 
+    # 0.6. Generate Playtime Sentiment Parameters
+    run_script(os.path.join(SCRIPT_DIR, "generate_playtime_sentiment_params.py"), [
+        "--output", reg_json
+    ])
+
     # 1. Generate Tag Vectors
     tag_vectors_path = config.get("tag_vectors_file", "steam_tag_vectors.npy")
     tag_norms_path = config.get("tag_norms_file", "tag_vectors_norms.npy")
@@ -130,7 +135,9 @@ def main():
     # 2. Generate Semantic Vectors
     # This takes both games and reviews.
     embeddings_desc_path = config.get("embeddings_desc_file", "embeddings_desc.npy")
+    embeddings_desc_norms_path = config.get("embeddings_desc_norms_file", "embeddings_desc_norms.npy")
     embeddings_tag_path = config.get("embeddings_tag_file", "embeddings_structural.npy")
+    embeddings_tag_norms_path = config.get("embeddings_structural_norms_file", "embeddings_structural_norms.npy")
     w_desc_path = config.get("w_desc_file", W_DESC_FILE)
     w_structural_path = config.get("w_structural_file", W_STRUCTURAL_FILE)
     mean_desc_path = config.get("mean_desc_file", MEAN_DESC_FILE)
@@ -145,7 +152,9 @@ def main():
         "--w_desc", w_desc_path,
         "--w_structural", w_structural_path,
         "--mean_desc", mean_desc_path,
-        "--mean_structural", mean_structural_path
+        "--mean_structural", mean_structural_path,
+        "--desc_norms", embeddings_desc_norms_path,
+        "--structural_norms", embeddings_tag_norms_path
     ])
     if os.path.exists(temp_metadata_path):
         os.remove(temp_metadata_path)
@@ -242,7 +251,7 @@ def validate_outputs(clean_games_path):
     # Check Quality Grid
     if os.path.exists(QUALITY_GRID_FILE):
         try:
-            from common.constants import AP_SLIDER_VALUES
+            from common.constants import DISC_SLIDER_VALUES
             grid = np.load(QUALITY_GRID_FILE)
             # Quality grid is (num_steps, num_games)
             if grid.ndim != 2:
@@ -250,8 +259,8 @@ def validate_outputs(clean_games_path):
             else:
                 if grid.shape[1] != expected_len:
                     errors.append(f"{QUALITY_GRID_FILE} has {grid.shape[1]} columns, expected {expected_len} (one for each game)")
-                if grid.shape[0] != len(AP_SLIDER_VALUES):
-                    errors.append(f"{QUALITY_GRID_FILE} has {grid.shape[0]} rows, expected {len(AP_SLIDER_VALUES)} (one for each slider step)")
+                if grid.shape[0] != len(DISC_SLIDER_VALUES):
+                    errors.append(f"{QUALITY_GRID_FILE} has {grid.shape[0]} rows, expected {len(DISC_SLIDER_VALUES)} (one for each slider step)")
         except Exception as e:
             errors.append(f"Error reading {QUALITY_GRID_FILE}: {e}")
     else:

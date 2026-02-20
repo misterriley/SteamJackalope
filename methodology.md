@@ -4,34 +4,32 @@
 The initial dataset consists of Steam games as of March 2025 downloaded from [Kaggle](https://www.kaggle.com/datasets/artermiloff/steam-games-dataset). Each month Steam is scraped for new content/scores/reviews/descriptions/comments etc. Data is collected directly from the [**Steam Storefront**](https://store.steampowered.com/) and the official [**Steam API**](https://developer.valvesoftware.com/wiki/Steam_Web_API) to ensure high fidelity for user tags and review counts. Review counts are prioritized from **English** language sources where available, falling back to global counts to ensure relevance for English-speaking users while maintaining coverage for international titles.
 
 ## 2. Semantic Embeddings
-To enable natural language search, we use the [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) SentenceTransformer model. To improve precision, we utilize a **Dual Semantic Vector** system.
+To enable natural language search, we use the [**all-mpnet-base-v2**](https://huggingface.co/sentence-transformers/all-mpnet-base-v2) SentenceTransformer model. This model provides superior qualitative and thematic matching compared to smaller models, utilizing 768-dimensional vectors to capture deep narrative nuance.
 
-- **Structural Vector:** Encodes the categorical properties of a game, such as its **Genres** and **Tags**. This captures the "what it is" aspect of the game.
+- **Descriptive Path:** We focus our semantic matching on the narrative and "vibe" of a game using its **Short Description** and **User Reviews**. This captures "how it feels" and "how it's talked about" by real players. We have explicitly decoupled categorical properties (Genres/Tags) from the semantic slider to ensure that natural language searches prioritize qualitative vibes rather than redundant categorical matches.
 
-- **Descriptive Vector:** Encodes the narrative and "vibe" of a game using its **Short Description** and **User Reviews**. This captures the "how it feels" and "how it's talked about" aspects of the game.
+- **Process:** Each piece of text is converted into a high-dimensional vector that represents its meaning. Groups of words have their vectors pooled, allowing long text to be represented by a single vector. To optimize performance, we utilize **GPU Acceleration (CUDA)** on compatible NVIDIA hardware, reducing the processing time for our ~150,000 game database from hours to minutes.
 
-- **Process:** Each piece of text is converted into a high-dimensional vector that represents its meaning. If the text is a single word, the model encodes the expected context of that word. Groups of words have their vectors pooled, allowing long text to be represented by a single vector.  
+- **Usage:** The similarity between these vectors is measured using pure [dot product](https://en.wikipedia.org/wiki/Dot_product) in a unit-normalized space. This allows the model to recognize synonyms like "peaceful" and "calm" as closely related concepts. When using "Seed" games, the system averages the descriptive vectors of the seeds to find games with a similar narrative profile.
 
-- **Usage:** The similarity between these vectors is measured using [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity), which gives a numerical value indicating how alike their meanings are. This allows the model to recognize synonyms like "peaceful" and "calm" as closely related concepts, even if the words don't match exactly. By calculating the angle between vectors, we can compare the user prompt with both the description and tags of games in the database. When using "Seed" games, the system performs specialized matching: structural seed vectors are compared against other games' structural vectors, and descriptive against descriptive. This prevents "meaning leak"—for example, it ensures that a seed game's narrative description doesn't incorrectly match an unrelated game just because they share a common tag word.
+- **Uncentered ZCA Whitening:** To improve semantic precision, we apply **Uncentered Zero-phase Component Analysis (ZCA) Whitening** to the vectors. Unlike standard whitening, we do not subtract the mean; this preserves the origin of the vector space, ensuring that "empty" or "neutral" games remain at the zero-point. This process decorrelates dimensions and magnifies unique, salient characteristics of a game (similar to a TF-IDF effect for vectors), ensuring that specific narrative themes are not drowned out by common "Steam-speak" noise. We retain 95% of the global variance, which typically compresses the 768-dimensional space into approximately 235 principal directions.
 
-- **Whitening:** To improve semantic precision, we apply [Zero-phase Component Analysis (ZCA) Whitening](https://martin-thoma.com/zca-whitening/) to the semantic vectors. Raw transformer embeddings on specialized sets of text (e.g., video game descriptions) often have high correlation between dimensions and a significant non-zero mean, which can bias searches toward common semantic themes. We first subtract the global mean of the embeddings to center the distribution, then apply ZCA on the mean-centered data to decorrelate dimensions. This ensures that the similarity metric focuses on unique game characteristics and improves the specificity of natural language queries. The stored mean and transformation matrix are both applied to user prompts at query time to maintain alignment in the decorrelated space. 
+- **Natural Range Z-Scoring:** To ensure that the "Semantic Match" slider has a consistent impact relative to other features (like Quality or Age), we calibrate the similarity scores against a **Natural Range**. We simulate 10,000 random game pairs to derive the global mean and standard deviation of descriptive similarities. Prompt matches are then Z-scored against this calibrated baseline, providing a stable 0-1.0 variance feature for the hybrid scoring engine.
 
 ## 3. Tag Embeddings
 Steam tags are user-contributed and often noisy. We apply a pipeline to transform these raw counts into robust "tag vectors" that capture the stylistic profile of each game.
 
-- **Iterative EM Imputation:** To handle unobserved tags (Steam limits API responses to the top 20 tags), we use an Iterative Expectation-Maximization (EM) algorithm. The E-step imputes counts for unobserved tags using the current covariance matrix (conditional expectation), capped by the count of the 20th tag. The M-step recalculates the global mean and covariance from these augmented profiles. This is repeated until the model converges to a stable estimate of the missing data. The result is a best guess for the distribution of censored tags that fall outside of the top 20. 
+- **Iterative EM Imputation:** To handle unobserved tags (Steam limits API responses to the top 20 tags), we use an Iterative Expectation-Maximization (EM) algorithm. The E-step imputes counts for unobserved tags using the current covariance matrix (conditional expectation), capped by the count of the 20th tag. The M-step recalculates the global mean and covariance from these augmented profiles. This is repeated until the model converges to a stable estimate of the missing data. The result is a best guess for the distribution of censored tags that would fall outside of the top 20. 
 
-- **Stochastic Path Optimization:** To determine the optimal regularization constant $K$, we employ a simulation study. We select "reliable" games (with >1,000 votes) and simulate smaller versions of them by drawing samples from the data associated with one game at a time; the number of samples per game is a random variable taken from the sizes from the actual dataset distribution. We then solve for the $K$ that minimizes the Sum of Squared Errors (SSE) between the regularized synthetic profiles and the true reliable profiles.
+- **Stochastic Path Optimization:** To determine the optimal regularization constant $K$, we employ a simulation study. We select "reliable" games (with >1,000 votes) and simulate smaller versions of them by drawing samples from the data associated with one game at a time; the number of samples per game is a random variable taken from the actual distribution of sizes from the full dataset. We then solve for the $K$ that minimizes the Sum of Squared Errors (SSE) between the regularized synthetic profiles and the true reliable profiles.
 
 - **Bayesian Regularization:** We apply Bayesian smoothing using the optimized $K$ to shrink low-information games toward the global prior.
 
-- **Swappable Transformations & Bayesian Regularization:** We support three transformation options to stabilize the variance of tag counts: the [Anscombe Transform](https://en.wikipedia.org/wiki/Anscombe_transform) ($2\sqrt{x + 3/8}$), [Centered Log-Ratio (CLR)](https://en.wikipedia.org/wiki/Compositional_data#Center_log_ratio_transform), or an Identity transform. Currently we are evaluating whether any of these outperforms the others for quality of matches.
+- **Swappable Transformations & Bayesian Regularization:** We support three transformation options to stabilize the variance of tag counts: the [Anscombe Transform](https://en.wikipedia.org/wiki/Anscombe_transform) ($2\sqrt{x + 3/8}$), [Centered Log-Ratio (CLR)](https://en.wikipedia.org/wiki/Compositional_data#Center_log_ratio_transform), or an Identity transform. Currently we are evaluating whether any of these outperforms the others for quality of matches. It appears that CLR is the best metric for capturing the geometric and informational properties of the space of tags, but more study is needed.
 
 - **Process:** We first apply Bayesian regularization directly to the raw tag counts: $\text{Profile} = (C + K \cdot G) / (N + K)$, where $C$ is the count vector, $G$ is the global prior, and $N$ is the total votes. This ensures that the regularization happens on the "natural" scale of the data. We then apply the chosen transformation to both the regularized profile and the global prior. The final embedding is the difference between these two in the transformed space: $V = \text{Transform}(\text{Profile}) - \text{Transform}(G)$. This ensures that the "regularizing point" (a game with zero observed tags) resides at the origin ($0$) of the embedding space, making it a neutral reference for similarity calculations.
 
-![Tag Correlation Carpet Plot](assets/tag_correlation_carpet_plot.png)
-
-- **Regularized Similarity:** We use a **Regularized Cosine Similarity** for tag vectors: $\text{Sim}(A,B) = \frac{A \cdot B}{\|A\|\|B\| + \lambda}$. This effectively penalizes similarity scores for games with low-information (short) tag vectors, ensuring that recommendations are based on strong, confident tag matches. The parameter $\lambda$ is determined by fitting a [Chi-distribution](https://en.wikipedia.org/wiki/Chi-distribution) to the lengths (norms) of "low-tag" vectors (norms between 0 and 5). We set $\lambda$ to the 95th percentile of this fitted distribution, which represents the "noise floor" of the embedding space. This ensures that a vector's length must be statistically significant before it can achieve high similarity scores.
+- **Tag Vectors as Regression Coefficients:** We use tag vectors that are normalized with a shrinkage coefficient as regression coefficients in the model, such that the contribution of a set of tags for a game in the data set is the dot product of its tag vector by a seed game's shrunken normalized vector. This effectively penalizes similarity scores for games with low-information (short) tag vectors, ensuring that recommendations are based on strong, confident tag matches. We assume that short vectors are dominated by Gaussian-distributed noise, and so we estimate this noise with a parameter $\lambda$ that is determined by fitting a [Chi-distribution](https://en.wikipedia.org/wiki/Chi-distribution) to the lengths of low-tag vectors. We set $\lambda$ to the 95th percentile of this fitted distribution, which represents the "noise floor" of the embedding space. This ensures that a vector's length must be statistically significant before it can achieve high similarity scores.
 
 - **Whitening & Dimensionality Reduction:** To ensure stability and remove numerical noise, tag vectors undergo **Truncated PCA-ZCA Whitening**. The data is projected onto its top principal components, which capture 95% of the global variance while eliminating singular dimensions (such as the linear constraint imposed by the CLR transform). This process decorrelates the tags and prevents "ghost" similarities between unrelated games.
 
@@ -40,11 +38,13 @@ To provide bit-perfect recommendations tailored to individual history, we use a 
 
 - **Soft-Labeling:** We estimate a user's potential rating for every game in their library using a combination of their explicit Steam reviews and their relative playtime. We apply a **Log-Normal Kernel** to the global playtime distribution of each game to predict the probability of a positive review at the user's specific playtime ($p+(t)$). This probability is blended with the global quality score to produce a predicted rating on a 0-10 scale.
 
-- **LASSO Regression:** We solve for the user's "Taste DNA" using [**LASSO Regression**](https://en.wikipedia.org/wiki/Lasso_(statistics)). This technique is chosen for its ability to perform automatic feature selection; by applying an L1 penalty, the model identifies the specific subset of tags and metadata that truly drive a user's preferences, setting irrelevant features to exactly zero.
+- **User Ratings:** Soft labels are only guesses, so an intermediate step is to have the user correct these guesses with their true ratings. 
 
-- **Adaptive Dimensionality:** To prevent overfitting while maintaining high fidelity, we use an **Adaptive Dimensionality** scheme for the tag space. The number of principal components $K$ used during solving is dynamically set based on the user's library size $N$, typically following $K = \text{clip}(N-6, 1, 243)$. This ensures that users with small libraries receive stable, broad profiles, while power users with thousands of games receive highly granular, high-dimensional taste vectors.
+- **LASSO Regression:** We solve for the user's "Taste DNA" using [**LASSO Regression**](https://en.wikipedia.org/wiki/Lasso_(statistics)). This technique is chosen for its ability to perform automatic feature selection; by applying an L1 penalty, the model identifies the specific subset of tags and metadata that truly drive a user's preferences, setting irrelevant features to exactly zero. In internal tests, L1 penalization outperforms L2 penalization in terms of generalization capability.
 
-- **Unified Pathway:** Both the **Taste DNA Solver** and the **Discovery Engine** utilize the exact same mathematical code path (`calculate_linear_scores`). This ensures 100% ranking parity between the games used to train the profile and the recommendations surfaced by the engine.
+- **Adaptive Dimensionality:** To prevent overfitting while maintaining high fidelity, we use an **Adaptive Dimensionality** scheme for the tag space. The number of principal components $K$ used during solving is dynamically set based on the user's library size $N$, typically following $K = \text{clip}(N-6, 1, 243)$. This ensures that users with small libraries receive stable, broad profiles, while power users with hundreds of rated games receive highly granular, high-dimensional taste vectors.
+
+- **Importing to Recommender:** Outputs from the **Taste DNA Solver** can be ported back into the recommender and users can adjust settings, add prompts, filter by tag/genre, or set seed games to adapt the outputs.
 
 ## 5. Quality Scoring
 Instead of raw review percentages, we use a Bayesian score that smooths out noisy reviews. This allows the system to distinguish between a game with 10 positive reviews out of 10 and a masterpiece with 98,000 positive reviews out of 100,000. 
@@ -53,7 +53,7 @@ The model we use is based around the idea that there is a latent quality score $
 
 - **Components:** $p$ and $n$ are positive and negative reviews, $a$ is the global positive review rate derived from the dataset, and $s$ is a regularization constant.
 
-- **Tunable Discovery:** The "Discovery" slider allows users to adjust $s$ in real-time. A high discovery setting ("Wild Cards") uses a low $s$, allowing "hidden gems" with few reviews to climb the rankings, while a low discovery setting ("Known Quantities") uses a high $s$ to ensure only established, highly-reviewed titles reach the top. The application uses a high-resolution precalculated grid (201 steps) to provide smooth transitions between these settings.
+- **Tunable Discovery:** The "Discovery" slider allows users to adjust $s$ in real-time. A high discovery setting ("Wild Cards") uses a low $s$, allowing "hidden gems" with few reviews to climb the rankings, while a low discovery setting ("Known Quantities") uses a high $s$ to ensure only established, highly-reviewed titles reach the top. The application uses a precalculated grid (21 steps) to provide smooth transitions between these settings.
 
 - **Probit Function:** $\Phi^{-1}$ is the [probit function](https://en.wikipedia.org/wiki/Probit), which converts probabilities into a linear scale (z-scores), making the differences between "great" and "perfect", or "bad" and "horrendous", more meaningful.
 
@@ -70,7 +70,7 @@ To effectively rank games by length, we analyze the distribution of playtimes th
 
 - **Formula:** $\text{Regularized Log-Median} = \frac{n \cdot \text{Sample Log-Median} + C \cdot \text{Global Mean Log-Median}}{n + C}$, where $n$ is the number of positive reviews. This ensures that games with very few reviews are strongly pulled toward the global average, while games with substantial feedback retain their specific playtime identity.
 
-- **Display:** The exponential of this regularized value is displayed as the estimation of length. 
+- **Display:** The exponential of this regularized value, minus 1 and converted to hours, is displayed as the estimation of length. 
 
 ## 7. Difficulty Prediction
 Steam games do not natively have a "Difficulty" rating. To solve this, we built a predictive model using external data fitted to Steam game tags. 
@@ -92,9 +92,9 @@ Steam games do not natively have a "Difficulty" rating. To solve this, we built 
 ## 8. Content Sensitivity (NSFW Blur)
 To maintain a safe and professional discovery experience, Steam Jackalope employs an **"NSFW Blur" Architecture**. 
 
-- **Flagging:** Games are automatically flagged as `is_nsfw` based on a curated list of sensitivity tags (e.g., "Hentai", "Sexual Content", "Nudity"). 
+- **Flagging:** Games are automatically flagged as `is_nsfw` based on a the html from the scraped page (where a big "Adult Only" sign will be) or the "Hentai" tag.  
 
-- **UI Interaction:** Instead of hard-filtering results, which can bias the algorithm's understanding of "vibe," the frontend uses a global **Blur Toggle**. When active, any game flagged as NSFW has its header image blurred using a CSS backdrop filter. This maintains the integrity of the recommendation list while giving users control over their visual environment.
+- **UI Interaction:** The frontend uses a global **Blur NSFW**. When active, any game flagged as NSFW has its header image blurred using a CSS backdrop filter. This maintains the integrity of the recommendation list while giving users control over their visual environment.
 
 ## 9. The Jackalope
 
@@ -125,12 +125,10 @@ Users can tune these weights in the UI to prioritize long, easy, niche hidden ge
 - **Global Clamping:** To prevent extreme outliers from disproportionately influencing the final score, all component z-scores are clamped between -8.0 and 8.0.
 
 ## 8. Filtering
-The system allows real-time filtering for **Genres**, VR-Only titles, English language support, NSFW content (Adult Only banner), Software/Utilities (Breadcrumb detection), and Unreleased games to ensure the results are relevant to the user. The Genre filter supports multi-selection, ensuring that recommended games match at least one of the selected categories. Downloadable Content (DLC) is excluded from the database to focus recommendations on standalone games.
+The system allows real-time filtering for **Genres**, **Tags**, VR-Only titles, English language support, Software/Utilities (Breadcrumb detection), and Unreleased games to ensure the results are relevant to the user. The Genre filter supports multi-selection, ensuring that recommended games match at least one of the selected categories. Downloadable Content (DLC) is excluded from the database to focus recommendations on standalone games.
 
 ## 9. Insights & Rankings
 The "Lists" page provides a curated view of the Steam library's extremes, including the highest and lowest quality games, the longest and shortest experiences, and predicted difficulty rankings. These lists utilize the same Bayesian models and predictive analytics used in the recommendation engine, providing transparency into how different games are positioned within our statistical model.
-
-The "Lists" page also includes a **Similarity Analysis** tab. This tool identifies popular yet diverse seed games (tag similarity < 0.2) and displays their most similar matches based on both tag and semantic embeddings. This provides a direct look at the engine's core similarity logic, demonstrating how it handles both categorical (tag-based) and stylistic (semantic) matches for well-known titles.
 
 ## 10. Playtime-Sentiment Correlation
 To understand how player engagement relates to satisfaction, we utilize a **Kernel Smoothing** model to analyze the relationship between playtime and review sentiment (positive vs. negative). This allows us to estimate the probability that a player will enjoy a game based on how long they have played it.
@@ -143,12 +141,10 @@ To understand how player engagement relates to satisfaction, we utilize a **Kern
 
 - **Optimization:** The model's smoothing bandwidth ($\gamma$) and regularization strength ($s$) were globally optimized using a parallelized grid search over the entire dataset of 36,000+ games. We maximized the total log-likelihood (cross-entropy) of the historical review data, ensuring that every review across all games contributes equally to the calibration. 
 
-- **Usage:** This model reveals patterns such as "early quitters" (negative reviews at low playtime) vs. "burnout" (negative reviews at extremely high playtime), providing deeper insights into the player experience beyond a single aggregate score.
+- **Usage:** This model reveals patterns such as "early quitters" (negative reviews at low playtime) vs. "burnout" (negative reviews at extremely high playtime), providing deeper insights into the player experience beyond a single aggregate score. The smoothing bandwidth and regularization strength are used for estimating the probability of a positive review for the user given their playtime. 
 
 ## 11. Visual & UI Stability
 To provide a polished and safe user experience, the modern frontend implements several automated visual treatments:
-
-- **NSFW Content Blurring:** Games flagged with the "Adult Only" or "Mature" content banners (or those containing specific NSFW keyword patterns) automatically have their banner images blurred in the recommendation grid. Users can click a "Reveal" button on individual cards to temporarily clear the blur.
 
 - **Grid Rendering Stability:** The recommendation grid utilizes persistent React keys based on game AppIDs and standardized CSS layout principles (avoiding flexbox on global containers) to prevent "Single Card" collapse bugs and ensure consistent card sizing across all screen resolutions.
 
