@@ -92,7 +92,7 @@ def parse_gamefaqs_directory(directory):
 def parse_steam_tags(df):
     all_game_tags = []
     tag_counts = {}
-    for tag_str in df['tags']:
+    for tag_str in tqdm(df['tags'], desc="Parsing Steam tags", smoothing=0):
         if pd.isna(tag_str) or tag_str == '[]' or tag_str == '':
             all_game_tags.append({})
             continue

@@ -118,7 +118,8 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
 
     print("Cleaning tags for structural embeddings...")
     if tqdm_available:
-        df['clean_tags'] = df['tags'].apply(clean_tag_string)
+        tqdm.pandas(desc="Cleaning tags", smoothing=0)
+        df['clean_tags'] = df['tags'].progress_apply(clean_tag_string)
     else:
         df['clean_tags'] = df['tags'].apply(clean_tag_string)
     
@@ -139,6 +140,9 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
     
+    # Optimization: Enable tokenizer parallelism to speed up batch preparation
+    os.environ["TOKENIZERS_PARALLELISM"] = "true"
+    
     model = SentenceTransformer(
         MODEL_NAME,
         device=device,
@@ -146,20 +150,21 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
         model_kwargs=SENTENCE_TRANSFORMER_MODEL_KWARGS
     )
     
+    # Use a larger batch size to saturate the GPU
+    BATCH_SIZE = 256 if device == "cuda" else 32
+    
     print("Generating structural embeddings...")
     structural_texts = df['structural_text'].tolist()
     # Identify empty inputs to zero them out later
-    # Empty structural text is "Genres:  Tags: "
     is_empty_struct = df['structural_text'].str.strip() == "Genres:  Tags:"
-    # Using a larger batch size for speed
-    embeddings_structural = model.encode(structural_texts, show_progress_bar=True, batch_size=128)
+    embeddings_structural = model.encode(structural_texts, show_progress_bar=True, batch_size=BATCH_SIZE)
     embeddings_structural[is_empty_struct] = 0
     
     print("Generating descriptive embeddings...")
     desc_texts = df['desc_text'].tolist()
     # Empty descriptive text is "Description:  Reviews: "
     is_empty_desc = df['desc_text'].str.strip() == "Description:  Reviews:"
-    embeddings_desc = model.encode(desc_texts, show_progress_bar=True, batch_size=128)
+    embeddings_desc = model.encode(desc_texts, show_progress_bar=True, batch_size=BATCH_SIZE)
     embeddings_desc[is_empty_desc] = 0
 
     print("Whitening embeddings...")

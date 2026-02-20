@@ -48,6 +48,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
         all_library_appids = df_gt['appid'].unique().tolist()
     
     # Filter for regression training: remove ignored and NaN ratings
+    # Get list of ignored appids for the JSON
+    ignored_appids = []
+    if 'ignore' in df_gt.columns:
+        ignored_appids = df_gt[df_gt['ignore'] == True]['appid'].tolist()
+
     df = df_gt.copy()
     if 'ignore' in df.columns:
         df = df[df['ignore'] == False].copy()
@@ -108,21 +113,26 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Apply Clamping to the best grid row
     q_global = np.clip(quality_grid[best_idx][user_indices], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     
-    print(f"Optimal Discovery: {optimal_disc_pref:+.3f} (Max Absolute Correlation: {correlations[best_idx]:.4f})")
+    # Store correlation scan for explainability
+    discovery_scan = []
+    for i, corr in enumerate(correlations):
+        disc_val = (i / (num_steps - 1)) * 2.0 - 1.0
+        discovery_scan.append({'x': disc_val, 'y': corr**2}) # Store R^2
+    
+    print(f"Optimal Discovery: {optimal_disc_pref:+.3f} (Max R^2: {correlations[best_idx]**2:.4f})")
 
     # Load Tag Vectors (Current production K, e.g., 243-dim)
     tag_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
     user_tag_features_raw = tag_vectors[user_indices]
     
     # --- ADAPTIVE DIMENSIONALITY ---
-    # Based on parametric study, K = N - 6 reaches the saturation point for df
-    # We reduce K by 1 to account for the new Price metadata feature
+    # Based on parametric study, K = N - 7 reaches the saturation point for df
     num_ratings = len(y) - 1 # Exclude dummy
     
     k_max = tag_vectors.shape[1] # Production max (e.g. 243)
     k_adaptive = int(np.clip(num_ratings - 7, 1, k_max))
     
-    print(f"Adaptive DNA: Using saturation dimensionality K = {k_adaptive} for library size {num_ratings} (Price-adjusted).")
+    print(f"Adaptive DNA: Using saturation dimensionality K = {k_adaptive} for library size {num_ratings}.")
     
     # 1. Use the FULL norm for penalized normalization (consistency with Recommender)
     full_norms = np.load(TAG_NORMS_FILE, mmap_mode='r')
@@ -131,7 +141,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # 2. Slice features to the adaptive dimensionality
     user_tag_features = user_tag_features_raw[:, :k_adaptive].astype(np.float32)
     
-    # Load Metadata Features
+    # Load Metadata Features (Including price_z)
     meta_cols = ['date_z', 'pop_z', 'playtime_z', 'difficulty_z', 'price_z']
     # Apply Clamping to match Recommender exactly during training
     user_meta_features = np.clip(full_metadata.iloc[user_indices][meta_cols].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
@@ -153,13 +163,18 @@ def solve_user_taste(ground_truth_path, output_path=None):
     print(f"Solving Lasso regression for {len(y)} samples across {X.shape[1]} features...")
     
     from sklearn.linear_model import LassoCV
-    # Use LassoCV with a broad alpha range and high iterations for stability
-    # Note: We NO LONGER use StandardScaler here, as the features are already 
-    # standardized to Global Z-scores (Metadata) or Scaled Norms (Tags).
+    
+    # --- MODEL SELECTION: RAW VS SCALED ---
+    # We choose NOT to use StandardScaler because the input features are already 
+    # globally standardized (pop_z, date_z, whitened tags). 
+    # Local scaling in a biased user sample can over-represent low-variance features 
+    # that aren't actually predictive in the global population.
+    
+    # Use LassoCV to find the best sparse model on the RAW (globally scaled) features
     model = LassoCV(cv=5, max_iter=20000, selection='random', tol=1e-3)
     model.fit(X, y)
     
-    # Extract Coefficients directly
+    # Coefficients are already on the correct scale
     coeffs = model.coef_
     intercept = model.intercept_
     
@@ -167,10 +182,6 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Calculate R^2 on the training set
     r2_train = model.score(X, y)
     print(f"Model Training R^2: {r2_train:.4f}")
-    
-    # Extract Coefficients
-    coeffs = model.coef_
-    intercept = model.intercept_
 
     # --- TAG PROJECTION ---
     # Project whitened coefficients back to original tag space to find predictive tags
@@ -305,10 +316,13 @@ def solve_user_taste(ground_truth_path, output_path=None):
         north_stars = pd.DataFrame()
         abyssal_games = pd.DataFrame()
 
-    # --- WEIGHT SCALING (Slider Real Estate) ---
-    # We scale metadata weights so the largest absolute value is DNA_UI_SCALING_FACTOR.
-    # This preserves ranking order but makes better use of the UI slider range.
-    weights_to_scale = {
+    # --- TOP & BOTTOM RECOMMENDATIONS ---
+    print("Generating top and bottom recommendations based on solved profile (original scale)...")
+    from common.utils import calculate_linear_scores
+    
+    # Construction coefficients at ORIGINAL scale for preview accuracy (matching ground truth 1-10)
+    # We use float(coeffs[...]) which are already back-calculated to the raw feature scale.
+    preview_weights = {
         'quality': float(coeffs[0]),
         'age': float(coeffs[1]),
         'popularity': float(coeffs[2]),
@@ -316,30 +330,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'difficulty': float(coeffs[4]),
         'price': float(coeffs[5]),
         'tag_match': float(tag_norm),
-        'semantic': 1.0  # Default base semantic weight
+        'semantic': 1.0,
+        'discovery': float(optimal_disc_pref)
     }
     
-    max_abs_weight = max(abs(v) for v in weights_to_scale.values())
-    scaling_factor = DNA_UI_SCALING_FACTOR / max_abs_weight if max_abs_weight > 1e-6 else 1.0
-    
-    scaled_metadata = {k: v * scaling_factor for k, v in weights_to_scale.items()}
-    # Keep discovery separate (do not scale)
-    scaled_metadata['discovery'] = float(optimal_disc_pref)
-    
-    # Scale intercept to maintain relative signal-to-bias ratio for the preview scores
-    scaled_intercept = float(intercept) * scaling_factor
-
-    # --- TOP & BOTTOM RECOMMENDATIONS ---
-    print("Generating top and bottom recommendations based on solved profile (unified pathway)...")
-    # Using unified scoring utility for bit-perfect parity with Recommender
-    # We use the SCALED weights and divide by DNA_UI_SCALING_FACTOR to ensure 
-    # identical numerical treatment as the server.
-    from common.utils import calculate_linear_scores
-    
-    # Construct scaled tag beta
-    beta_tag_scaled = (tag_coeffs_full / tag_norm * scaled_metadata['tag_match']) if tag_norm > 1e-9 else tag_coeffs_full
-    
-    # Predict directly using unified function
+    # Calculate scores on the ORIGINAL scale (no UI scaling factor applied)
     all_tag_norms = np.load(TAG_NORMS_FILE, mmap_mode='r')
     
     scores = calculate_linear_scores(
@@ -351,17 +346,17 @@ def solve_user_taste(ground_truth_path, output_path=None):
         z_price=full_metadata['price_z'].values,
         tag_vectors=all_vectors,
         tag_norms=all_tag_norms,
-        beta_tag=beta_tag_scaled,
-        weights=scaled_metadata,
+        beta_tag=tag_coeffs_full, # Original scale
+        weights=preview_weights,
         tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
         dot_product_lambda=DOT_PRODUCT_LAMBDA,
         z_clamp_min=Z_SCORE_CLAMP_MIN,
         z_clamp_max=Z_SCORE_CLAMP_MAX,
-        dna_scaling_factor=DNA_UI_SCALING_FACTOR,
-        intercept=scaled_intercept
+        dna_scaling_factor=1.0, # Use 1.0 to keep original scale
+        intercept=float(intercept)
     )
     
-    # Clamp to 0-10 scale for display
+    # Clamp to 0-10 scale for display safety
     scores = np.clip(scores, 0, 10)
     
     # --- APPLY DEFAULT FILTERS (Match Recommender) ---
@@ -377,51 +372,105 @@ def solve_user_taste(ground_truth_path, output_path=None):
         mask &= ~full_metadata['is_utility'].values
     # 4. Released Only
     if 'parsed_date' in full_metadata.columns:
-        build_time = pd.Timestamp.now() # Close enough to mtime
+        build_time = pd.Timestamp.now()
         future_mask = (full_metadata['parsed_date'] > build_time).fillna(False)
         mask &= ~future_mask.values
 
-    # Mask known games for top
-    top_scores = scores.copy()
-    top_scores[known_indices] = -1e12
+    # Mask known games
+    scores[known_indices] = -1e12
     # Apply filters
-    top_scores[~mask] = -1e12
+    scores[~mask] = -1e12
     
     # Get top 30 using stable lexicographical sort (score DESC, name ASC)
     all_names = full_metadata['name'].fillna("").values
-    top_indices = np.lexsort((all_names, -top_scores))[:30]
+    top_indices = np.lexsort((all_names, -scores))[:30]
     
     top_games = full_metadata.iloc[top_indices][['appid', 'name']].copy()
-    top_games['predicted_rating'] = top_scores[top_indices]
+    top_games['predicted_rating'] = scores[top_indices]
     
-    # Mask known games for bottom
+    # For bottom recs, use inverse mask
     bottom_scores = scores.copy()
     bottom_scores[known_indices] = 1e12
-    # Apply filters (we want the "worst" of the VALID games)
-    bottom_scores[~mask] = 1e12
-    
-    # Get bottom 30 using stable lexicographical sort (score ASC, name ASC)
+    bottom_scores[~mask] = 1e12 # Still exclude invalid games
     bottom_indices = np.lexsort((all_names, bottom_scores))[:30]
     
     bottom_games = full_metadata.iloc[bottom_indices][['appid', 'name']].copy()
     bottom_games['predicted_rating'] = bottom_scores[bottom_indices]
 
-    # Map back to feature names
+    # --- WEIGHT SCALING (UI SLIDERS ONLY) ---
+    # We scale metadata weights so the largest absolute value is DNA_UI_SCALING_FACTOR.
+    weights_to_scale = {
+        'quality': float(coeffs[0]),
+        'age': float(coeffs[1]),
+        'popularity': float(coeffs[2]),
+        'length': float(coeffs[3]),
+        'difficulty': float(coeffs[4]),
+        'price': float(coeffs[5]),
+        'tag_match': float(tag_norm),
+        'semantic': 1.0 
+    }
+    
+    max_abs_weight = max(abs(v) for v in weights_to_scale.values())
+    scaling_factor = DNA_UI_SCALING_FACTOR / max_abs_weight if max_abs_weight > 1e-6 else 1.0
+    
+    scaled_metadata = {k: v * scaling_factor for k, v in weights_to_scale.items()}
+    scaled_metadata['discovery'] = float(optimal_disc_pref)
+    
+    # --- EXPLAINABILITY DATA ---
+    # We want raw values for X-axis and user ratings for Y-axis
+    # features: quality (at optimal disc), date_z, pop_z, playtime_z, difficulty_z, price_z
+    explain_data = []
+    
+    # Get raw values for metadata (non-z-scored where possible, but z-scores are already normalized population-wide)
+    # Actually user requested RAW values.
+    # For date: release_year
+    # For popularity: positive + negative
+    # For length: estimated_playtime
+    # For quality: quality_grid[best_idx] (This is the probit quality)
+    # For price: price (need to parse from string if it's there)
+    
+    # Re-load metadata with raw columns
+    raw_meta = pd.read_parquet(METADATA_FILE, columns=['appid', 'release_year', 'positive', 'negative', 'estimated_playtime', 'difficulty_predicted', 'price'])
+    # Map price string to float
+    def parse_price(p):
+        if pd.isna(p) or p == '' or 'Free' in p: return 0.0
+        try:
+            return float(re.sub(r'[^\d.]', '', p))
+        except:
+            return 0.0
+    import re
+    raw_meta['price_raw'] = raw_meta['price'].apply(parse_price)
+    
+    # Slice to user games
+    user_raw = raw_meta.iloc[user_indices].copy()
+    user_raw['quality_raw'] = q_global # Already sliced to user_indices
+    user_raw['rating'] = y[:len(user_indices)] # Exclude dummy
+    
+    correlations_data = {
+        'quality': user_raw[['quality_raw', 'rating']].rename(columns={'quality_raw': 'x', 'rating': 'y'}).to_dict(orient='records'),
+        'age': user_raw[['release_year', 'rating']].rename(columns={'release_year': 'x', 'rating': 'y'}).to_dict(orient='records'),
+        'popularity': (user_raw['positive'] + user_raw['negative']).to_frame('x').assign(y=user_raw['rating']).to_dict(orient='records'),
+        'length': user_raw[['estimated_playtime', 'rating']].rename(columns={'estimated_playtime': 'x', 'rating': 'y'}).to_dict(orient='records'),
+        'difficulty': user_raw[['difficulty_predicted', 'rating']].rename(columns={'difficulty_predicted': 'x', 'rating': 'y'}).to_dict(orient='records'),
+        'price': user_raw[['price_raw', 'rating']].rename(columns={'price_raw': 'x', 'rating': 'y'}).to_dict(orient='records'),
+        'discovery': discovery_scan
+    }
+
+    # Prepare final profile
     weights = {
         'metadata': scaled_metadata,
+        'correlations': correlations_data,
         'vibe_vector': vibe_vector_unit,
-        'intercept': scaled_intercept,
-        'scaling_factor': scaling_factor,
         'alpha': float(model.alpha_),
-        'r2': float(model.score(X, y)),
-        'library_appids': all_library_appids,
-        'rated_appids': df_gt[~df_gt['ignore'].fillna(False) & df_gt['actual_rating'].notna()]['appid'].tolist(),
+        'r2': float(r2_train), # Use the high-precision training R2
+        'library_size': int(num_ratings),
         'top_tags': top_tags,
         'bottom_tags': bottom_tags,
         'north_stars': north_stars.to_dict(orient='records'),
         'abyssal_games': abyssal_games.to_dict(orient='records'),
         'top_recommendations': top_games.to_dict(orient='records'),
-        'bottom_recommendations': bottom_games.to_dict(orient='records')
+        'bottom_recommendations': bottom_games.to_dict(orient='records'),
+        'ignored_appids': list(map(int, ignored_appids))
     }
 
     # Clean NaN values and NumPy types for JSON safety

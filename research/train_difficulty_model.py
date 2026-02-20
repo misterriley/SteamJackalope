@@ -29,7 +29,7 @@ def parse_tags(df):
     all_game_tags = []
     tag_counts = {}
     
-    for tag_str in tqdm(df['tags'], desc="Scanning tags"):
+    for tag_str in tqdm(df['tags'], desc="Scanning tags", smoothing=0):
         if pd.isna(tag_str) or tag_str == '[]' or tag_str == '':
             all_game_tags.append({})
             continue
@@ -62,7 +62,7 @@ def parse_tags(df):
     
     # Create dense matrix of proportions
     X = np.zeros((num_games, num_tags), dtype=np.float32)
-    for i, tags in enumerate(tqdm(all_game_tags, desc="Building matrix")):
+    for i, tags in enumerate(tqdm(all_game_tags, desc="Building matrix", smoothing=0)):
         row_sum = sum(tags.values()) if tags else 0
         if row_sum > 0:
             for t, c in tags.items():

@@ -53,7 +53,7 @@ def parse_tags(df):
     all_game_tags = []
     global_tags = set()
     
-    for tag_str in tqdm(df['tags'], desc="Scanning tags"):
+    for tag_str in tqdm(df['tags'], desc="Scanning tags", smoothing=0):
         if pd.isna(tag_str) or tag_str == '[]' or tag_str == '':
             all_game_tags.append({})
             continue
@@ -76,7 +76,7 @@ def parse_tags(df):
     col_ind = []
     data = []
     
-    for i, tags in enumerate(tqdm(all_game_tags, desc="Building matrix")):
+    for i, tags in enumerate(tqdm(all_game_tags, desc="Building matrix", smoothing=0)):
         for t, c in tags.items():
             if t in tag_to_idx:
                 row_ind.append(i)
@@ -172,7 +172,7 @@ def iterative_em_imputation(sparse_counts, max_iter=TAG_EM_ITERATIONS):
         
         updates = 0
         
-        for i in tqdm(range(num_games), desc="E-Step"):
+        for i in tqdm(range(num_games), desc="E-Step", smoothing=0):
             # Impute counts for tags outside the top 20. This is necessary 
             # because values after the 20th are censored. If there are
             # fewer than 20 tags, we do not impute anything, since all

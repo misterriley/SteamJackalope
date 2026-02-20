@@ -69,10 +69,55 @@ def parse_storefront_html(app_id, html_content):
     data['tags'] = str(tags_dict)
 
     # 6. Price
-    price_match = re.search(r'<div class="game_purchase_price price" [^>]*>([^<]*)</div>', html_content)
-    if not price_match:
-        price_match = re.search(r'<div class="discount_final_price">([^<]*)</div>', html_content)
-    data['price'] = clean_text(price_match.group(1)) if price_match else ""
+    # Robust Multi-Stage Price Extraction
+    def to_float(s):
+        if not s: return 0.0
+        # Remove non-numeric chars except decimal points/commas
+        s_clean = re.sub(r'[^\d,.]', '', str(s)).replace(',', '.')
+        try: return float(s_clean)
+        except: return 0.0
+
+    # A. Get reliable meta price (Current Price for specific AppID)
+    meta_price_val = 0.0
+    meta_price_str = ""
+    meta_match = re.search(r'<meta itemprop="price" content="([^"]*)">', html_content)
+    if meta_match:
+        meta_price_str = meta_match.group(1).strip()
+        meta_price_val = to_float(meta_price_str)
+
+    # B. Try to find the "Original" price if there's a sale
+    # We look for a discount block where the final price matches our meta price
+    # This ensures we get the original price for the BASE game, not a bundle.
+    discount_blocks = re.findall(r'<div class="discount_original_price">([^<]*)</div>\s*<div class="discount_final_price">([^<]*)</div>', html_content)
+    
+    found_orig = False
+    for orig_str, final_str in discount_blocks:
+        if abs(to_float(final_str) - meta_price_val) < 0.01:
+            data['price'] = clean_text(orig_str)
+            found_orig = True
+            break
+
+    if not found_orig:
+        if meta_price_val > 0:
+            data['price'] = f"${meta_price_str}" if "$" not in meta_price_str else meta_price_str
+        elif "Free To Play" in html_content or "Free to Play" in html_content:
+            data['price'] = "Free To Play"
+        elif "no longer available" in html_content or "no longer available on Steam" in html_content:
+            data['price'] = "Delisted"
+        elif "Coming soon" in html_content or "Coming Soon" in html_content:
+            data['price'] = "Coming Soon"
+        else:
+            # Last resort fallback: find the first generic price div
+            price_regex = r'<div class="game_purchase_price price"[^>]*>([^<]*)</div>'
+            price_match = re.search(price_regex, html_content)
+            if price_match:
+                data['price'] = clean_text(price_match.group(1))
+            else:
+                # Absolute fallback to free ONLY if meta actually said 0.00
+                if meta_match and meta_price_val == 0:
+                    data['price'] = "Free"
+                else:
+                    data['price'] = "N/A"
 
     # 7. Dev/Pub
     # Capture all developer/publisher links if multiple exist
@@ -239,7 +284,7 @@ def build_dataset(output_file="scraped_games.csv", reviews_file="scraped_reviews
         future_to_appid = {executor.submit(process_single_appid, aid): aid for aid in app_ids}
         
         # Process results as they complete
-        for future in tqdm(as_completed(future_to_appid), total=len(app_ids), desc="Building dataset"):
+        for future in tqdm(as_completed(future_to_appid), total=len(app_ids), desc="Building dataset", smoothing=0):
             result = future.result()
             if result:
                 game_data, app_reviews = result

@@ -110,13 +110,17 @@ The final recommendation list is generated as a hybrid, blending normalized comp
 
 5.  **Game Age:** Preference for new vs. classic titles.
 
-5.  **Length:** Preference for short vs. long experiences.
+6.  **Length:** Preference for short vs. long experiences.
 
-6.  **Difficulty Rating:** Preference for Easy vs. Difficult games.
+7.  **Difficulty Rating:** Preference for Easy vs. Difficult games.
+
+8.  **Price Sensitivity:** Preference for free/budget vs. premium titles.
 
 Users can tune these weights in the UI to prioritize long, easy, niche hidden gems or popular classics that are similar to a game of choice. 
 
 **Data Reliability & Quality Adjustments:**
+
+- **Price Normalization:** Steam prices follow a zero-inflated lognormal distribution. We apply a **Log-Transform** ($\ln(1 + \text{price})$) before calculating Z-scores. This makes the price slider psychologically linear (treating a doubling of price as a consistent step) and prevents expensive outliers from dominating the model. Games without a listed price are assigned a neutral Z-score of **0.0**, ensuring they are treated as "average information" rather than accidentally being flagged as free or expensive.
 
 - **Review Count Repair:** To handle stale metadata, the system automatically repairs global review counts using raw individual reviews if our scrape finds more data than the storefront summary.
 
@@ -154,7 +158,7 @@ To provide a polished and safe user experience, the modern frontend implements s
 
 To ensure perfect alignment between a user's library analysis and their discovery feed, Build 15 introduced a **Unified Linear Scorer** architecture. This replaces the "hybrid approximation" with a direct execution model.
 
-- **Unified Feature Space:** Both the Taste DNA Solver and the Recommendation Engine utilize a standardized global feature space. Metadata (Age, Quality, Popularity, etc.) are represented as **Global Z-scores**, while Steam tags are transformed using **Penalized Normalization** ($v / (\|v\| + \lambda)$) and then scaled by a global constant (**11.283x**) to match the variance of the Z-scored metadata.
+- **Unified Feature Space:** Both the Taste DNA Solver and the Recommendation Engine utilize a standardized global feature space. Metadata (Age, Quality, Popularity, Price, etc.) are represented as **Global Z-scores**, while Steam tags are transformed using **Penalized Normalization** ($v / (\|v\| + \lambda)$) and then scaled by a global constant (**11.283x**) to match the variance of the Z-scored metadata.
 
 - **Portable Beta Weights:** By removing user-specific scaling, the DNA Solver learns **Beta Weights** that are directly portable. These weights represent the absolute importance of each feature (e.g., "how many rating points is one unit of Difficulty worth to this specific user?").
 
@@ -166,9 +170,11 @@ To ensure perfect alignment between a user's library analysis and their discover
 
 - **Numerical Stability:** To prevent precision-based ranking swaps, the unified scoring path utilizes explicit **float32** casting for all vector operations and tag normalization.
 
-## 13. Robust Personalization (Build 36)
+## 13. Robust Personalization (Build 41)
 
 As the personalization engine matured, we introduced several features to ensure that the "Taste DNA" remains both statistically sound and human-readable.
+
+- **Sample Bias Mitigation:** We identified that local scaling (using a user's library as the scaling population) introduced significant bias, over-representing low-variance features that weren't globally predictive. To solve this, the Taste DNA solver now operates on **Globally Standardized Features**, utilizing the true population variance as the anchor. This improved model generalization by ~4% in cross-validation tests.
 
 - **Adaptive DNA Dimensionality:** To prevent the model from "overfitting" or memorizing small libraries, the solver dynamically scales the complexity of the tag space based on the number of ratings provided by the user. We use a smooth linear relationship: $K = \text{clamp}(40 + 0.7 \times N_{\text{ratings}}, \text{min}=40, \text{max}=243)$. This ensures that new users with few ratings are modeled using only broad, high-certainty genre components, while power users with hundreds of ratings gain access to high-fidelity, niche stylistic details.
 
@@ -176,7 +182,19 @@ As the personalization engine matured, we introduced several features to ensure 
 
 - **Scoring Synchronization:** To ensure 100% parity between the Solver's preview and the Recommender tool, we synchronized all implementation details, including bit-perfect tag normalization (using pre-calculated norms), Z-score clamping at $\pm 8.0$, and lexicographical tie-breaking (Score DESC, Name ASC).
 
-## 14. Data Hygiene & External Integration (Build 13)
+## 14. Explainability & Visualization (Build 41)
+
+To provide transparency into the "why" behind recommendations, we introduced a suite of visual analytics in the personalization insights view:
+
+- **Interactive Correlation Charts:** Users can hover over individual Taste DNA weights to see a scatter plot relating their ratings to that specific feature. This visualizes the raw evidence the model used to solve for a specific preference.
+
+- **Logarithmic Scaling:** Features that follow power-law distributions (Popularity, Price, Length) are visualized using logarithmic X-axes. This provides a clear, undistorted view of relationships across orders of magnitude.
+
+- **Discovery Optimization Scan:** A specialized bar chart visualizes the full $R^2$ correlation scan performed by the solver. This shows how your profile's fit improves or degrades across different "Wild Card" settings, making the selection of your optimal Discovery preference transparent.
+
+- **Dynamic Data Cleaning:** The visualization layer automatically filters anomalous data (like future placeholder dates or year-zero entries) and handles non-positive values on log scales to ensure the charts remain high-fidelity and informative.
+
+## 15. Data Hygiene & External Integration (Build 13)
 
 To ensure the recommender remains a useful portal to the Steam ecosystem, Build 13 introduced a verified external link layer:
 

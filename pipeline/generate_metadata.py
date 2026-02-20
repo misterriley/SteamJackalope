@@ -132,7 +132,7 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
 
     print("Calculating z-scores for release dates and popularity...")
     # Process release date and its z-score
-    tqdm.pandas(desc="Cleaning release dates")
+    tqdm.pandas(desc="Cleaning release dates", smoothing=0)
     df['parsed_date'] = df['final_release_date'].progress_apply(clean_release_date)
     
     # Extract release year
@@ -248,19 +248,49 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
     # --- Process Price ---
     print("Calculating price z-scores...")
     def parse_price(p):
-        if pd.isna(p) or p == "": return 0.0
-        s = str(p).lower()
+        if pd.isna(p) or p == "": return np.nan
+        s = str(p).lower().strip()
+        
+        # If it contains non-price keywords, it's neutral information
+        if any(word in s for word in ["demo", "pass", "preview", "alpha", "beta", "coming soon", "n/a"]):
+            return np.nan
+            
         if "free" in s: return 0.0
-        # Extract numbers like 19.99 from $19.99
-        match = re.search(r'(\d+\.\d+)', s)
-        if match: return float(match.group(1))
-        # Handle cases like "19,99€" or "$19"
-        s_clean = re.sub(r'[^\d,.]', '', s).replace(',', '.')
-        try: return float(s_clean)
-        except: return 0.0
+        
+        # Look for patterns that look like prices: $19.99, 19.99, $5
+        match = re.search(r'(\d+[.,]\d{2})', s) # XX.XX or XX,XX
+        if match:
+            val = match.group(1).replace(',', '.')
+            try: return float(val)
+            except: pass
+            
+        # Just a number? Only if it's small (e.g. < $200) and doesn't look like an ID (long)
+        match = re.search(r'^\s*\$?(\d+)\s*$', s)
+        if match:
+            try:
+                val = float(match.group(1))
+                if val < 200:
+                    return val
+            except: pass
+                
+        return np.nan
 
     df['price_numeric'] = df['price'].apply(parse_price)
-    df['price_z'] = to_z(df['price_numeric'])
+    
+    # Use log-transform for z-scoring to handle lognormal distribution
+    # We calculate z-scores only on games that actually HAVE a price.
+    # Games without a price are assigned a z-score of 0.0 (the mean / neutral information).
+    valid_mask = df['price_numeric'].notna()
+    log_price = np.log1p(df.loc[valid_mask, 'price_numeric'])
+    
+    # Calculate stats on valid prices
+    lp_mean = log_price.mean()
+    lp_std = log_price.std()
+    
+    # Assign z-scores: (x - mean) / std for valid games, 0.0 for others
+    df['price_z'] = 0.0
+    if lp_std > 0:
+        df.loc[valid_mask, 'price_z'] = (log_price - lp_mean) / lp_std
 
     # --- Process Difficulty ---
     difficulty_preds_path = DIFFICULTY_PREDICTIONS_FILE

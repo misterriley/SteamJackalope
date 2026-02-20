@@ -26,6 +26,10 @@
 - [x] **Profile Exclusion**: Updated `App.tsx` to set `profile_filter: 'all'` by default when applying a profile, ensuring library games are automatically excluded from the "Love List" in the recommender.
 - [x] **Robust Error Handling**: Added extensive logging and type-checking to the profile application pipeline to prevent metadata-related crashes and UI drift.
 - [x] **Dota 2 Searchability**: Verified AppID 570 presence and ensured searching for "Dota" or "Dota 2" works correctly.
+- [x] **Sample Bias Mitigation**: Removed `StandardScaler` from the Taste DNA solver; shifted to **Global Standardization** to improve generalization (~4% MSE reduction).
+- [x] **Tie-Aware Quantile Normalization**: Replaced `t-to-z` transformation with a rank-based mapping that handles large clusters of identical Bayesian scores (e.g., zero-review games) as discrete spikes in a smooth normal envelope.
+- [x] **Interactive Explainability**: Implemented animated scatter plots and Discovery optimization bar charts in the Personalization insights view.
+- [x] **Visual Analytics Refinement**: Added log scaling, dynamic timeline capping (2026), and clear axis labeling to all explainability visualizations.
 
 ### Bugs (work on these first)
 

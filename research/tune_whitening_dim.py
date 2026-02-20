@@ -40,7 +40,7 @@ def load_unwhitened_vectors(csv_path):
     # Parse Tags
     print("Parsing tags...")
     all_game_tags = []
-    for tag_str in tqdm(df['tags'], desc="Scanning"):
+    for tag_str in tqdm(df['tags'], desc="Scanning", smoothing=0):
         if pd.isna(tag_str) or tag_str == '[]' or tag_str == '':
             all_game_tags.append({})
             continue
