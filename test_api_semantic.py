@@ -11,6 +11,7 @@ def test_api():
         "disc_pref": 0.0,
         "length_pref": 0.0,
         "difficulty_pref": 0.0,
+        "price_pref": 0.0,
         "prompt": "a relaxing farming simulator",
         "seed_games": [],
         "genres": [],

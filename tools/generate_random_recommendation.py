@@ -108,6 +108,7 @@ def generate_random_params(games):
         "disc_pref": 1.0,  # Max discovery (Wild Cards / Niche)
         "length_pref": random.uniform(-1.0, 1.0),
         "difficulty_pref": random.uniform(-1.0, 1.0),
+        "price_pref": random.uniform(-1.0, 1.0),
         "remove_vr": True,
         "english_only": True,
         "remove_nsfw": True,

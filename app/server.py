@@ -217,10 +217,11 @@ class DataManager:
             available_cols = []
 
         needed_cols = [
-            'appid', 'name', 'release_date', 'positive', 'negative', 
+            'appid', 'name', 'release_date', 'parsed_date', 'positive', 'negative', 
             'genres', 'tags', 'categories', 'supported_languages',
             'mature_content', 'price', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z',
-            'estimated_playtime', 'difficulty_predicted'
+            'estimated_playtime', 'difficulty_predicted',
+            'is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_hollow'
         ]
         # Only request short_description if it exists
         if 'short_description' in available_cols:
@@ -246,49 +247,49 @@ class DataManager:
             self.metadata = pd.read_parquet(METADATA_FILE, columns=needed_cols)
         
         # Ensure string columns are actually strings (prevents Arrow errors with empty columns)
-        string_cols = ['name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 'price', 'release_date']
+        string_cols = ['name', 'short_description', 'genres', 'tags', 'price', 'release_date']
         for col in string_cols:
             if col in self.metadata.columns:
                 self.metadata[col] = self.metadata[col].fillna('').astype(str)
 
-        logger.info("Extracting boolean features...")
-        self.metadata['is_vr_only'] = self.metadata['categories'].fillna('').astype(str).str.contains('VR Only', case=False).astype(bool)
-        
-        # English Filter Safety: if data is completely missing, default to True for all.
-        # Otherwise, only return True if 'English' is explicitly found.
-        langs = self.metadata['supported_languages'].fillna('').astype(str)
-        if (langs == '').all():
-            logger.warning("All games have empty supported_languages. Defaulting is_english to True for all.")
-            self.metadata['is_english'] = True
-        else:
-            # Contains 'English' explicitly. 
-            # We no longer assume empty strings are English if data is present for other games.
-            self.metadata['is_english'] = langs.str.contains('English', case=False).values
-            
-        self.metadata['is_utility'] = self.metadata['tags'].fillna('').astype(str).str.contains('Utilities', case=False).astype(bool)
-        
-        logger.info("Identifying NSFW games...")
-        # Combine official mature flag with the 'Hentai' tag.
-        # Other tags (NSFW, Sexual Content, Nudity) are excluded as they often don't 
-        # imply lewd storefront imagery.
-        nsfw_tags_pattern = r"'Hentai':"
-        self.metadata['is_nsfw'] = (
-            (self.metadata['mature_content'] > 0) | 
-            (self.metadata['tags'].fillna('').astype(str).str.contains(nsfw_tags_pattern, regex=True, case=False))
-        ).values
+        # Boolean features are now pre-calculated in the pipeline
+        logger.info("Verifying pre-calculated boolean features...")
+        bool_cols = ['is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_hollow']
+        for col in bool_cols:
+            if col not in self.metadata.columns:
+                logger.warning(f"Feature {col} missing from metadata! Re-calculating...")
+                if col == 'is_vr_only':
+                    self.metadata['is_vr_only'] = self.metadata['categories'].fillna('').astype(str).str.contains('VR Only', case=False).astype(bool)
+                elif col == 'is_english':
+                    langs = self.metadata['supported_languages'].fillna('').astype(str)
+                    self.metadata['is_english'] = langs.str.contains('English', case=False).values
+                elif col == 'is_utility':
+                    self.metadata['is_utility'] = self.metadata['tags'].fillna('').astype(str).str.contains('Utilities', case=False).astype(bool)
+                elif col == 'is_nsfw':
+                    nsfw_tags_pattern = r"'Hentai':"
+                    self.metadata['is_nsfw'] = (
+                        (self.metadata['mature_content'] > 0) | 
+                        (self.metadata['tags'].fillna('').astype(str).str.contains(nsfw_tags_pattern, regex=True, case=False))
+                    ).values
+                elif col == 'is_hollow':
+                    self.metadata['is_hollow'] = (
+                        (self.metadata['short_description'].fillna('').str.len() < 10) & 
+                        (self.metadata['tags'].fillna('') == '{}') &
+                        (self.metadata['genres'].fillna('') == '')
+                    ).values
+            else:
+                self.metadata[col] = self.metadata[col].astype(bool)
+
         logger.info(f"NSFW games identified: {np.sum(self.metadata['is_nsfw'])}")
-        
-        # Content Check for Semantic Match
-        # Identify games that lack any descriptive content or are likely "ghost" entries
-        self.metadata['is_hollow'] = (
-            (self.metadata['short_description'].str.len() < 10) & 
-            (self.metadata['tags'] == '{}') &
-            (self.metadata['genres'] == '')
-        ).values
         logger.info(f"Hollow games identified: {np.sum(self.metadata['is_hollow'])}")
         
-        self.metadata.drop(columns=['categories', 'supported_languages'], inplace=True)
-        logger.info(f"Boolean features extracted. Metadata shape: {self.metadata.shape}")
+        # Categories and supported_languages are only needed for re-calculating if missing
+        if 'categories' in self.metadata.columns:
+            self.metadata.drop(columns=['categories'], inplace=True)
+        if 'supported_languages' in self.metadata.columns:
+            self.metadata.drop(columns=['supported_languages'], inplace=True)
+            
+        logger.info(f"Boolean features ready. Metadata shape: {self.metadata.shape}")
         
         # Optimize metadata types
         logger.info("Optimizing dtypes...")
@@ -307,9 +308,12 @@ class DataManager:
         self.metadata['difficulty_predicted'] = self.metadata['difficulty_predicted'].astype(np.float32)
         self.metadata['mature_content'] = self.metadata['mature_content'].fillna(0).astype(np.int8)
 
-        # Parse dates
-        logger.info("Parsing release dates...")
-        self.metadata['parsed_date'] = self.metadata['release_date'].apply(self.clean_release_date)
+        # Release dates are now pre-parsed in the pipeline
+        if 'parsed_date' not in self.metadata.columns:
+            logger.warning("parsed_date missing from metadata! Re-parsing...")
+            self.metadata['parsed_date'] = self.metadata['release_date'].apply(self.clean_release_date)
+        else:
+            self.metadata['parsed_date'] = pd.to_datetime(self.metadata['parsed_date'])
 
         # Pre-calculate normalized names for fuzzy search
         logger.info("Pre-calculating normalized names for search...")
@@ -469,23 +473,23 @@ class UserVerifyUpdate(BaseModel):
     ignore: bool
 
 class RecommendationRequest(BaseModel):
-    alpha: float
-    beta: float
-    quality_pref: float
-    age_pref: float
-    pop_pref: float
-    disc_pref: float
-    length_pref: float
-    difficulty_pref: float
-    price_pref: float
-    remove_vr: bool
-    english_only: bool
-    remove_nsfw: bool
-    remove_utilities: bool
-    remove_unreleased: bool
-    top_k: int
-    prompt: str
-    seed_games: List[str]
+    alpha: float = 0.5
+    beta: float = 0.5
+    quality_pref: float = 0.0
+    age_pref: float = 0.0
+    pop_pref: float = 0.0
+    disc_pref: float = 0.0
+    length_pref: float = 0.0
+    difficulty_pref: float = 0.0
+    price_pref: float = 0.0
+    remove_vr: bool = True
+    english_only: bool = False
+    remove_nsfw: bool = True
+    remove_utilities: bool = True
+    remove_unreleased: bool = True
+    top_k: int = 10
+    prompt: str = ""
+    seed_games: List[str] = []
     genres: Optional[List[str]] = []
     tags: Optional[List[str]] = []
     
@@ -1310,7 +1314,8 @@ def recommend(request: RecommendationRequest):
         
         # If there's a prompt or seeds, we treat it as a temporary offset
         if request.prompt or seed_appids:
-            final_scores += (all_semantic_sims[keep_indices] * request.alpha)
+            z_semantic = semantic_sims
+            final_scores += (z_semantic * request.alpha)
             
         # Unified Clamping to 0-10 range
         final_scores = np.clip(final_scores, 0, 10)
@@ -1323,6 +1328,7 @@ def recommend(request: RecommendationRequest):
         w_pop = request.pop_pref
         w_length = request.length_pref
         w_difficulty = request.difficulty_pref
+        w_price = request.price_pref
             
     else:
         # RECOMMENDER MODE: Similarity-based weighting

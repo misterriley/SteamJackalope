@@ -295,9 +295,39 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
         df['difficulty_predicted'] = DIFFICULTY_NEUTRAL_FALLBACK
         df['difficulty_z'] = 0.0
 
+    # --- Pre-calculate Boolean Features ---
+    print("Pre-calculating boolean flags...")
+    df['is_vr_only'] = df['categories'].fillna('').astype(str).str.contains('VR Only', case=False).astype(bool)
+    
+    langs = df['supported_languages'].fillna('').astype(str)
+    if (langs == '').all():
+        df['is_english'] = True
+    else:
+        df['is_english'] = langs.str.contains('English', case=False).values
+        
+    df['is_utility'] = df['tags'].fillna('').astype(str).str.contains('Utilities', case=False).astype(bool)
+    
+    nsfw_tags_pattern = r"'Hentai':"
+    df['is_nsfw'] = (
+        (df['mature_content'] > 0) | 
+        (df['tags'].fillna('').astype(str).str.contains(nsfw_tags_pattern, regex=True, case=False))
+    ).values
+    
+    df['is_hollow'] = (
+        (df['short_description'].fillna('').str.len() < 10) & 
+        (df['tags'].fillna('') == '{}') &
+        (df['genres'].fillna('') == '')
+    ).values
+
     print("Saving metadata to metadata.parquet...")
     # Ensure all required columns exist (including dynamic contribution columns)
-    required_cols = ['appid', 'name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 'final_release_date', 'positive', 'negative', 'mature_content', 'price', 'date_z', 'pop_z', 'median_playtime', 'playtime_z', 'estimated_playtime', 'release_year', 'difficulty_predicted', 'difficulty_z', 'price_z', 'intercept', 'difficulty_predicted_raw']
+    required_cols = [
+        'appid', 'name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 
+        'final_release_date', 'parsed_date', 'positive', 'negative', 'mature_content', 'price', 
+        'date_z', 'pop_z', 'median_playtime', 'playtime_z', 'estimated_playtime', 'release_year', 
+        'difficulty_predicted', 'difficulty_z', 'price_z', 'intercept', 'difficulty_predicted_raw',
+        'is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_hollow'
+    ]
     # Add contribution columns if they exist
     contrib_cols = [c for c in df.columns if c.startswith('contrib_')]
     required_cols.extend(contrib_cols)
@@ -316,6 +346,12 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
     for col in int_cols:
         if col in metadata_df.columns:
             metadata_df[col] = pd.to_numeric(metadata_df[col], errors='coerce').fillna(0).astype(np.int64)
+
+    # Boolean columns to int8 for space
+    bool_cols = ['is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_hollow']
+    for col in bool_cols:
+        if col in metadata_df.columns:
+            metadata_df[col] = metadata_df[col].astype(np.int8)
 
     metadata_df.rename(columns={'final_release_date': 'release_date'}, inplace=True)
     metadata_df.to_parquet(output_path, compression='snappy')
