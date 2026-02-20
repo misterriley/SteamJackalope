@@ -131,6 +131,14 @@ Users can tune these weights in the UI to prioritize long, easy, niche hidden ge
 ## 8. Filtering
 The system allows real-time filtering for **Genres**, **Tags**, VR-Only titles, English language support, Software/Utilities (Breadcrumb detection), and Unreleased games to ensure the results are relevant to the user. The Genre filter supports multi-selection, ensuring that recommended games match at least one of the selected categories. Downloadable Content (DLC) is excluded from the database to focus recommendations on standalone games.
 
+## 15. Tag Dimension Explainability (Build 41)
+
+The PCA-ZCA whitening process is excellent for decorrelating features and improving model performance, but it results in latent dimensions that are not immediately human-readable. To provide transparency into what these abstract dimensions represent, we introduced an explainability layer.
+
+- **Analysis of Whitening Matrix**: We analyze the whitening transformation matrix (`w_tag.npy`), which contains the weights of the original tags for each principal component. For each dimension (column), we identify the top positive and top negative tags based on their weights.
+- **Generating Descriptions**: A script (`research/analyze_tag_dimensions.py`) uses these influential tags to generate a concise, human-readable label that captures the essence of the dimension's axis (e.g., "Tactical Combat vs Adult Themes"). This gives qualitative meaning to the mathematical constructs.
+- **UI Integration**: These descriptions are served via an API endpoint and displayed in the personalization view, allowing users to understand not just that they have a preference for "Dimension 5," but that "Dimension 5" represents a preference for "Atmospheric Mystery over Casual Adventure."
+
 ## 9. Insights & Rankings
 The "Lists" page provides a curated view of the Steam library's extremes, including the highest and lowest quality games, the longest and shortest experiences, and predicted difficulty rankings. These lists utilize the same Bayesian models and predictive analytics used in the recommendation engine, providing transparency into how different games are positioned within our statistical model.
 

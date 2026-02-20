@@ -2,6 +2,15 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [41] - 2026-02-20
+### Build 41
+### Version 0.0.1-pre-alpha.41
+
+- **Explainability**: Added **Tag Dimension Descriptions** to the personalization engine. The system now provides human-readable labels (e.g., "Tactical Combat vs Adult Themes") for the latent taste dimensions, offering clear insight into the "why" behind taste analysis.
+- **Explainability**: Implemented a new API endpoint (`/tag_dimensions`) to serve the dimension descriptions to the frontend.
+- **UI/UX**: The "Analyze My Catalogue" view now displays trendlines and descriptions for each of a user's top taste dimensions.
+- **Analysis**: Created a new research script (`research/analyze_tag_dimensions.py`) to generate refined, high-level descriptions for each dimension by analyzing its most influential positive and negative tags.
+
 ## [40] - 2026-02-19
 ### Build 40
 ### Version 0.0.1-pre-alpha.40

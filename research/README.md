@@ -37,6 +37,7 @@ Scripts in this directory are typically:
 - `count_tags.py` - Tag frequency statistics
 - `sanity_check_tags.py` - Data quality checks
 - `factor_analyze_tags.py` - Latent factor extraction from tag space
+- `analyze_tag_dimensions.py` - Generates human-readable descriptions for latent tag dimensions by inspecting the whitening matrix, improving model explainability.
 
 ### Distribution Analysis
 

@@ -11,6 +11,8 @@ FastAPI server that provides:
 - `/recommend` - Main recommendation endpoint with hybrid scoring
 - `/metadata` - Retrieve full metadata for specific games
 - `/genres` - Get unique list of available genres
+- `/tags` - Get unique list of available tags
+- `/tag_dimensions` - Get human-readable descriptions for latent tag dimensions
 - `/lists` - Cached endpoints for quality, popularity, and similarity lists
 - `/games/search` - Fast autocomplete for game selection
 - `/games/random` - Returns a random game name
