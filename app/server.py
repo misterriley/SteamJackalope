@@ -1448,6 +1448,10 @@ def recommend(request: RecommendationRequest):
 
     results = meta_filt.iloc[top_indices].copy()
     
+    # Mask weights for UI cleanliness if they aren't contributing
+    ui_w_semantic = w_semantic if (request.prompt or seed_appids) else 0.0
+    ui_w_tag = w_tag if (seed_appids or is_vibe_present) else 0.0
+
     response_items = []
     
     for i, idx in enumerate(top_indices):
@@ -1481,9 +1485,9 @@ def recommend(request: RecommendationRequest):
             "rating": z_spps[idx], 
             
             "z_semantic": z_semantic[idx],
-            "w_semantic": w_semantic,
+            "w_semantic": ui_w_semantic,
             "z_tag": tag_sims[idx] if is_linear_mode else z_tag[idx],
-            "w_tag": w_tag,
+            "w_tag": ui_w_tag,
             "z_spps": z_spps[idx],
             "w_spps": w_quality,
             "z_date": z_date[idx],

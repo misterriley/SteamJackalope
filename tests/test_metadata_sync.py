@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 from pipeline.generate_metadata import generate_metadata
-from pipeline.generate_quality_scores_grid import generate_quality_grid
+from pipeline.generate_quality_scores_grid import generate_quality_grid_quantile
 
 class TestMetadataSync(unittest.TestCase):
     def setUp(self):
@@ -19,7 +19,12 @@ class TestMetadataSync(unittest.TestCase):
             'positive': [1000, 2000, 3000],
             'negative': [100, 200, 300],
             'tags': ['{}', '{}', '{}'],
-            'genres': ['Action', 'Action', 'Action']
+            'genres': ['Action', 'Action', 'Action'],
+            'price': [0, 0, 0],
+            'categories': ['', '', ''],
+            'supported_languages': ['English', 'English', 'English'],
+            'mature_content': [0, 0, 0],
+            'short_description': ['', '', '']
         }
         pd.DataFrame(data).to_csv(self.test_games_csv, index=False)
 
@@ -41,7 +46,7 @@ class TestMetadataSync(unittest.TestCase):
         self.assertNotIn(2, df_meta['appid'].values, "AppID 2 should have been dropped")
         
         # 2. Generate quality grid
-        generate_quality_grid(self.test_metadata_parquet, output_path=self.test_grid_npy)
+        generate_quality_grid_quantile(self.test_metadata_parquet, output_path=self.test_grid_npy)
         
         # Check grid shape
         grid = np.load(self.test_grid_npy)

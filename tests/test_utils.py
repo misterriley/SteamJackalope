@@ -15,7 +15,8 @@ def test_calculate_hybrid_score_normalization():
         z_date=z, w_date=0.0,
         z_pop=z, w_pop=0.0,
         z_length=z, w_length=0.0,
-        z_difficulty=z, w_difficulty=0.0
+        z_difficulty=z, w_difficulty=0.0,
+        z_price=z, w_price=0.0
     )
     assert np.allclose(res, z)
 
@@ -28,7 +29,8 @@ def test_calculate_hybrid_score_normalization():
         z_date=z, w_date=0.0,
         z_pop=z, w_pop=0.0,
         z_length=z, w_length=0.0,
-        z_difficulty=z, w_difficulty=0.0
+        z_difficulty=z, w_difficulty=0.0,
+        z_price=z, w_price=0.0
     )
     assert np.allclose(res2, z)
 
@@ -41,7 +43,8 @@ def test_calculate_hybrid_score_normalization():
         z_date=np.array([0.0]), w_date=0.0,
         z_pop=np.array([0.0]), w_pop=0.0,
         z_length=np.array([0.0]), w_length=0.0,
-        z_difficulty=np.array([0.0]), w_difficulty=0.0
+        z_difficulty=np.array([0.0]), w_difficulty=0.0,
+        z_price=np.array([0.0]), w_price=0.0
     )
     assert res3[0] == 15.0
     
@@ -53,7 +56,8 @@ def test_calculate_hybrid_score_normalization():
         z_date=z, w_date=0.0,
         z_pop=z, w_pop=0.0,
         z_length=z, w_length=0.0,
-        z_difficulty=z, w_difficulty=0.0
+        z_difficulty=z, w_difficulty=0.0,
+        z_price=z, w_price=0.0
     )
     assert np.all(res4 == 0.0)
 

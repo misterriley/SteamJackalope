@@ -266,6 +266,45 @@ def solve_user_taste(ground_truth_path, output_path=None):
     support_mask = tag_support >= SUPPORT_THRESHOLD
     supported_tag_set = set([unique_tags[i] for i in range(len(unique_tags)) if support_mask[i]])
 
+    # --- TAG ASSOCIATION ANALYSIS (T-Test) ---
+    print("Calculating tag associations (t-test)...")
+    from scipy import stats
+    user_df_for_tags = full_metadata.iloc[user_indices][['appid', 'tags']].copy()
+    user_df_for_tags['rating'] = y[:len(user_indices)]
+    
+    def parse_tags_list(tag_str):
+        try:
+            if isinstance(tag_str, dict): return list(tag_str.keys())
+            return list(ast.literal_eval(tag_str).keys())
+        except: return []
+    
+    user_df_for_tags['tag_list'] = user_df_for_tags['tags'].apply(parse_tags_list)
+    
+    assoc_results = []
+    for tag in supported_tag_set:
+        present_mask = user_df_for_tags['tag_list'].apply(lambda x: tag in x)
+        present_ratings = user_df_for_tags[present_mask]['rating'].tolist()
+        absent_ratings = user_df_for_tags[~present_mask]['rating'].tolist()
+        
+        if len(present_ratings) < 2 or len(absent_ratings) < 2: continue
+        
+        t_stat, p_val = stats.ttest_ind(present_ratings, absent_ratings, equal_var=False)
+        if pd.isna(p_val) or p_val >= 0.05: continue
+        
+        mean_diff = np.mean(present_ratings) - np.mean(absent_ratings)
+        assoc_results.append({
+            'tag': tag,
+            'mean_diff': float(mean_diff),
+            'p_value': float(p_val),
+            'ratings_with': [float(r) for r in present_ratings],
+            'ratings_without': [float(r) for r in absent_ratings]
+        })
+        
+    assoc_results = sorted(assoc_results, key=lambda x: x['mean_diff'], reverse=True)
+    # Filter to top/bottom 15
+    top_assoc = assoc_results[:15]
+    bottom_assoc = sorted([r for r in assoc_results if r['mean_diff'] < 0], key=lambda x: x['mean_diff'])[:15]
+
     # Load dimension descriptions to filter their tags
     desc_path = os.path.join(ROOT_DIR, "data", "production", "tag_dimension_descriptions.json")
     dim_descriptions = {}
@@ -540,6 +579,10 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'library_size': int(num_ratings),
         'top_tags': top_tags,
         'bottom_tags': bottom_tags,
+        'associative_tags': {
+            'top': top_assoc,
+            'bottom': bottom_assoc
+        },
         'north_stars': north_stars.to_dict(orient='records'),
         'abyssal_games': abyssal_games.to_dict(orient='records'),
         'top_recommendations': top_games.to_dict(orient='records'),

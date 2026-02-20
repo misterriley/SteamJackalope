@@ -25,6 +25,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { searchGames, getMetadata, getTermLinks, getTagDimensions, API_BASE_URL } from '../api';
 import ExplainabilityChart from './ExplainabilityChart';
+import ViolinPlot from './ViolinPlot';
 
 interface GameVerification {
   appid: number;
@@ -153,6 +154,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
   const [tagDimensions, setTagDimensions] = useState<Record<string, any>>({});
   const [hoveredWeight, setHoveredWeight] = useState<string | null>(null);
   const [hoveredDimension, setHoveredDimension] = useState<string | null>(null);
+  const [hoveredTag, setHoveredTag] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -776,44 +778,94 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                 )}
 
                 {/* Predictive Tags */}
-                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative">
                   <h3 className="text-lg font-bold flex items-center gap-2"><Hash size={18} className="text-primary" />Predictive Tags</h3>
                   <div className="space-y-6">
                     <div className="space-y-3">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-green-500">Like...</div>
                       <div className="flex flex-wrap gap-2">
-                        {insights.top_tags?.map((t: any) => (
-                          termLinks[t.tag] ? (
-                            <a 
-                              key={t.tag} href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer"
-                              className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500 hover:bg-green-500/20 transition-colors"
-                            >
-                              {t.tag}
-                            </a>
-                          ) : (
-                            <div key={t.tag} className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500">
-                              {t.tag}
-                            </div>
-                          )
+                        {(insights.associative_tags?.top || insights.top_tags || []).map((t: any) => (
+                          <div 
+                            key={t.tag} 
+                            className="relative group/tag"
+                            onMouseEnter={() => setHoveredTag(t.tag)}
+                            onMouseLeave={() => setHoveredTag(null)}
+                          >
+                            {termLinks[t.tag] ? (
+                              <a 
+                                href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer"
+                                className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500 hover:bg-green-500/20 transition-colors block"
+                              >
+                                {t.tag}
+                              </a>
+                            ) : (
+                              <div className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500">
+                                {t.tag}
+                              </div>
+                            )}
+
+                            {/* Violin Plot Hover */}
+                            <AnimatePresence>
+                              {hoveredTag === t.tag && t.ratings_with && (
+                                <motion.div 
+                                  initial={{ opacity: 0, x: 20, scale: 0.9 }}
+                                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                                  exit={{ opacity: 0, x: 20, scale: 0.9 }}
+                                  className="absolute left-[calc(100%+0.5rem)] top-0 z-[120] pointer-events-none"
+                                >
+                                  <ViolinPlot 
+                                    ratingsWith={t.ratings_with}
+                                    ratingsWithout={t.ratings_without}
+                                    tagName={t.tag}
+                                  />
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
                         ))}
                       </div>
                     </div>
                     <div className="space-y-3">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-red-500">Dislike...</div>
                       <div className="flex flex-wrap gap-2">
-                        {insights.bottom_tags?.map((t: any) => (
-                          termLinks[t.tag] ? (
-                            <a 
-                              key={t.tag} href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer"
-                              className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500 hover:bg-red-500/20 transition-colors"
-                            >
-                              {t.tag}
-                            </a>
-                          ) : (
-                            <div key={t.tag} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500">
-                              {t.tag}
-                            </div>
-                          )
+                        {(insights.associative_tags?.bottom || insights.bottom_tags || []).map((t: any) => (
+                          <div 
+                            key={t.tag} 
+                            className="relative group/tag"
+                            onMouseEnter={() => setHoveredTag(t.tag)}
+                            onMouseLeave={() => setHoveredTag(null)}
+                          >
+                            {termLinks[t.tag] ? (
+                              <a 
+                                href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer"
+                                className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500 hover:bg-red-500/20 transition-colors block"
+                              >
+                                {t.tag}
+                              </a>
+                            ) : (
+                              <div className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500">
+                                {t.tag}
+                              </div>
+                            )}
+
+                            {/* Violin Plot Hover */}
+                            <AnimatePresence>
+                              {hoveredTag === t.tag && t.ratings_with && (
+                                <motion.div 
+                                  initial={{ opacity: 0, x: 20, scale: 0.9 }}
+                                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                                  exit={{ opacity: 0, x: 20, scale: 0.9 }}
+                                  className="absolute left-[calc(100%+0.5rem)] top-0 z-[120] pointer-events-none"
+                                >
+                                  <ViolinPlot 
+                                    ratingsWith={t.ratings_with}
+                                    ratingsWithout={t.ratings_without}
+                                    tagName={t.tag}
+                                  />
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
                         ))}
                       </div>
                     </div>

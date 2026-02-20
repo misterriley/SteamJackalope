@@ -46,7 +46,8 @@ class TestPipelineIntegration(unittest.TestCase):
             'categories': ['Single-player', 'Multi-player'],
             'supported_languages': ['English', 'English'],
             'mature_content': [0, 0],
-            'short_description': ['Description 1', 'Description 2']
+            'short_description': ['Description 1', 'Description 2'],
+            'price': [0, 0]
         }
         pd.DataFrame(games_data).to_csv(self.test_games, index=False)
         
