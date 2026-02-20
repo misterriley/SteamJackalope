@@ -23,6 +23,8 @@ This document serves as a condensed reference for Gemini instances working on th
 *   **Artifact Synchronization**: All `.npy` files and `metadata.parquet` must have matching row counts and ordering, derived from `data/pipeline_games_clean.csv`.
 *   **Path Management**: `common/constants.py` is the single source of truth for paths and magic numbers. Use environment variables (e.g., `STEAM_METADATA_FILE`) to override for tests.
 *   **Parquet Schema**: Use `pyarrow.parquet.read_schema(file).names` to check columns without loading data.
+*   **Hybrid Semantic Model**: Uses a 235-dimensional ZCA-whitened descriptive space. All text must be **lowercased** before encoding to maintain parity with production artifacts.
+*   **Variance Parity**: Semantic embeddings are scaled by **11.25x** to match tag variance in the LASSO solver.
 *   **Tag Vectors**: Use PCA-ZCA whitening to prevent similarity explosion. `TAG_VECTOR_K` requires LOD imputation in its solver loop.
 *   **Scraping**: Requires `STEAM_API_KEY`. Uses a hierarchical local cache outside the repo.
 

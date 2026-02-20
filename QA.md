@@ -62,6 +62,14 @@ This document serves as the manual verification protocol for human testers and d
     - *Expectation*: Pipeline completes; Insights dashboard displays Predictive Tags and Taste Anchors.
 - [ ] **Unified Recommender**: Click "Apply to Recommender".
     - *Expectation*: Tab switches to Recommender; "PERSONALIZED" badge appears; top results match "Games You'll Love" list from Insights.
+- [ ] **Semantic Slider Import**: After "Apply to Recommender", check the "Semantic Match" slider.
+    - *Expectation*: The slider is automatically set to the user's solved semantic weight (e.g., ~0.90) instead of the default 1.0.
+- [ ] **Key Vibe Dimensions**: Hover over a Vibe Dimension (✨ icon) in Insights.
+    - *Expectation*: Displays a list of positive/negative keywords and a scatter plot of personal rating correlation.
+- [ ] **Vibe Labeling**: Check Vibe Dimension titles.
+    - *Expectation*: Titles use the composite word-sum format (e.g., "Word1 + Word2 vs. Word3 + Word4").
+- [ ] **Hybrid Anchors**: View "Taste Anchors" in Insights.
+    - *Expectation*: "North Stars" display an alignment percentage > 100% (calibrated hybrid score).
 - [ ] **Predictive Multipliers**: Adjust a slider (e.g., Quality) in Personalized mode.
     - *Expectation*: Results re-rank based on the slider acting as a multiplier on the DNA weight.
 - [ ] **Error Recovery**: Click the "Reset App" button in the header.

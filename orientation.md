@@ -65,8 +65,9 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
 - **Metadata and Search:** The backend provides `/metadata`, `/genres`, `/term_links`, `/games/search`, and `/games/random` endpoints. `/games/search` enables fast autocomplete for seed game selection.
 - **Personalization Engine:** The system features a sophisticated "Taste DNA" pipeline.
     - **Async Solver:** The `/user/solve` endpoint runs an asynchronous subprocess to build a user's mathematical profile from their Steam history.
-    - **LASSO Regression:** The solver uses **LASSO Regression** to identify the sparse subset of tags and metadata that truly define a user's taste, automatically setting irrelevant features to zero.
-    - **Adaptive Saturation:** Tag dimensionality scales dynamically with library size ($K = \text{clip}(N-6, 1, 243)$), ensuring high fidelity for power users while maintaining stability for new libraries.
+    - **Hybrid LASSO Regression**: The solver uses **LASSO Regression** to identify the sparse subset of both **Tags** and **Semantic Vibe Dimensions** that truly define a user's taste.
+    - **Variance Parity Scaling**: Semantic features are scaled by **11.25x** to match tag variance, ensuring equal treatment in the regression.
+    - **Adaptive Saturation:** Tag dimensionality scales dynamically with library size ($K = \text{clip}(N-6, 1, 243)$).
     - **Ordinal vs. Mathematical Parity:** While the system was designed for bit-perfect parity, the primary requirement is **Ordinal Parity**. The order of games retrieved from "Analyze My Catalogue" must match the order in "Recommendations" after exporting the profile. A linear transformation between the scoring spaces is acceptable as long as the relative ranking of games is preserved.
     - **Unified Pathway:** Both the Solver's preview and the Recommender's rankings utilize the exact same `calculate_linear_scores` logic in `common/utils.py`.
     - **Absolute Slider Control:** Build 39 refactored the UI so that sliders directly represent the solved absolute weights, allowing for transparent fine-tuning without "squaring" or multiplier confusion.
@@ -167,8 +168,13 @@ The "Analyze My Catalogue" feature allows users to solve for their personal pref
 1.  **Acquisition**: Fetch AppIDs and playtimes via SteamID64 API or manual HTML source paste (`scraping/get_user_stats.py`).
 2.  **Soft-Labeling**: Generate 0-10 predicted ratings using the **Personalized Quality** formula ($Q_{pers}$) and the global **Playtime-Sentiment** model.
 3.  **Verification (Ground Truth)**: User reviews the predicted ratings in a dense table UI, adjusting sliders or checking "Ignore" for games that don't reflect their taste.
-4.  **Taste Solver**: Run a Ridge Regression (with LOOCV) mapping the 0-10 ratings against game tag vectors (128-dim) and metadata factors (Age, Length, Difficulty).
-5.  **Deployment**: Exported weights are used to initialize the recommendation sliders on the main page.
+4.  **Taste Solver**: Run a **Hybrid LASSO Regression** mapping the 0-10 ratings against:
+    - **Tag Vectors** (ZCA Whitened, scaled by 11.28x)
+    - **Semantic Vectors** (235 dimensions, ZCA Whitened, scaled by 11.25x for variance parity)
+    - **Metadata Factors** (Age, Length, Difficulty, Popularity, Price)
+5.  **Explainability Calibration**: The solver uses **Composite Word-Sum Calibration** to label the 235 semantic dimensions with high-contrast pairs like "Exploration + Terraform vs. Gunplay + Ricochet."
+6.  **Deployment**: Exported weights (including the Unit Semantic Vibe Vector) are used to initialize the recommendation sliders and the underlying scoring engine.
+
 
 ### UI Requirements (For React Implementation)
 - **Dense Grid/Table**: Support for Steam banner images, expandable review text, and responsive columns.

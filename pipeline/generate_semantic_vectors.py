@@ -123,16 +123,16 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     else:
         df['clean_tags'] = df['tags'].apply(clean_tag_string)
     
-    # Vector A: Structural/Categorical (Genres + Tags)
+    # Vector A: Structural/Categorical (Genres + Tags) - LOWERCASE
     df['structural_text'] = (
-        "Genres: " + df['genres'] + 
-        " Tags: " + df['clean_tags']
+        "genres: " + df['genres'].str.lower() + 
+        " tags: " + df['clean_tags'].str.lower()
     )
     
-    # Vector B: Narrative/Descriptive (Description + Reviews)
+    # Vector B: Narrative/Descriptive (Description + Reviews) - LOWERCASE
     df['desc_text'] = (
-        "Description: " + df['short_description'] + 
-        " Reviews: " + df['review_text']
+        "description: " + df['short_description'].str.lower() + 
+        " reviews: " + df['review_text'].str.lower()
     )
     
     print(f"Loading SentenceTransformer model: {MODEL_NAME}...")
@@ -156,14 +156,14 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     print("Generating structural embeddings...")
     structural_texts = df['structural_text'].tolist()
     # Identify empty inputs to zero them out later
-    is_empty_struct = df['structural_text'].str.strip() == "Genres:  Tags:"
+    is_empty_struct = df['structural_text'].str.strip() == "genres:  tags:"
     embeddings_structural = model.encode(structural_texts, show_progress_bar=True, batch_size=BATCH_SIZE)
     embeddings_structural[is_empty_struct] = 0
     
     print("Generating descriptive embeddings...")
     desc_texts = df['desc_text'].tolist()
-    # Empty descriptive text is "Description:  Reviews: "
-    is_empty_desc = df['desc_text'].str.strip() == "Description:  Reviews:"
+    # Empty descriptive text is "description:  reviews: "
+    is_empty_desc = df['desc_text'].str.strip() == "description:  reviews:"
     embeddings_desc = model.encode(desc_texts, show_progress_bar=True, batch_size=BATCH_SIZE)
     embeddings_desc[is_empty_desc] = 0
 
@@ -212,7 +212,34 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     # Calculate and save constants
     print("Calculating semantic regularization constants (Uncentered Unit Pathway)...")
     semantic_lambda = 0.0
-    semantic_scaling = 1.0
+    
+    # Calculate SEMANTIC_GLOBAL_SCALING_FACTOR to match Tag variance parity.
+    # This ensures LASSO treats both modalities equally.
+    try:
+        from common.constants import TAG_VECTORS_FILE, TAG_NORMS_FILE, DOT_PRODUCT_LAMBDA, TAG_GLOBAL_SCALING_FACTOR
+        if os.path.exists(TAG_VECTORS_FILE) and os.path.exists(TAG_NORMS_FILE):
+            print("Calculating Semantic scaling factor based on Tag variance...")
+            # Load a sample to calculate variance
+            tag_vecs = np.load(TAG_VECTORS_FILE, mmap_mode='r')
+            tag_norms = np.load(TAG_NORMS_FILE, mmap_mode='r')
+            
+            sample_size = min(10000, len(tag_vecs))
+            idx = np.random.choice(len(tag_vecs), sample_size, replace=False)
+            
+            t_scaled = (tag_vecs[idx].astype(np.float32) / (tag_norms[idx].reshape(-1, 1).astype(np.float32) + DOT_PRODUCT_LAMBDA)) * TAG_GLOBAL_SCALING_FACTOR
+            s_scaled_unit = embeddings_desc[idx].astype(np.float32) # Already unit normalized
+            
+            tag_std = np.std(t_scaled, axis=0).mean()
+            sem_std_unit = np.std(s_scaled_unit, axis=0).mean()
+            
+            semantic_scaling = float(tag_std / (sem_std_unit + EPSILON))
+            print(f"Parity Match: Tag Std={tag_std:.6f}, Sem Unit Std={sem_std_unit:.6f} -> Scaling={semantic_scaling:.4f}")
+        else:
+            print("Tag files not found. Using fallback scaling factor 11.25")
+            semantic_scaling = 11.25
+    except Exception as e:
+        print(f"Error calculating semantic scaling parity: {e}. Using fallback 11.25")
+        semantic_scaling = 11.25
     
     # Establish natural range for semantic similarities
     print("Establishing natural range for semantic similarities (10,000 random pairs)...")

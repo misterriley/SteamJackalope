@@ -252,6 +252,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
                   difficulty_pref: 0.0,
                   price_pref: 0.0,
                   vibe_vector: undefined, 
+                  semantic_vibe_vector: undefined,
                   metadata_weights: undefined, 
                   library_appids: [], 
                   rated_appids: [], 

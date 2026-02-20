@@ -65,6 +65,7 @@ export interface RecommendationRequest {
   genres: string[];
   tags: string[];
   vibe_vector?: number[];
+  semantic_vibe_vector?: number[];
   metadata_weights?: Record<string, number>;
   intercept?: number;
   scaling_factor?: number;

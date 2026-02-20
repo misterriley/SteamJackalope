@@ -27,7 +27,13 @@ from common.constants import (
     ADAPTIVE_DNA_BASE_K,
     ADAPTIVE_DNA_SLOPE,
     DIFFICULTY_NEUTRAL_FALLBACK,
-    DNA_UI_SCALING_FACTOR
+    DNA_UI_SCALING_FACTOR,
+    EMBEDDINGS_DESC_FILE,
+    EMBEDDINGS_DESC_NORMS_FILE,
+    SEMANTIC_DOT_PRODUCT_LAMBDA,
+    SEMANTIC_GLOBAL_SCALING_FACTOR,
+    Z_SCORE_CLAMP_MIN,
+    Z_SCORE_CLAMP_MAX
 )
 
 def solve_user_taste(ground_truth_path, output_path=None):
@@ -147,12 +153,21 @@ def solve_user_taste(ground_truth_path, output_path=None):
     user_meta_features = np.clip(full_metadata.iloc[user_indices][meta_cols].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     
     # --- TAG TRANSFORMATION ---
-    print(f"Applying penalized normalization and global scaling...")
+    print(f"Applying penalized normalization and global scaling to tags...")
     user_tag_features_norm = user_tag_features / (user_tag_norms + DOT_PRODUCT_LAMBDA)
     user_tag_features_scaled = user_tag_features_norm * TAG_GLOBAL_SCALING_FACTOR
     
-    # Combine features: [Q (1)] + [Metadata (5)] + [Tags (k)]
-    X = np.hstack([q_global.reshape(-1, 1), user_meta_features, user_tag_features_scaled])
+    # --- SEMANTIC FEATURES ---
+    print(f"Loading semantic features and applying penalized normalization...")
+    semantic_vectors = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
+    semantic_norms = np.load(EMBEDDINGS_DESC_NORMS_FILE, mmap_mode='r')
+    
+    user_sem_features_raw = semantic_vectors[user_indices].astype(np.float32)
+    user_sem_norms = semantic_norms[user_indices].reshape(-1, 1).astype(np.float32)
+    user_sem_features_scaled = (user_sem_features_raw / (user_sem_norms + SEMANTIC_DOT_PRODUCT_LAMBDA)) * SEMANTIC_GLOBAL_SCALING_FACTOR
+    
+    # Combine features: [Q (1)] + [Metadata (5)] + [Tags (k)] + [Semantic (235)]
+    X = np.hstack([q_global.reshape(-1, 1), user_meta_features, user_tag_features_scaled, user_sem_features_scaled])
     
     # --- STABILIZATION: Add a dummy game ---
     dummy_X = np.zeros((1, X.shape[1]))
@@ -186,7 +201,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # --- TAG PROJECTION ---
     # Project whitened coefficients back to original tag space to find predictive tags
     print("Projecting coefficients back to original tag space...")
-    tag_coeffs_adaptive = coeffs[6:] # Skip quality + 5 metadata
+    tag_coeffs_adaptive = coeffs[6:6+k_adaptive]
+    sem_coeffs_full = coeffs[6+k_adaptive:]
     
     # PAD coefficients back to the full production K (e.g., 243)
     full_k = tag_vectors.shape[1]
@@ -194,9 +210,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     tag_coeffs_full[:k_adaptive] = tag_coeffs_adaptive
     
     # Create full coefficient vector for scoring: [Q] + [5 Metadata] + [Full Tags]
-    full_coeffs = np.zeros(6 + full_k)
-    full_coeffs[:6] = coeffs[:6] # Quality + Metadata
-    full_coeffs[6:] = tag_coeffs_full
+    # (Optional: we can keep sem_coeffs separate for better structured response)
     
     # --- TAG DIMENSIONS ANALYSIS ---
     # Find the top 5 predictive dimensions from the whitened coefficients
@@ -220,6 +234,34 @@ def solve_user_taste(ground_truth_path, output_path=None):
     else:
         top_dims = dim_impacts[:5]
 
+    # --- SEMANTIC DIMENSIONS ANALYSIS ---
+    print("Extracting top predictive semantic dimensions...")
+    sem_dim_impacts = []
+    for i, w in enumerate(sem_coeffs_full):
+        if abs(w) > 1e-9:
+            sem_dim_impacts.append({
+                'index': i,
+                'weight': float(w),
+                'abs_weight': abs(float(w))
+            })
+    
+    sem_dim_impacts = sorted(sem_dim_impacts, key=lambda x: x['abs_weight'], reverse=True)
+    top_sem_dims = sem_dim_impacts[:5]
+
+    # Load Semantic Dimension Labels
+    SEMANTIC_LABELS_FILE = os.path.join(ROOT_DIR, "data", "production", "semantic_dimension_labels.json")
+    SEMANTIC_SUM_FILE = os.path.join(ROOT_DIR, "data", "production", "semantic_sum_labels.json")
+    
+    sem_dimension_labels = {}
+    if os.path.exists(SEMANTIC_LABELS_FILE):
+        with open(SEMANTIC_LABELS_FILE, 'r') as f:
+            sem_dimension_labels = json.load(f)
+            
+    sem_sum_labels = {}
+    if os.path.exists(SEMANTIC_SUM_FILE):
+        with open(SEMANTIC_SUM_FILE, 'r') as f:
+            sem_sum_labels = json.load(f)
+            
     # Load Master Tag List for stable indexing
     if os.path.exists(TAG_NAMES_FILE):
         print(f"Loading master tag list from {TAG_NAMES_FILE}...")
@@ -351,6 +393,46 @@ def solve_user_taste(ground_truth_path, output_path=None):
                 'dynamic_label': dynamic_label
             }
 
+    # --- SEMANTIC DIMENSIONS REFINEMENT ---
+    sem_dim_correlations = {}
+    sem_dim_verified_labels = {}
+    
+    for dim in top_sem_dims:
+        idx = dim['index']
+        dim_str = str(idx)
+        
+        # loadings are user_sem_features_scaled from earlier
+        # Wait, user_sem_features_scaled was (raw / norms) * 11.25
+        # We need the loadings for correlation plots
+        dim_loadings = user_sem_features_scaled[:, idx]
+        sem_dim_correlations[dim_str] = [
+            {'x': float(load), 'y': float(rat)}
+            for load, rat in zip(dim_loadings, y[:len(user_indices)])
+        ]
+        
+        if dim_str in sem_dimension_labels:
+            raw_pos = [w[0] for w in sem_dimension_labels[dim_str].get('top_positive', [])]
+            raw_neg = [w[0] for w in sem_dimension_labels[dim_str].get('top_negative', [])]
+            
+            # Use Sum-based composite labels for the main title
+            sum_label = sem_sum_labels.get(dim_str)
+            if sum_label:
+                dynamic_label = sum_label['dynamic_label']
+            else:
+                a = raw_pos[0] if len(raw_pos) > 0 else "?"
+                b = raw_pos[1] if len(raw_pos) > 1 else ""
+                c = raw_neg[0] if len(raw_neg) > 0 else "?"
+                d = raw_neg[1] if len(raw_neg) > 1 else ""
+                pos_part = f"{a}/{b}" if b else a
+                neg_part = f"{c}/{d}" if d else c
+                dynamic_label = f"{pos_part} vs. {neg_part}"
+            
+            sem_dim_verified_labels[dim_str] = {
+                'positive': raw_pos[:5],
+                'negative': raw_neg[:5],
+                'dynamic_label': dynamic_label
+            }
+
     # Calculate Tag Norm and Unit Vector for the Recommender (using padded full vector)
     tag_norm = np.linalg.norm(tag_coeffs_full)
     
@@ -358,6 +440,13 @@ def solve_user_taste(ground_truth_path, output_path=None):
         vibe_vector_unit = (tag_coeffs_full / tag_norm).tolist()
     else:
         vibe_vector_unit = tag_coeffs_full.tolist()
+
+    # Calculate Semantic Norm and Unit Vector
+    sem_norm = np.linalg.norm(sem_coeffs_full)
+    if sem_norm > 1e-9:
+        sem_vibe_vector_unit = (sem_coeffs_full / sem_norm).tolist()
+    else:
+        sem_vibe_vector_unit = sem_coeffs_full.tolist()
 
     # Load whitening matrix W (original_tags x whitened_dim)
     W = np.load(W_TAG_FILE)
@@ -391,38 +480,54 @@ def solve_user_taste(ground_truth_path, output_path=None):
     known_indices = [appid_to_idx[aid] for aid in all_library_appids if aid in appid_to_idx]
 
     # --- NORTH STAR & ABYSSAL GAMES ---
-    # Find games whose TAG VECTORS (not final scores) are most similar to the taste coefficients
-    print("Finding North Star and Abyssal games (pure tag alignment)...")
-    vibe_vec = tag_coeffs_full
-    vibe_norm = np.linalg.norm(vibe_vec)
+    # Find games whose TASTE ALIGNMENT (Weighted Tag + Weighted Semantic) is highest/lowest.
+    # This ignores metadata like quality, age, and price to find games that purely match the 'vibe'.
+    print("Finding North Star and Abyssal games (Hybrid Taste Alignment)...")
     
-    if vibe_norm > 1e-9:
-        # Cosine Similarity: (A . B) / (|A| * |B|)
-        # Tag vectors are stored as float16, use float32 for math
-        all_vectors_f32 = all_vectors.astype(np.float32)
-        norms = np.linalg.norm(all_vectors_f32, axis=1)
-        norms[norms == 0] = 1.0
+    # 1. Calculate Tag Alignment
+    all_tag_norms = np.load(TAG_NORMS_FILE, mmap_mode='r').astype(np.float32)
+    # Scaled Tag Features: (Raw / Norm) * Global_Scaling
+    # Alignment: Scaled @ Coeffs
+    tag_alignment = (np.dot(all_vectors.astype(np.float32), tag_coeffs_full) / (all_tag_norms + DOT_PRODUCT_LAMBDA)) * TAG_GLOBAL_SCALING_FACTOR
+    
+    # 2. Calculate Semantic Alignment
+    sem_alignment = np.zeros(len(full_metadata), dtype=np.float32)
+    if sem_norm > 1e-9:
+        sem_vectors = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
+        sem_norms_all = np.load(EMBEDDINGS_DESC_NORMS_FILE, mmap_mode='r').astype(np.float32)
         
-        # Calculate cosine similarity to the vibe vector
-        cos_sims = np.dot(all_vectors_f32, vibe_vec) / (norms * vibe_norm)
-        
-        # Exclude known games
-        cos_sims[known_indices] = -2.0 # Way off the scale
-        
-        # North Stars (Highest Similarity)
-        ns_indices = np.argsort(-cos_sims)[:5]
-        north_stars = full_metadata.iloc[ns_indices][['appid', 'name']].copy()
-        north_stars['alignment'] = cos_sims[ns_indices]
-        
-        # Abyssal Games (Lowest Similarity / Most Inverse)
-        # We restore the known indices to mask them for the bottom search too
-        cos_sims[known_indices] = 2.0
-        ab_indices = np.argsort(cos_sims)[:5]
-        abyssal_games = full_metadata.iloc[ab_indices][['appid', 'name']].copy()
-        abyssal_games['alignment'] = cos_sims[ab_indices]
+        batch_size = 50000
+        for i in range(0, len(full_metadata), batch_size):
+            end = min(i + batch_size, len(full_metadata))
+            batch_vecs = sem_vectors[i:end].astype(np.float32)
+            # Use same scaling as training
+            batch_scaled = (batch_vecs / (sem_norms_all[i:end].reshape(-1, 1) + SEMANTIC_DOT_PRODUCT_LAMBDA)) * SEMANTIC_GLOBAL_SCALING_FACTOR
+            sem_alignment[i:end] = np.dot(batch_scaled, sem_coeffs_full)
+
+    # 3. Hybrid Alignment
+    hybrid_alignment = tag_alignment + sem_alignment
+    
+    # Normalize alignment to -1.0 to 1.0 range for the UI (using max possible absolute alignment)
+    # For display purposes, we use the max observed alignment in the dataset
+    max_align = np.max(np.abs(hybrid_alignment))
+    if max_align > 1e-9:
+        display_alignment = hybrid_alignment / max_align
     else:
-        north_stars = pd.DataFrame()
-        abyssal_games = pd.DataFrame()
+        display_alignment = hybrid_alignment
+
+    # Mask known games
+    display_alignment[known_indices] = -2.0 
+    
+    # North Stars (Highest Alignment)
+    ns_indices = np.argsort(-display_alignment)[:5]
+    north_stars = full_metadata.iloc[ns_indices][['appid', 'name']].copy()
+    north_stars['alignment'] = display_alignment[ns_indices]
+    
+    # Abyssal Games (Lowest Alignment)
+    display_alignment[known_indices] = 2.0
+    ab_indices = np.argsort(display_alignment)[:5]
+    abyssal_games = full_metadata.iloc[ab_indices][['appid', 'name']].copy()
+    abyssal_games['alignment'] = display_alignment[ab_indices]
 
     # --- TOP & BOTTOM RECOMMENDATIONS ---
     print("Generating top and bottom recommendations based on solved profile (original scale)...")
@@ -438,7 +543,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'difficulty': float(coeffs[4]),
         'price': float(coeffs[5]),
         'tag_match': float(tag_norm),
-        'semantic': 1.0,
+        'semantic': float(sem_norm),
         'discovery': float(optimal_disc_pref)
     }
     
@@ -464,6 +569,19 @@ def solve_user_taste(ground_truth_path, output_path=None):
         intercept=float(intercept)
     )
     
+    # Add Semantic Contribution to preview scores
+    if sem_norm > 1e-9:
+        sem_vectors = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
+        sem_norms = np.load(EMBEDDINGS_DESC_NORMS_FILE, mmap_mode='r').reshape(-1, 1).astype(np.float32)
+        
+        batch_size = 50000
+        for i in range(0, len(full_metadata), batch_size):
+            end = min(i + batch_size, len(full_metadata))
+            batch_vecs = sem_vectors[i:end].astype(np.float32)
+            # Use same scaling as training
+            batch_scaled = (batch_vecs / (sem_norms[i:end] + SEMANTIC_DOT_PRODUCT_LAMBDA)) * SEMANTIC_GLOBAL_SCALING_FACTOR
+            scores[i:end] += np.dot(batch_scaled, sem_coeffs_full)
+
     # Clamp to 0-10 scale for display safety
     scores = np.clip(scores, 0, 10)
     
@@ -515,7 +633,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'difficulty': float(coeffs[4]),
         'price': float(coeffs[5]),
         'tag_match': float(tag_norm),
-        'semantic': 1.0 
+        'semantic': float(sem_norm) 
     }
     
     max_abs_weight = max(abs(v) for v in weights_to_scale.values())
@@ -573,7 +691,13 @@ def solve_user_taste(ground_truth_path, output_path=None):
             'correlations': dim_correlations,
             'verified_tags': dim_verified_tags
         },
+        'semantic_dimensions': {
+            'top_dims': top_sem_dims,
+            'correlations': sem_dim_correlations,
+            'labels': sem_dim_verified_labels
+        },
         'vibe_vector': vibe_vector_unit,
+        'semantic_vibe_vector': sem_vibe_vector_unit,
         'alpha': float(model.alpha_),
         'r2': float(r2_train), # Use the high-precision training R2
         'library_size': int(num_ratings),

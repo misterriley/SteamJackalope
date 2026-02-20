@@ -97,6 +97,7 @@ function App() {
       // 2. Extract metadata and vibe
       const meta = profile.metadata || {};
       const vibeVector = (profile.vibe_vector || []).map((v: any) => v || 0);
+      const semVibeVector = (profile.semantic_vibe_vector || []).map((v: any) => v || 0);
 
       console.log("!!! APP: Metadata Keys !!!", Object.keys(meta));
       console.log("!!! APP: Metadata Values !!!", meta);
@@ -128,6 +129,7 @@ function App() {
         
         // State
         vibe_vector: vibeVector,
+        semantic_vibe_vector: semVibeVector,
         metadata_weights: meta,
         intercept: profile.intercept ?? 0.0,
         scaling_factor: profile.scaling_factor ?? 1.0,

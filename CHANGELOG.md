@@ -2,6 +2,18 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [43] - 2026-02-20
+### Build 43
+### Version 0.0.1-pre-alpha.43
+
+- **Algorithm**: Implemented **Hybrid Semantic-Tag Solver** using high-dimensional LASSO across both Steam tags and 235 descriptive "Vibe" dimensions.
+- **Algorithm**: Achieved **Semantic Variance Parity** by applying a dynamic 11.25x scaling factor, ensuring descriptive vibes and categorical tags are treated as mathematically equal features.
+- **Algorithm**: Transitioned to a **Case-Insensitive Semantic Model** by lowercasing all input text across the pipeline and backend, eliminating orthographic noise and consolidating conceptual variance.
+- **Explainability**: Developed **Composite Word-Sum Labeling** for semantic dimensions, providing high-contrast titles (e.g., "Exploration + Terraform vs. Gunplay + Ricochet") derived from a 10,000-word descriptive vocabulary.
+- **Explainability**: Updated **North Star & Abyss** logic to use weighted Hybrid Alignment (Tags + Semantics) for more qualitatively accurate taste anchors.
+- **UI/UX**: Refactored the personalization insights view to display **Key Vibe Dimensions** with interactive hovers and rating correlation plots.
+- **UI/UX**: Automated **Semantic Weight Import**, correctly mapping solved descriptive preferences to the Recommender's Semantic slider upon profile application.
+
 ## [41] - 2026-02-20
 ### Build 41
 ### Version 0.0.1-pre-alpha.41

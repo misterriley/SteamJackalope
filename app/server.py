@@ -509,6 +509,7 @@ class RecommendationRequest(BaseModel):
     
     # Taste DNA Extensions
     vibe_vector: Optional[List[float]] = None
+    semantic_vibe_vector: Optional[List[float]] = None
     metadata_weights: Optional[Dict[str, float]] = None
     intercept: Optional[float] = 0.0
     scaling_factor: Optional[float] = 1.0
@@ -1139,37 +1140,40 @@ def recommend(request: RecommendationRequest):
     all_semantic_sims = np.zeros(len(metadata))
     
     try:
-        if request.prompt or seed_appids:
+        if request.prompt or seed_appids or request.semantic_vibe_vector:
             # Helper to normalize vectors to unit length
             def norm_vec(v):
                 mag = np.linalg.norm(v)
                 return v / (mag if mag > EPSILON else 1.0)
 
+            # DNA Semantic Component (Pre-solved vibe)
+            dna_sem_sims = None
+            if request.semantic_vibe_vector:
+                logger.info("Using DNA Semantic Vibe Vector")
+                sem_vibe = np.array(request.semantic_vibe_vector, dtype=np.float32)
+                # Solve assumes whitened features. embeddings_desc_norm ARE whitened.
+                dot_products = np.dot(data_manager.embeddings_desc_norm, sem_vibe)
+                denom = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
+                dna_sem_sims = (dot_products / denom) * SEMANTIC_GLOBAL_SCALING_FACTOR
+                # Weighting is handled by request.alpha slider later
+
+            prompt_sims = None
             if request.prompt:
-                logger.info(f"Processing prompt: '{request.prompt}'")
-                prompt_vec = data_manager.model.encode([request.prompt])[0]
-                
-                # Uncentered Whitening: origin is preserved
+                clean_prompt = request.prompt.lower()
+                logger.info(f"Processing prompt: '{clean_prompt}'")
+                prompt_vec = data_manager.model.encode([clean_prompt])[0]
                 p_desc = np.dot(prompt_vec, data_manager.w_desc) if data_manager.w_desc is not None else prompt_vec
-                
-                # Unit Normalization
                 p_desc_norm = norm_vec(p_desc)
-                
-                # Dot Product Similarity
                 prompt_desc_sims = np.dot(data_manager.embeddings_desc_norm, p_desc_norm)
                 
-                # Apply scaling and regularization (which are 1.0 and 0.0 in the new model)
                 if data_manager.embeddings_desc_norms is not None:
                     denom_desc = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
                     prompt_desc_sims = (prompt_desc_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
+                prompt_sims = prompt_desc_sims
 
-                all_semantic_sims = prompt_desc_sims
-                all_semantic_sims[data_manager.metadata['is_hollow'].values] = 0.0
-                logger.info(f"Prompt similarities computed: max={all_semantic_sims.max():.4f}")
-
+            seed_sims = None
             if seed_indices.size > 0:
                 logger.info(f"Processing {len(seed_indices)} seeds for semantic similarity")
-                # Seeds are already unit-normalized in the new pipeline
                 avg_seed_desc = np.mean(data_manager.embeddings_desc_norm[seed_indices], axis=0)
                 sd_norm = norm_vec(avg_seed_desc)
                 seed_desc_sims = np.dot(data_manager.embeddings_desc_norm, sd_norm)
@@ -1177,16 +1181,19 @@ def recommend(request: RecommendationRequest):
                 if data_manager.embeddings_desc_norms is not None:
                     denom_desc = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
                     seed_desc_sims = (seed_desc_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
+                seed_sims = seed_desc_sims
 
-                seed_combined_sims = seed_desc_sims
-                seed_combined_sims[data_manager.metadata['is_hollow'].values] = 0.0
-                
-                if request.prompt:
-                    all_semantic_sims = (all_semantic_sims * (1.0 - SEMANTIC_PROMPT_SEED_BLEND)) + (seed_combined_sims * SEMANTIC_PROMPT_SEED_BLEND)
-                    logger.info("Blended prompt and seed semantic similarities")
-                else:
-                    all_semantic_sims = seed_combined_sims
-                    logger.info("Used seed-only semantic similarities")
+            # Combine all available semantic signals
+            sims_to_blend = []
+            if dna_sem_sims is not None: sims_to_blend.append(dna_sem_sims)
+            if prompt_sims is not None: sims_to_blend.append(prompt_sims)
+            if seed_sims is not None: sims_to_blend.append(seed_sims)
+            
+            if sims_to_blend:
+                all_semantic_sims = np.mean(sims_to_blend, axis=0)
+                all_semantic_sims[data_manager.metadata['is_hollow'].values] = 0.0
+                logger.info(f"Combined semantic similarities computed: max={all_semantic_sims.max():.4f}")
+
     except Exception as e:
         logger.exception(f"Semantic similarity calculation failed: {e}")
         # Non-fatal: all_semantic_sims remains zeros
@@ -1332,8 +1339,8 @@ def recommend(request: RecommendationRequest):
         # Final selection
         final_scores = final_scores_all[keep_indices]
         
-        # If there's a prompt or seeds, we treat it as a temporary offset
-        if request.prompt or seed_appids:
+        # If there's a prompt, seeds, or DNA, we apply the semantic offset
+        if request.prompt or seed_appids or request.semantic_vibe_vector:
             z_semantic = semantic_sims
             final_scores += (z_semantic * request.alpha)
             
@@ -1449,7 +1456,7 @@ def recommend(request: RecommendationRequest):
     results = meta_filt.iloc[top_indices].copy()
     
     # Mask weights for UI cleanliness if they aren't contributing
-    ui_w_semantic = w_semantic if (request.prompt or seed_appids) else 0.0
+    ui_w_semantic = w_semantic if (request.prompt or seed_appids or request.semantic_vibe_vector) else 0.0
     ui_w_tag = w_tag if (seed_appids or is_vibe_present) else 0.0
 
     response_items = []

@@ -255,6 +255,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
 
     const meta = profile.metadata || {};
     const vibeVector = (profile.vibe_vector || []).map((v: any) => v || 0);
+    const semVibeVector = (profile.semantic_vibe_vector || []).map((v: any) => v || 0);
     
     console.log("RecommendationsView: Manual Profile Upload", profile);
 
@@ -270,6 +271,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       beta: typeof meta.tag_match === 'number' ? meta.tag_match : 1.0,
       
       vibe_vector: vibeVector,
+      semantic_vibe_vector: semVibeVector,
       metadata_weights: meta,
       intercept: typeof profile.intercept === 'number' ? profile.intercept : 0.0,
       scaling_factor: typeof profile.scaling_factor === 'number' ? profile.scaling_factor : 1.0,

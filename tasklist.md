@@ -6,6 +6,12 @@
 ## Task List
 
 ### Recently Completed
+- **Hybrid Semantic-Tag Solver**: Implemented high-dimensional LASSO regression across 235 descriptive dimensions.
+- **Semantic Dimension Labeling**: Developed composite word-sum calibration (e.g., "Exploration + Terraform") using a 10,000-word vocabulary.
+- **Semantic Variance Parity**: Integrated dynamic scaling (11.25x) to ensure vibes and tags are treated equally in the DNA solve.
+- **Hybrid Taste Anchors**: Updated North Star and Abyss logic to use weighted alignment of both semantic and tag components.
+- **Case-Insensitive Semantic Model**: Lowercased all input text across the pipeline and backend to eliminate orthographic noise.
+- **DNA Weight Import**: Automated the mapping of solved semantic weights to the recommender's UI sliders.
 
 ### Bugs (work on these first)
 
