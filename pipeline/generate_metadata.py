@@ -297,7 +297,7 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
 
     print("Saving metadata to metadata.parquet...")
     # Ensure all required columns exist (including dynamic contribution columns)
-    required_cols = ['appid', 'name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 'final_release_date', 'positive', 'negative', 'mature_content', 'price', 'date_z', 'pop_z', 'median_playtime', 'playtime_z', 'estimated_playtime', 'release_year', 'difficulty_predicted', 'difficulty_z', 'intercept', 'difficulty_predicted_raw']
+    required_cols = ['appid', 'name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 'final_release_date', 'positive', 'negative', 'mature_content', 'price', 'date_z', 'pop_z', 'median_playtime', 'playtime_z', 'estimated_playtime', 'release_year', 'difficulty_predicted', 'difficulty_z', 'price_z', 'intercept', 'difficulty_predicted_raw']
     # Add contribution columns if they exist
     contrib_cols = [c for c in df.columns if c.startswith('contrib_')]
     required_cols.extend(contrib_cols)

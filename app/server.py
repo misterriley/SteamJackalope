@@ -219,7 +219,7 @@ class DataManager:
         needed_cols = [
             'appid', 'name', 'release_date', 'positive', 'negative', 
             'genres', 'tags', 'categories', 'supported_languages',
-            'mature_content', 'price', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z', 'price_z',
+            'mature_content', 'price', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z',
             'estimated_playtime', 'difficulty_predicted'
         ]
         # Only request short_description if it exists
@@ -228,6 +228,12 @@ class DataManager:
             logger.info("Found short_description in metadata")
         else:
             logger.warning("short_description NOT found in metadata")
+
+        if 'price_z' in available_cols:
+            needed_cols.append('price_z')
+            logger.info("Found price_z in metadata")
+        else:
+            logger.warning("price_z NOT found in metadata")
 
         if 'release_year' in available_cols:
             needed_cols.append('release_year')
@@ -293,7 +299,10 @@ class DataManager:
         self.metadata['pop_z'] = self.metadata['pop_z'].astype(np.float16)
         self.metadata['playtime_z'] = self.metadata['playtime_z'].astype(np.float16)
         self.metadata['difficulty_z'] = self.metadata['difficulty_z'].astype(np.float16)
-        self.metadata['price_z'] = self.metadata['price_z'].astype(np.float16)
+        if 'price_z' in self.metadata.columns:
+            self.metadata['price_z'] = self.metadata['price_z'].astype(np.float16)
+        else:
+            self.metadata['price_z'] = np.float16(0.0)
         self.metadata['estimated_playtime'] = self.metadata['estimated_playtime'].astype(np.float32)
         self.metadata['difficulty_predicted'] = self.metadata['difficulty_predicted'].astype(np.float32)
         self.metadata['mature_content'] = self.metadata['mature_content'].fillna(0).astype(np.int8)
