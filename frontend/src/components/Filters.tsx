@@ -242,8 +242,8 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
                 // Reset to default weights while removing personalization
                 onChange({ 
                   ...filters,
-                  alpha: 1.0,
-                  beta: 1.0,
+                  alpha: 0.25,
+                  beta: 1.5,
                   quality_pref: 1.0,
                   age_pref: 0.0,
                   pop_pref: 0.0,
@@ -273,7 +273,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
             value={filters.alpha} 
             min={0} max={2} step={0.01} 
             onChange={(v: number) => handleChange('alpha', v)}
-            onReset={() => handleChange('alpha', 1.0)}
+            onReset={() => handleChange('alpha', 0.25)}
             tooltip="Absolute points contributed by the text prompt match."
           />
           <Slider 
@@ -281,7 +281,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
             value={filters.beta} 
             min={0} max={2} step={0.01} 
             onChange={(v: number) => handleChange('beta', v)}
-            onReset={() => handleChange('beta', 1.0)}
+            onReset={() => handleChange('beta', 1.5)}
             tooltip="Absolute points contributed by the tag vector match (Seeds/DNA)."
           />
           <Slider 

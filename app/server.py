@@ -487,9 +487,9 @@ class UserVerifyUpdate(BaseModel):
     ignore: bool
 
 class RecommendationRequest(BaseModel):
-    alpha: float = 0.5
-    beta: float = 0.5
-    quality_pref: float = 0.0
+    alpha: float = 0.25
+    beta: float = 1.5
+    quality_pref: float = 1.0
     age_pref: float = 0.0
     pop_pref: float = 0.0
     disc_pref: float = 0.0

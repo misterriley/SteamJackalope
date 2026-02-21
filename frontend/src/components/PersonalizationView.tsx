@@ -666,12 +666,20 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                           
                           {/* Hover Hints */}
                           <AnimatePresence>
-                            {hoveredWeight === key && (key === 'tag_match' || key === 'semantic') && (
+                            {hoveredWeight === key && key === 'tag_match' && (
                               <motion.div 
                                 initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
                                 className="absolute -top-8 left-0 z-[110] whitespace-nowrap bg-primary text-primary-foreground text-[10px] font-bold py-1 px-2 rounded shadow-lg"
                               >
-                                see Key {key === 'tag_match' ? 'Tag' : 'Vibe'} Dimensions below
+                                see Key Tag Dimensions below
+                              </motion.div>
+                            )}
+                            {hoveredWeight === key && key === 'semantic' && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
+                                className="absolute -top-8 left-0 z-[110] whitespace-nowrap bg-primary text-primary-foreground text-[10px] font-bold py-1 px-2 rounded shadow-lg"
+                              >
+                                Similarity based on descriptions and reviews.
                               </motion.div>
                             )}
                           </AnimatePresence>
@@ -715,11 +723,34 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                       {insights.tag_dimensions.top_dims.map((dim: any) => {
                         const dimId = dim.index.toString();
                         const verified = insights.tag_dimensions.verified_tags?.[dimId];
-                        const desc = verified?.dynamic_label || tagDimensions[dimId]?.description || `Dimension ${dimId}`;
-                        const val = dim.weight;
-                        const topPos = verified?.positive || tagDimensions[dimId]?.top_positive || [];
-                        const topNeg = verified?.negative || tagDimensions[dimId]?.top_negative || [];
+                        const val = dim.weight; // Original weight
                         
+                        let displayDesc = verified?.dynamic_label || tagDimensions[dimId]?.description || `Dimension ${dimId}`;
+                        let displayTopPos = verified?.positive || tagDimensions[dimId]?.top_positive || [];
+                        let displayTopNeg = verified?.negative || tagDimensions[dimId]?.top_negative || [];
+                        let displayVal = val;
+                        let barColorClass = 'bg-green-500'; // Default to green
+
+                        // Reverse meaning if weight is negative
+                        if (val < 0) {
+                          displayVal = Math.abs(val);
+                          // Reverse the "A vs. B" label
+                          if (displayDesc.includes(' vs. ')) {
+                            const parts = displayDesc.split(' vs. ');
+                            displayDesc = `${parts[1]} vs. ${parts[0]}`;
+                          } else { // Fallback for simple labels
+                             displayDesc = `Inverse of ${displayDesc}`;
+                          }
+                          // Swap positive and negative tags
+                          [displayTopPos, displayTopNeg] = [displayTopNeg, displayTopPos];
+                          barColorClass = 'bg-green-500'; // Always green for "positive" interpretation
+                        }
+                        
+                        // Prepare chart data, reversing x-values if original weight was negative
+                        const chartData = val < 0 
+                          ? insights.tag_dimensions.correlations[dimId].map((point: any) => ({ ...point, x: point.x * -1 }))
+                          : insights.tag_dimensions.correlations[dimId];
+
                         return (
                           <div 
                             key={dimId} 
@@ -728,11 +759,11 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                             onMouseLeave={() => setHoveredDimension(null)}
                           >
                             <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold">
-                              <span className="group-hover/dim:text-primary transition-colors truncate max-w-[150px]">{desc}</span>
-                              <span className={val >= 0 ? 'text-green-500' : 'text-red-500'}>{val >= 0 ? '+' : ''}{val.toFixed(4)}</span>
+                              <span className="group-hover/dim:text-primary transition-colors truncate max-w-[150px]">{displayDesc}</span>
+                              <span className="text-green-500">{displayVal >= 0 ? '+' : ''}{displayVal.toFixed(4)}</span>
                             </div>
                             <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (Math.abs(val) / 0.5) * 100)}%` }} className={`h-full ${val >= 0 ? 'bg-green-500' : 'bg-red-500'}`} />
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (displayVal / 0.5) * 100)}%` }} className={`h-full ${barColorClass}`} />
                             </div>
 
                             {/* Dimension Explanation Hover */}
@@ -746,100 +777,25 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                                 >
                                   <div className="bg-card border border-primary/30 rounded-2xl shadow-2xl p-6 pb-8 backdrop-blur-2xl space-y-6">
                                     <div className="space-y-4">
-                                      <div className="text-xs font-bold uppercase tracking-widest text-primary border-b border-primary/10 pb-2">{desc}</div>
+                                      <div className="text-xs font-bold uppercase tracking-widest text-primary border-b border-primary/10 pb-2">{displayDesc}</div>
                                       
                                       <div className="space-y-3">
                                         <div className="flex gap-2">
-                                          {topPos.map((tag: string) => (
+                                          {displayTopPos.map((tag: string) => (
                                             <span key={tag} className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[9px] font-bold text-green-500 whitespace-nowrap">{tag}</span>
                                           ))}
                                         </div>
                                         <div className="flex gap-2">
-                                          {topNeg.map((tag: string) => (
+                                          {displayTopNeg.map((tag: string) => (
                                             <span key={tag} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] font-bold text-red-500 whitespace-nowrap">{tag}</span>
                                           ))}
                                         </div>
                                       </div>
                                     </div>
                                     <ExplainabilityChart 
-                                      data={insights.tag_dimensions.correlations[dimId]} 
-                                      title="Personal Rating Correlation"
+                                      data={chartData} 
+                                      title={displayDesc} // Use the reversed description as the chart title
                                       xLabel="Dimension Loading"
-                                      type="scatter"
-                                      showTrendline={true}
-                                    />
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Predictive Semantic Dimensions (Key Vibes) */}
-                {insights.semantic_dimensions?.top_dims?.length > 0 && (
-                  <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative overflow-visible">
-                    <h3 className="text-lg font-bold flex items-center gap-2">
-                      <Sparkles size={18} className="text-primary" />
-                      Key Vibe Dimensions
-                    </h3>
-                    <div className="space-y-4">
-                      {insights.semantic_dimensions.top_dims.map((dim: any) => {
-                        const dimId = dim.index.toString();
-                        const labelData = insights.semantic_dimensions.labels?.[dimId];
-                        const desc = labelData?.dynamic_label || `Vibe ${dimId}`;
-                        const val = dim.weight;
-                        const topPos = labelData?.positive || [];
-                        const topNeg = labelData?.negative || [];
-                        
-                        return (
-                          <div 
-                            key={dimId} 
-                            className="space-y-1 group/dim cursor-help"
-                            onMouseEnter={() => setHoveredSemanticDimension(dimId)}
-                            onMouseLeave={() => setHoveredSemanticDimension(null)}
-                          >
-                            <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold">
-                              <span className="group-hover/dim:text-primary transition-colors truncate max-w-[150px]">{desc}</span>
-                              <span className={val >= 0 ? 'text-green-500' : 'text-red-500'}>{val >= 0 ? '+' : ''}{val.toFixed(4)}</span>
-                            </div>
-                            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (Math.abs(val) / 0.5) * 100)}%` }} className={`h-full ${val >= 0 ? 'bg-green-500' : 'bg-red-500'}`} />
-                            </div>
-
-                            {/* Dimension Explanation Hover */}
-                            <AnimatePresence>
-                              {hoveredSemanticDimension === dimId && (
-                                <motion.div 
-                                  initial={{ opacity: 0, x: 20, scale: 0.9 }}
-                                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                                  exit={{ opacity: 0, x: 20, scale: 0.9 }}
-                                  className="absolute left-[calc(100%+1rem)] top-0 z-[110] w-[400px] md:w-[500px] pointer-events-none"
-                                >
-                                  <div className="bg-card border border-primary/30 rounded-2xl shadow-2xl p-6 pb-8 backdrop-blur-2xl space-y-6">
-                                    <div className="space-y-4">
-                                      <div className="text-xs font-bold uppercase tracking-widest text-primary border-b border-primary/10 pb-2">{desc}</div>
-                                      
-                                      <div className="space-y-3">
-                                        <div className="flex gap-2">
-                                          {topPos.map((tag: string) => (
-                                            <span key={tag} className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[9px] font-bold text-green-500 whitespace-nowrap">{tag}</span>
-                                          ))}
-                                        </div>
-                                        <div className="flex gap-2">
-                                          {topNeg.map((tag: string) => (
-                                            <span key={tag} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] font-bold text-red-500 whitespace-nowrap">{tag}</span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <ExplainabilityChart 
-                                      data={insights.semantic_dimensions.correlations[dimId]} 
-                                      title="Personal Rating Correlation"
-                                      xLabel="Vibe Loading"
                                       type="scatter"
                                       showTrendline={true}
                                     />
@@ -959,7 +915,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         {insights.north_stars?.map((game: any) => (
                           <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="block p-2 bg-secondary/30 rounded-lg border border-border/50 hover:border-primary/30 transition-colors">
                             <div className="font-bold text-[10px] truncate">{game.name}</div>
-                            <div className="text-[8px] text-muted-foreground uppercase">Alignment: {(game.alignment * 100).toFixed(0)}%</div>
+                            <div className="text-[8px] text-muted-foreground uppercase">Alignment: {game.alignment.toFixed(2)}</div>
                           </a>
                         ))}
                       </div>
@@ -970,7 +926,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         {insights.abyssal_games?.map((game: any) => (
                           <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="block p-2 bg-secondary/30 rounded-lg border border-border/50 hover:border-red-500/30 transition-colors opacity-60">
                             <div className="font-bold text-[10px] truncate">{game.name}</div>
-                            <div className="text-[8px] text-muted-foreground uppercase">Anti-Alignment: {(Math.abs(game.alignment) * 100).toFixed(0)}%</div>
+                            <div className="text-[8px] text-muted-foreground uppercase">Alignment: {game.alignment.toFixed(2)}</div>
                           </a>
                         ))}
                       </div>

@@ -68,8 +68,8 @@ function App() {
       // 1. Get current filters or defaults
       const savedFiltersStr = sessionStorage.getItem('recommendations_filters');
       const defaults = {
-        alpha: 1.0,
-        beta: 1.0,
+        alpha: 0.25,
+        beta: 1.5,
         quality_pref: 1.0,
         age_pref: 0.0,
         pop_pref: 0.0,

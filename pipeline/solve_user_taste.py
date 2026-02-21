@@ -46,12 +46,15 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Load full library from soft labels to ensure ALL owned games (including zero playtime)
     # are tracked for exclusion, even if they aren't in the training set.
     sl_path = ground_truth_path.replace('_ground_truth.csv', '_soft_labels.csv')
+    all_library_appids = set()
     if os.path.exists(sl_path):
         print(f"Loading full library list from {sl_path}...")
         df_sl = pd.read_csv(sl_path)
-        all_library_appids = df_sl['appid'].unique().tolist()
-    else:
-        all_library_appids = df_gt['appid'].unique().tolist()
+        all_library_appids.update(df_sl['appid'].unique().tolist())
+    
+    # Also include anything in ground truth (manual additions, rated games)
+    all_library_appids.update(df_gt['appid'].unique().tolist())
+    all_library_appids = list(all_library_appids)
     
     # Filter for regression training: remove ignored and NaN ratings
     # Get list of ignored appids for the JSON
@@ -294,8 +297,12 @@ def solve_user_taste(ground_truth_path, output_path=None):
     for tag_str in user_tags_raw:
         if pd.isna(tag_str) or tag_str == '' or tag_str == '[]': continue
         try:
-            # Using ast.literal_eval for safety
-            tags_dict = ast.literal_eval(tag_str)
+            # Handle both stringified dicts and actual dict objects
+            if isinstance(tag_str, dict):
+                tags_dict = tag_str
+            else:
+                tags_dict = ast.literal_eval(tag_str)
+                
             if isinstance(tags_dict, dict):
                 for tag in tags_dict.keys():
                     if tag in tag_to_idx_map:
@@ -376,6 +383,12 @@ def solve_user_taste(ground_truth_path, output_path=None):
             # Filter to only tags existing in user library
             verified_pos = [t for t in raw_pos if t in supported_tag_set]
             verified_neg = [t for t in raw_neg if t in supported_tag_set]
+            
+            # Fallback to global labels if no library tags match
+            if not verified_pos and len(raw_pos) > 0:
+                verified_pos = raw_pos[:5]
+            if not verified_neg and len(raw_neg) > 0:
+                verified_neg = raw_neg[:5]
             
             # Create dynamic label: A/B vs. C/D
             a = verified_pos[0] if len(verified_pos) > 0 else "?"
@@ -507,27 +520,19 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # 3. Hybrid Alignment
     hybrid_alignment = tag_alignment + sem_alignment
     
-    # Normalize alignment to -1.0 to 1.0 range for the UI (using max possible absolute alignment)
-    # For display purposes, we use the max observed alignment in the dataset
-    max_align = np.max(np.abs(hybrid_alignment))
-    if max_align > 1e-9:
-        display_alignment = hybrid_alignment / max_align
-    else:
-        display_alignment = hybrid_alignment
+    # Mask known games (set to a very low value so they don't appear in top/bottom)
+    hybrid_alignment[known_indices] = -np.inf # Use -inf to ensure they are never picked for top
 
-    # Mask known games
-    display_alignment[known_indices] = -2.0 
-    
     # North Stars (Highest Alignment)
-    ns_indices = np.argsort(-display_alignment)[:5]
+    ns_indices = np.argsort(-hybrid_alignment)[:5]
     north_stars = full_metadata.iloc[ns_indices][['appid', 'name']].copy()
-    north_stars['alignment'] = display_alignment[ns_indices]
-    
+    north_stars['alignment'] = [float(a) for a in hybrid_alignment[ns_indices]] # Store raw values
+
     # Abyssal Games (Lowest Alignment)
-    display_alignment[known_indices] = 2.0
-    ab_indices = np.argsort(display_alignment)[:5]
+    hybrid_alignment[known_indices] = np.inf # Use inf to ensure they are never picked for bottom
+    ab_indices = np.argsort(hybrid_alignment)[:5]
     abyssal_games = full_metadata.iloc[ab_indices][['appid', 'name']].copy()
-    abyssal_games['alignment'] = display_alignment[ab_indices]
+    abyssal_games['alignment'] = [float(a) for a in hybrid_alignment[ab_indices]] # Store raw values
 
     # --- TOP & BOTTOM RECOMMENDATIONS ---
     print("Generating top and bottom recommendations based on solved profile (original scale)...")
@@ -711,7 +716,9 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'abyssal_games': abyssal_games.to_dict(orient='records'),
         'top_recommendations': top_games.to_dict(orient='records'),
         'bottom_recommendations': bottom_games.to_dict(orient='records'),
-        'ignored_appids': list(map(int, ignored_appids))
+        'ignored_appids': list(map(int, ignored_appids)),
+        'library_appids': [int(aid) for aid in all_library_appids],
+        'rated_appids': [int(aid) for aid in df['appid'].tolist()]
     }
 
     # Clean NaN values and NumPy types for JSON safety

@@ -6,16 +6,23 @@
 ## Task List
 
 ### Recently Completed
-- **Hybrid Semantic-Tag Solver**: Implemented high-dimensional LASSO regression across 235 descriptive dimensions.
-- **Semantic Dimension Labeling**: Developed composite word-sum calibration (e.g., "Exploration + Terraform") using a 10,000-word vocabulary.
-- **Semantic Variance Parity**: Integrated dynamic scaling (11.25x) to ensure vibes and tags are treated equally in the DNA solve.
-- **Hybrid Taste Anchors**: Updated North Star and Abyss logic to use weighted alignment of both semantic and tag components.
-- **Case-Insensitive Semantic Model**: Lowercased all input text across the pipeline and backend to eliminate orthographic noise.
+- **Game Exclusion Logic Refinement**: Implemented robust exclusion logic in the Taste DNA solver to ensure manually added and rated games are filtered from recommendation lists, preventing self-recommendations.
+- **UI Explainability Enhancements**:
+    - Implemented a visual reversal of negatively weighted tag dimensions (e.g., "NSFW/Mature vs. Tanks/Wargame") with absolute positive values, green bars, and swapped positive/negative associated tags for improved clarity, including chart data and title.
+    - Changed alignment values on Taste Anchors (North Stars, The Abyss) to display raw sum of tag and semantic contributions (e.g., "Alignment: 1.50" or "Alignment: -1.50") instead of percentages.
+    - Removed "Key Vibe Dimensions" section from Personalization Insights.
+    - Updated semantic hover text for clearer explanations.
+    - Modified difficulty hover graph X-axis ticks to 0, 5, and 10.
+    - Fixed corrupted tag dimension display and predictive tags.
+- **Slider Sensitivity Study & Parameter Tuning**: Completed a simulation study to analyze slider impact on game rankings, leading to refined default slider values (Semantic=0.25, Tag=1.5, Quality=1.0) and other parameters for improved recommendation stability.
 - **DNA Weight Import**: Automated the mapping of solved semantic weights to the recommender's UI sliders.
+- **Case-Insensitive Semantic Model**: Lowercased all input text across the pipeline and backend to eliminate orthographic noise.
+- **Hybrid Taste Anchors**: Updated North Star and Abyss logic to use weighted alignment of both semantic and tag components.
+- **Semantic Variance Parity**: Integrated dynamic scaling (11.25x) to ensure vibes and tags are treated equally in the DNA solve.
+- **Semantic Dimension Labeling**: Developed composite word-sum calibration (e.g., "Exploration + Terraform") using a 10,000-word vocabulary.
+- **Hybrid Semantic-Tag Solver**: Implemented high-dimensional LASSO regression across 235 descriptive dimensions.
 
 ### Bugs (work on these first)
-
-- [ ] Games You'll Love and the Recommender aren't filtering out manually added games
 
 ### Next Priority
 

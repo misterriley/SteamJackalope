@@ -79,6 +79,8 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
     - When using `run_shell_command` in this environment (PowerShell), avoid using the `&&` operator to chain commands as it will cause a `ParserError`. Execute commands sequentially instead.
     - Many data artifacts (`.npy`, `.parquet`) are memory-mapped by the server. If a script fails to update them with a "Permission Denied" or "File in Use" error, the FastAPI server MUST be stopped first.
     - Large files read via `read_file` will be truncated. Use `offset` and `limit` to paginate through long files like `server.py` or large CSVs.
+    - `grep_search` and `read_file` need very precise `include` and `file_path` parameters respectively for efficient searching and reading.
+    - `replace` tool requires a very exact `old_string` parameter, including surrounding context (e.g., 3 lines above and below) and precise whitespace/indentation, to ensure accurate modifications.
 - **Memory Footprint Optimization**: The backend server is optimized for efficiency to support standard cloud deployment.
     - **Memory Mapping**: All large NumPy arrays (`embeddings_desc.npy`, `embeddings_structural.npy`, `tag_vectors`, `quality_grid`) now utilize `mmap_mode='r'`. This allows the OS to page data in and out as needed, keeping the active Resident Set Size (RSS) low.
     - **Pre-Normalization**: Semantic embeddings are pre-normalized to unit length.

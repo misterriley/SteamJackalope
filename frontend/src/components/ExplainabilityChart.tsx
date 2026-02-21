@@ -63,7 +63,11 @@ const ExplainabilityChart: React.FC<ExplainabilityChartProps> = ({ data, title, 
   };
 
   const isAgeTitle = title === 'age' || title === 'age_pref' || title === 'Release Date';
-  const ticks = isLog ? getLogTicks(sortedData) : (isAgeTitle ? getAgeTicks(sortedData) : undefined);
+  const ticks = isLog 
+    ? getLogTicks(sortedData) 
+    : (isAgeTitle 
+        ? getAgeTicks(sortedData) 
+        : (title === 'difficulty' ? [0, 5, 10] : undefined));
 
   // Simple Linear Regression for Trendline
   const getTrendlineData = (data: DataPoint[]) => {

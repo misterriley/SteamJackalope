@@ -35,8 +35,8 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
 
   const [filters, setFilters] = useState<RecommendationRequest>(() => {
     const defaults: RecommendationRequest = {
-      alpha: 1.0,
-      beta: 1.0,
+      alpha: 0.25,
+      beta: 1.5,
       quality_pref: 1.0,
       age_pref: 0.0,
       pop_pref: 0.0,
@@ -192,8 +192,8 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
 
   const handleReset = () => {
     setFilters({
-      alpha: 1.0,
-      beta: 1.0,
+      alpha: 0.25,
+      beta: 1.5,
       quality_pref: 1.0,
       age_pref: 0.0,
       pop_pref: 0.0,
