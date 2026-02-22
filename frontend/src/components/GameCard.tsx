@@ -229,9 +229,25 @@ const GameCard: React.FC<GameCardProps> = ({ game, hideNSFW = true, isSeed = fal
         )}
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px] mt-auto">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Star size={12} className="text-yellow-500" />
-            <span>{Math.round((game.positive / (game.positive + game.negative || 1)) * 100)}% Positive</span>
+          <div className="flex items-center gap-1.5 text-muted-foreground group/match relative">
+            <Star size={12} className={`text-yellow-500 ${game.is_personalized ? 'animate-pulse' : ''}`} />
+            <span className="cursor-help">
+              {game.match_percent !== undefined 
+                ? (Math.round(game.match_percent) >= 100 ? ">99% Match to settings" : (Math.round(game.match_percent) <= 0 ? "<1% Match to settings" : `${Math.round(game.match_percent)}% Match to settings`))
+                : `${Math.round((game.positive / (game.positive + game.negative || 1)) * 100)}% Positive`
+              }
+            </span>
+            {game.is_personalized && (
+              <Sparkles size={8} className="text-primary fill-primary ml-0.5" />
+            )}
+            
+            {/* Tooltip for Match % */}
+            <div className="absolute bottom-full left-0 mb-2 w-48 bg-popover text-popover-foreground text-[9px] p-2 rounded shadow-xl border border-border opacity-0 group-hover/match:opacity-100 transition-opacity pointer-events-none z-[100]">
+              <p className="leading-tight">
+                <strong>Match to settings:</strong> Predicted probability of a positive review based on global data and your current vibes/sliders.
+                {game.is_personalized && <span className="block mt-1 text-primary italic">Includes specific adjustments for your playtime.</span>}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Clock size={12} className="text-blue-500" />

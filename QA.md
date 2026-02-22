@@ -70,7 +70,9 @@ This document serves as the manual verification protocol for human testers and d
     - *Expectation*: Titles use the composite word-sum format (e.g., "Word1 + Word2 vs. Word3 + Word4").
 - [ ] **Hybrid Anchors**: View "Taste Anchors" in Insights.
     - *Expectation*: "North Stars" display an alignment percentage > 100% (calibrated hybrid score).
-- [ ] **Predictive Multipliers**: Adjust a slider (e.g., Quality) in Personalized mode.
-    - *Expectation*: Results re-rank based on the slider acting as a multiplier on the DNA weight.
+- [ ] **Absolute Slider Control**: Load a Taste DNA profile and view the Recommender sliders.
+    - *Expectation*: Sliders (Quality, Age, Tag Match, etc.) now reflect the **Absolute Weights** learned by the solver (e.g., Quality = 0.86) rather than resetting to 1.0.
+- [ ] **Manual Fine-Tuning**: Adjust an absolute slider (e.g., Quality) in Personalized mode.
+    - *Expectation*: Results re-rank instantly. The slider provides direct, transparent control over that feature's contribution to the 0-10 match score.
 - [ ] **Error Recovery**: Click the "Reset App" button in the header.
     - *Expectation*: Storage is cleared; page reloads; app returns to factory defaults.

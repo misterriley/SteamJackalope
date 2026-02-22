@@ -27,6 +27,7 @@ class TestPipelineIntegration(unittest.TestCase):
             "mean_structural_file": "test_mean_structural.npy",
             "tag_vectors_file": "test_tag_vectors.npy",
             "tag_norms_file": "test_tag_vectors_norms.npy",
+            "tag_names_file": "test_tag_names.json",
             "w_tag_file": "test_w_tag.npy",
             "quality_grid_file": "test_quality_scores_grid.npy",
             "regularization_json": "test_regularization_constants.json"
@@ -78,6 +79,7 @@ class TestPipelineIntegration(unittest.TestCase):
             "test_mean_structural.npy",
             "test_tag_vectors.npy",
             "test_tag_vectors_norms.npy",
+            "test_tag_names.json",
             "test_w_tag.npy",
             "test_quality_scores_grid.npy",
             "test_regularization_constants.json"
@@ -112,7 +114,8 @@ class TestPipelineIntegration(unittest.TestCase):
             sys.executable, os.path.join("pipeline", "run_pipeline.py"),
             "--config", self.test_config,
             "--games", self.test_games,
-            "--reviews", self.test_reviews
+            "--reviews", self.test_reviews,
+            "--tag_names", "test_tag_names.json"
         ]
         
         print("\nRunning pipeline integration test...")

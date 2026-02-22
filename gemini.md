@@ -30,6 +30,7 @@ This document serves as a condensed reference for Gemini instances working on th
 
 ## 🧪 Testing & Quality
 *   **Runner**: Use `run_all_tests.bat` (wraps `pytest`).
+*   **Production Lock**: The test runner automatically locks the `data/production` directory as **Read-Only** during execution. This prevents tests from accidentally corrupting production artifacts (e.g., `tag_names.json`). Any test attempting to write to this directory will fail with a `PermissionError`.
 *   **Isolation**: Never modify production artifacts during tests. Use temporary files or environment overrides.
 *   **Logging**: Ensure all new functionality includes informative logging.
 

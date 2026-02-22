@@ -251,6 +251,12 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
                   length_pref: 0.0,
                   difficulty_pref: 0.0,
                   price_pref: 0.0,
+                  remove_vr: true,
+                  english_only: true,
+                  remove_nsfw: true,
+                  remove_utilities: true,
+                  remove_unreleased: true,
+                  remove_delisted: true,
                   vibe_vector: undefined, 
                   semantic_vibe_vector: undefined,
                   metadata_weights: undefined, 
@@ -274,7 +280,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
             min={0} max={2} step={0.01} 
             onChange={(v: number) => handleChange('alpha', v)}
             onReset={() => handleChange('alpha', 0.25)}
-            tooltip="Absolute points contributed by the text prompt match."
+            tooltip="Boosts Match % for games whose descriptions/reviews align with your text prompt."
           />
           <Slider 
             label="Tag Match (Vibes)" 
@@ -282,7 +288,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
             min={0} max={2} step={0.01} 
             onChange={(v: number) => handleChange('beta', v)}
             onReset={() => handleChange('beta', 1.5)}
-            tooltip="Absolute points contributed by the tag vector match (Seeds/DNA)."
+            tooltip="Boosts Match % for games with tags matching your profile or seed games."
           />
           <Slider 
             label="Quality" 
@@ -290,7 +296,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
             min={-2} max={2} step={0.01} 
             onChange={(v: number) => handleChange('quality_pref', v)}
             onReset={() => handleChange('quality_pref', 1.0)}
-            tooltip="Absolute points per SD of Bayesian Quality score."
+            tooltip="Boosts Match % for games with higher Bayesian review scores."
           />
           <Slider 
             label="Discovery" 
@@ -370,12 +376,18 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
           <Toggle label="Blur NSFW" checked={filters.remove_nsfw} onChange={(v: boolean) => handleChange('remove_nsfw', v)} />
           <Toggle label="Hide Utilities" checked={filters.remove_utilities} onChange={(v: boolean) => handleChange('remove_utilities', v)} />
           <Toggle label="Released Only" checked={filters.remove_unreleased} onChange={(v: boolean) => handleChange('remove_unreleased', v)} />
+          <Toggle label="Hide Delisted" checked={filters.remove_delisted} onChange={(v: boolean) => handleChange('remove_delisted', v)} />
         </div>
       </div>
 
-      <div className="p-3 bg-secondary/20 border-t border-border mt-auto shrink-0">
+      <div className="p-3 bg-secondary/20 border-t border-border mt-auto shrink-0 space-y-2">
         <div className="text-[9px] text-muted-foreground text-center uppercase tracking-tighter">
           Live Updating Enabled
+        </div>
+        <div className="px-2 py-1.5 bg-primary/5 rounded border border-primary/10">
+          <p className="text-[8px] leading-tight text-muted-foreground italic">
+            <strong className="text-primary not-italic">Match to settings:</strong> The predicted probability that you will enjoy this game, blending global Steam data with your personal vibes and playtime history.
+          </p>
         </div>
       </div>
     </div>

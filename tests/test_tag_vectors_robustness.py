@@ -12,11 +12,12 @@ class TestTagVectorsRobustness(unittest.TestCase):
         self.output_constants = "robustness_constants.json"
         self.w_tag_file = "robustness_w_tag.npy"
         self.tag_norms_file = "robustness_tag_norms.npy"
+        self.tag_names_file = "robustness_tag_names.json"
 
     def tearDown(self):
         import gc
         gc.collect()
-        for f in [self.test_csv, self.output_vectors, self.output_constants, self.w_tag_file, self.tag_norms_file]:
+        for f in [self.test_csv, self.output_vectors, self.output_constants, self.w_tag_file, self.tag_norms_file, self.tag_names_file]:
             if os.path.exists(f):
                 try:
                     os.remove(f)
@@ -80,7 +81,8 @@ class TestTagVectorsRobustness(unittest.TestCase):
             output_vectors=self.output_vectors,
             output_constants=self.output_constants,
             output_norms=self.tag_norms_file,
-            w_tag_path=self.w_tag_file
+            w_tag_path=self.w_tag_file,
+            output_tag_names=self.tag_names_file
         )
         
         vectors = np.load(self.output_vectors)

@@ -6,21 +6,12 @@
 ## Task List
 
 ### Recently Completed
-- **Game Exclusion Logic Refinement**: Implemented robust exclusion logic in the Taste DNA solver to ensure manually added and rated games are filtered from recommendation lists, preventing self-recommendations.
-- **UI Explainability Enhancements**:
-    - Implemented a visual reversal of negatively weighted tag dimensions (e.g., "NSFW/Mature vs. Tanks/Wargame") with absolute positive values, green bars, and swapped positive/negative associated tags for improved clarity, including chart data and title.
-    - Changed alignment values on Taste Anchors (North Stars, The Abyss) to display raw sum of tag and semantic contributions (e.g., "Alignment: 1.50" or "Alignment: -1.50") instead of percentages.
-    - Removed "Key Vibe Dimensions" section from Personalization Insights.
-    - Updated semantic hover text for clearer explanations.
-    - Modified difficulty hover graph X-axis ticks to 0, 5, and 10.
-    - Fixed corrupted tag dimension display and predictive tags.
-- **Slider Sensitivity Study & Parameter Tuning**: Completed a simulation study to analyze slider impact on game rankings, leading to refined default slider values (Semantic=0.25, Tag=1.5, Quality=1.0) and other parameters for improved recommendation stability.
-- **DNA Weight Import**: Automated the mapping of solved semantic weights to the recommender's UI sliders.
-- **Case-Insensitive Semantic Model**: Lowercased all input text across the pipeline and backend to eliminate orthographic noise.
-- **Hybrid Taste Anchors**: Updated North Star and Abyss logic to use weighted alignment of both semantic and tag components.
-- **Semantic Variance Parity**: Integrated dynamic scaling (11.25x) to ensure vibes and tags are treated equally in the DNA solve.
-- **Semantic Dimension Labeling**: Developed composite word-sum calibration (e.g., "Exploration + Terraform") using a 10,000-word vocabulary.
-- **Hybrid Semantic-Tag Solver**: Implemented high-dimensional LASSO regression across 235 descriptive dimensions.
+- [x] **Mathematical Parity (Solver/API)**: Harmonized the scoring pipeline between the Python solver and FastAPI backend. Fixed the "82% Bug" by isolating the 5.0 neutral intercept from scaling division and established perfect ordinal parity in top-10 lists.
+- [x] **Transparency Mode (Absolute Weights)**: Refactored the Taste DNA mode to use UI sliders as absolute weights rather than multipliers. This ensures the weights shown in the UI (e.g., Quality = 0.86) are exactly what the recommendation engine uses, eliminating "hidden" scaling and the "Squaring Bug."
+- [x] **Neutral Anchor Implementation**: Standardized the use of a 5.0 baseline for both raw scoring and probability mapping, ensuring that "Match %" correctly reflects deviations from an "average game" prior.
+- [x] **Production Data Corruption Fix**: Identified and patched the bug causing `tag_names.json` to be overwritten during tests. Added an automated `Read-Only` lock to the `data/production` directory during test execution.
+- [x] **Delisted Game Filter**: Implemented a global filter to exclude games that are no longer available for purchase on Steam from recommendations and lists.
+- [x] **Personalized Quality UI**: Integrated kernel-smoothed quality adjustments into the React UI and Recommender pathway, displaying tailored "Match %" for library games.
 
 ### Bugs (work on these first)
 
@@ -54,7 +45,3 @@
 - [ ] **Visual-First Mode**: Implement a "Gallery View" that prioritizes high-res screenshots and environmental aesthetic (Color Palette Matching).
 - [ ] **The "Wildcard" Slot**: Intentionally inject one recommendation per page that matches the "Vibe" but purposefully violates genre preferences.
 - [ ] **AI Shovelware Filter**: Explicit developer-history and asset-flip detection beyond Bayesian scores.
-
-### Lesser Priority
-
-### Vague ideas - prompt the user to discuss details and flesh out what needs to be done

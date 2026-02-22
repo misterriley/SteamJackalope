@@ -211,7 +211,8 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
 
     # Calculate and save constants
     print("Calculating semantic regularization constants (Uncentered Unit Pathway)...")
-    semantic_lambda = 0.0
+    from common.utils import calculate_dot_product_lambda
+    semantic_lambda = calculate_dot_product_lambda(embeddings_desc)
     
     # Calculate SEMANTIC_GLOBAL_SCALING_FACTOR to match Tag variance parity.
     # This ensures LASSO treats both modalities equally.

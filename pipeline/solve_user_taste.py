@@ -47,10 +47,20 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # are tracked for exclusion, even if they aren't in the training set.
     sl_path = ground_truth_path.replace('_ground_truth.csv', '_soft_labels.csv')
     all_library_appids = set()
+    library_details = {} # appid -> {playtime, personalized_q, p_plus_t}
+    
     if os.path.exists(sl_path):
         print(f"Loading full library list from {sl_path}...")
         df_sl = pd.read_csv(sl_path)
         all_library_appids.update(df_sl['appid'].unique().tolist())
+        # Store details for personalization
+        for _, row in df_sl.iterrows():
+            aid = int(row['appid'])
+            library_details[aid] = {
+                'playtime': float(row['playtime_forever']),
+                'personalized_q': float(row['personalized_q']),
+                'p_plus_t': float(row['p_plus_t'])
+            }
     
     # Also include anything in ground truth (manual additions, rated games)
     all_library_appids.update(df_gt['appid'].unique().tolist())
@@ -80,7 +90,13 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     print(f"Loading metadata and tag vectors...")
     # Get metadata for needed columns
-    full_metadata = pd.read_parquet(METADATA_FILE, columns=['appid', 'name', 'pop_z', 'date_z', 'playtime_z', 'difficulty_z', 'price_z', 'positive', 'negative', 'tags'])
+    full_metadata = pd.read_parquet(METADATA_FILE, columns=['appid', 'name', 'pop_z', 'date_z', 'playtime_z', 'difficulty_z', 'price_z', 'positive', 'negative', 'tags', 'is_delisted', 'is_english', 'is_vr_only', 'is_utility', 'is_hollow', 'parsed_date'])
+    
+    # Ensure boolean columns are actually boolean (Parquet stores them as int8 for space)
+    bool_cols = ['is_delisted', 'is_english', 'is_vr_only', 'is_utility', 'is_hollow']
+    for col in bool_cols:
+        if col in full_metadata.columns:
+            full_metadata[col] = full_metadata[col].astype(bool)
     
     # Map user appids to indices in the full dataset
     appid_to_idx = {appid: idx for idx, appid in enumerate(full_metadata['appid'])}
@@ -350,8 +366,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
         })
         
     assoc_results = sorted(assoc_results, key=lambda x: x['mean_diff'], reverse=True)
-    # Filter to top/bottom 15
-    top_assoc = assoc_results[:15]
+    # Filter to top/bottom 15 with strict sign check
+    top_assoc = [r for r in assoc_results if r['mean_diff'] > 0][:15]
     bottom_assoc = sorted([r for r in assoc_results if r['mean_diff'] < 0], key=lambda x: x['mean_diff'])[:15]
 
     # Load dimension descriptions to filter their tags
@@ -481,10 +497,12 @@ def solve_user_taste(ground_truth_path, output_path=None):
         if support_mask[i]
     ]
     
-    # Sort the supported impacts
-    tag_impact = sorted(eligible_impacts, key=lambda x: x[1], reverse=True)
-    top_tags = [{'tag': t, 'impact': w} for t, w in tag_impact[:10]]
-    bottom_tags = [{'tag': t, 'impact': w} for t, w in tag_impact[-10:][::-1]]
+    # Sort and strictly partition by sign
+    top_tags = [{'tag': t, 'impact': w} for t, w in eligible_impacts if w > 0]
+    top_tags = sorted(top_tags, key=lambda x: x['impact'], reverse=True)[:10]
+    
+    bottom_tags = [{'tag': t, 'impact': w} for t, w in eligible_impacts if w < 0]
+    bottom_tags = sorted(bottom_tags, key=lambda x: x['impact'])[:10]
 
     # Load All Tag Vectors for scoring and similarity
     all_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
@@ -539,7 +557,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     from common.utils import calculate_linear_scores
     
     # Construction coefficients at ORIGINAL scale for preview accuracy (matching ground truth 1-10)
-    # We use float(coeffs[...]) which are already back-calculated to the raw feature scale.
+    # Note: In build 41, we use 5.0 as the global neutral intercept for both systems.
     preview_weights = {
         'quality': float(coeffs[0]),
         'age': float(coeffs[1]),
@@ -547,14 +565,29 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'length': float(coeffs[3]),
         'difficulty': float(coeffs[4]),
         'price': float(coeffs[5]),
-        'tag_match': float(tag_norm),
-        'semantic': float(sem_norm),
-        'discovery': float(optimal_disc_pref)
+        'tag_match': float(tag_norm)
     }
     
-    # Calculate scores on the ORIGINAL scale (no UI scaling factor applied)
+    # Calculate scores on the ORIGINAL scale
     all_tag_norms = np.load(TAG_NORMS_FILE, mmap_mode='r')
     
+    # Load semantic similarities for the full dataset
+    all_semantic_sims = np.zeros(len(full_metadata))
+    if sem_norm > 1e-9:
+        sem_vectors = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
+        sem_norms = np.load(EMBEDDINGS_DESC_NORMS_FILE, mmap_mode='r').reshape(-1, 1).astype(np.float32)
+        
+        # Unit vector for semantic coefficients
+        sem_vibe_unit = sem_coeffs_full / sem_norm
+        
+        batch_size = 50000
+        for i in range(0, len(full_metadata), batch_size):
+            end = min(i + batch_size, len(full_metadata))
+            batch_vecs = sem_vectors[i:end].astype(np.float32)
+            # Use original penalized scaling
+            batch_scaled = (batch_vecs / (sem_norms[i:end] + SEMANTIC_DOT_PRODUCT_LAMBDA)) * SEMANTIC_GLOBAL_SCALING_FACTOR
+            all_semantic_sims[i:end] = np.dot(batch_scaled, sem_vibe_unit)
+
     scores = calculate_linear_scores(
         z_quality=quality_grid[best_idx],
         z_date=full_metadata['date_z'].values,
@@ -564,69 +597,65 @@ def solve_user_taste(ground_truth_path, output_path=None):
         z_price=full_metadata['price_z'].values,
         tag_vectors=all_vectors,
         tag_norms=all_tag_norms,
-        beta_tag=tag_coeffs_full, # Original scale
-        weights=preview_weights,
+        beta_tag=vibe_vector_unit, # Unit vector
+        weights=preview_weights, # Contains 'tag_match' norm
         tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
         dot_product_lambda=DOT_PRODUCT_LAMBDA,
+        z_semantic=all_semantic_sims,
+        w_semantic=float(sem_norm),
         z_clamp_min=Z_SCORE_CLAMP_MIN,
         z_clamp_max=Z_SCORE_CLAMP_MAX,
-        dna_scaling_factor=1.0, # Use 1.0 to keep original scale
-        intercept=float(intercept)
+        intercept=5.0 # Anchored to global prior
     )
-    
-    # Add Semantic Contribution to preview scores
-    if sem_norm > 1e-9:
-        sem_vectors = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
-        sem_norms = np.load(EMBEDDINGS_DESC_NORMS_FILE, mmap_mode='r').reshape(-1, 1).astype(np.float32)
-        
-        batch_size = 50000
-        for i in range(0, len(full_metadata), batch_size):
-            end = min(i + batch_size, len(full_metadata))
-            batch_vecs = sem_vectors[i:end].astype(np.float32)
-            # Use same scaling as training
-            batch_scaled = (batch_vecs / (sem_norms[i:end] + SEMANTIC_DOT_PRODUCT_LAMBDA)) * SEMANTIC_GLOBAL_SCALING_FACTOR
-            scores[i:end] += np.dot(batch_scaled, sem_coeffs_full)
 
-    # Clamp to 0-10 scale for display safety
-    scores = np.clip(scores, 0, 10)
-    
     # --- APPLY DEFAULT FILTERS (Match Recommender) ---
     mask = np.ones(len(full_metadata), dtype=bool)
     # 1. English Only
     if 'is_english' in full_metadata.columns:
-        mask &= full_metadata['is_english'].values
+        mask &= full_metadata['is_english'].values.astype(bool)
     # 2. No VR Only
     if 'is_vr_only' in full_metadata.columns:
-        mask &= ~full_metadata['is_vr_only'].values
+        mask &= ~full_metadata['is_vr_only'].values.astype(bool)
     # 3. No Utilities
     if 'is_utility' in full_metadata.columns:
-        mask &= ~full_metadata['is_utility'].values
+        mask &= ~full_metadata['is_utility'].values.astype(bool)
     # 4. Released Only
     if 'parsed_date' in full_metadata.columns:
         build_time = pd.Timestamp.now()
         future_mask = (full_metadata['parsed_date'] > build_time).fillna(False)
-        mask &= ~future_mask.values
+        mask &= ~future_mask.values.astype(bool)
+    # 5. No Delisted
+    if 'is_delisted' in full_metadata.columns:
+        mask &= ~full_metadata['is_delisted'].values.astype(bool)
+    # 6. No Hollow Games (Metadata-deficient)
+    if 'is_hollow' in full_metadata.columns:
+        mask &= ~full_metadata['is_hollow'].values.astype(bool)
 
+    # Use raw scores for sorting to maintain perfect ordinal parity with backend
+    # (Clamping to 0-10 is only for display)
+    sort_scores = scores.copy()
+    
     # Mask known games
-    scores[known_indices] = -1e12
+    sort_scores[known_indices] = -1e12
     # Apply filters
-    scores[~mask] = -1e12
+    sort_scores[~mask] = -1e12
     
     # Get top 30 using stable lexicographical sort (score DESC, name ASC)
     all_names = full_metadata['name'].fillna("").values
-    top_indices = np.lexsort((all_names, -scores))[:30]
+    top_indices = np.lexsort((all_names, -sort_scores))[:30]
     
     top_games = full_metadata.iloc[top_indices][['appid', 'name']].copy()
-    top_games['predicted_rating'] = scores[top_indices]
+    # Clamp for display
+    top_games['predicted_rating'] = np.clip(scores[top_indices], 0, 10)
     
     # For bottom recs, use inverse mask
-    bottom_scores = scores.copy()
-    bottom_scores[known_indices] = 1e12
-    bottom_scores[~mask] = 1e12 # Still exclude invalid games
-    bottom_indices = np.lexsort((all_names, bottom_scores))[:30]
+    bottom_sort_scores = scores.copy()
+    bottom_sort_scores[known_indices] = 1e12
+    bottom_sort_scores[~mask] = 1e12 # Still exclude invalid games
+    bottom_indices = np.lexsort((all_names, bottom_sort_scores))[:30]
     
     bottom_games = full_metadata.iloc[bottom_indices][['appid', 'name']].copy()
-    bottom_games['predicted_rating'] = bottom_scores[bottom_indices]
+    bottom_games['predicted_rating'] = np.clip(scores[bottom_indices], 0, 10)
 
     # --- WEIGHT SCALING (UI SLIDERS ONLY) ---
     # We scale metadata weights so the largest absolute value is DNA_UI_SCALING_FACTOR.
@@ -704,6 +733,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'vibe_vector': vibe_vector_unit,
         'semantic_vibe_vector': sem_vibe_vector_unit,
         'alpha': float(model.alpha_),
+        'intercept': 5.0, # Match the Neutral Anchor used in preview and UI
+        'scaling_factor': float(scaling_factor),
         'r2': float(r2_train), # Use the high-precision training R2
         'library_size': int(num_ratings),
         'top_tags': top_tags,
@@ -718,7 +749,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'bottom_recommendations': bottom_games.to_dict(orient='records'),
         'ignored_appids': list(map(int, ignored_appids)),
         'library_appids': [int(aid) for aid in all_library_appids],
-        'rated_appids': [int(aid) for aid in df['appid'].tolist()]
+        'rated_appids': [int(aid) for aid in df['appid'].tolist()],
+        'library_details': library_details
     }
 
     # Clean NaN values and NumPy types for JSON safety

@@ -117,6 +117,8 @@ from common.constants import (
     REMOVE_UTILITIES_HELP,
     REMOVE_UNRELEASED_LABEL,
     REMOVE_UNRELEASED_HELP,
+    REMOVE_DELISTED_LABEL,
+    REMOVE_DELISTED_HELP,
     GENRE_FILTER_LABEL,
     GENRE_FILTER_HELP,
     DEBUG_MODE_LABEL,
@@ -135,6 +137,7 @@ from common.constants import (
     REMOVE_NON_ENGLISH_DEFAULT,
     REMOVE_UTILITIES_DEFAULT,
     REMOVE_UNRELEASED_DEFAULT,
+    REMOVE_DELISTED_DEFAULT,
     DEBUG_MODE_DEFAULT,
 
     TOP_K_DEFAULT,
@@ -333,6 +336,7 @@ def reset_all_parameters():
     st.session_state.remove_nsfw = REMOVE_NSFW_DEFAULT
     st.session_state.remove_utilities = REMOVE_UTILITIES_DEFAULT
     st.session_state.remove_unreleased = REMOVE_UNRELEASED_DEFAULT
+    st.session_state.remove_delisted = REMOVE_DELISTED_DEFAULT
     st.session_state.debug_mode = DEBUG_MODE_DEFAULT
     st.session_state.top_k = TOP_K_DEFAULT
     st.session_state.prompt = ""
@@ -626,6 +630,7 @@ else:
         with filter_col2:
             remove_utilities = st.checkbox(REMOVE_UTILITIES_LABEL, help=REMOVE_UTILITIES_HELP, key="remove_utilities")
             remove_unreleased = st.checkbox(REMOVE_UNRELEASED_LABEL, help=REMOVE_UNRELEASED_HELP, key="remove_unreleased")
+            remove_delisted = st.checkbox(REMOVE_DELISTED_LABEL, help=REMOVE_DELISTED_HELP, key="remove_delisted")
             debug_mode = st.checkbox(DEBUG_MODE_LABEL, help=DEBUG_MODE_HELP, key="debug_mode")
 
         with filter_col3:
@@ -647,6 +652,7 @@ else:
             "remove_nsfw": remove_nsfw,
             "remove_utilities": remove_utilities,
             "remove_unreleased": remove_unreleased,
+            "remove_delisted": remove_delisted,
             "top_k": top_k,
             "prompt": prompt,
             "seed_games": selected_games,

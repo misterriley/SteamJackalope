@@ -343,6 +343,11 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
         (df['tags'].fillna('').astype(str).str.contains(nsfw_tags_pattern, regex=True, case=False))
     ).values
     
+    df['is_delisted'] = (
+        df['price'].fillna('').astype(str).str.contains('delisted', case=False) |
+        df['name'].fillna('').astype(str).str.contains('DELISTED', case=False)
+    ).values
+    
     df['is_hollow'] = (
         (df['short_description'].fillna('').str.len() < 10) & 
         (df['tags'].fillna('') == '{}') &
@@ -356,7 +361,7 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
         'final_release_date', 'parsed_date', 'positive', 'negative', 'mature_content', 'price', 
         'date_z', 'pop_z', 'median_playtime', 'playtime_z', 'estimated_playtime', 'release_year', 
         'difficulty_predicted', 'difficulty_z', 'price_z', 'intercept', 'difficulty_predicted_raw',
-        'is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_hollow'
+        'is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_delisted', 'is_hollow'
     ]
     # Add contribution columns if they exist
     contrib_cols = [c for c in df.columns if c.startswith('contrib_')]
@@ -378,7 +383,7 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
             metadata_df[col] = pd.to_numeric(metadata_df[col], errors='coerce').fillna(0).astype(np.int64)
 
     # Boolean columns to int8 for space
-    bool_cols = ['is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_hollow']
+    bool_cols = ['is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_delisted', 'is_hollow']
     for col in bool_cols:
         if col in metadata_df.columns:
             metadata_df[col] = metadata_df[col].astype(np.int8)

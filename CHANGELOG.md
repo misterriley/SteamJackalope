@@ -2,6 +2,30 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [45] - 2026-02-22
+### Build 45
+### Version 0.0.1-pre-alpha.45
+
+- **Algorithm**: Fixed the **"82% Match Bug"** by isolating the 5.0 neutral intercept from scaling division. High-affinity recommendations now correctly reach their true statistical potential (98-99% match).
+- **Algorithm**: Standardized the **"Neutral Anchor"** (5.0 baseline) for both raw linear scoring and probability mapping, ensuring a consistent and intuitive "50% = Average" experience across the app.
+- **Algorithm**: Implemented **Discovery-Aware Bias Correction** to the scoring pipeline, ensuring that "average games" (with no specific affinity) correctly result in a 5.0 score regardless of active feature weights.
+- **UI/UX**: Launched **Transparency Mode (Absolute Weights)** for Taste DNA. UI sliders now directly populate with and control the absolute weights learned by the solver (e.g., Quality = 0.86). This eliminates "multiplier" confusion and fixes the "Squaring Bug" where weights were being multiplied by themselves upon import.
+- **Reliability**: Achieved **Perfect Ordinal Parity** between the Python solver and the FastAPI backend. Verified with a new automated integration test (`tests/test_ordinal_parity.py`) that checks for bit-perfect ranking identity.
+- **Data**: Refreshed `data/trending_appids.json` using the automated Steam storefront scraper.
+- **Documentation**: Updated `methodology.md`, `orientation.md`, and `gemini.md` to reflect the Build 45 mathematical refinements and the shift to absolute slider control.
+
+## [44] - 2026-02-21
+### Build 44
+### Version 0.0.1-pre-alpha.44
+
+- **Stability**: Fixed a recurring **Data Corruption Bug** where the production `tag_names.json` was being overwritten by small mock datasets during test runs. Implemented a mandatory **Production Lock** (Read-Only) in the test runner to prevent future regressions.
+- **Algorithm**: Implemented **Delisted Game Filtering** across the entire stack. The system now identifies games that are no longer for sale on Steam and excludes them from recommendations, category lists, and Taste DNA analysis by default.
+- **Algorithm**: Launched **Personalized Quality Adjustments** in the recommender. For games in a user's library, the system now recalculates the quality component of the score using a **Kernel Smoothing Model** based on the user's playtime, providing a more accurate "expected experience" score.
+- **UI/UX**: Added a **"Hide Delisted"** toggle to the preferences sidebar in both React and Streamlit frontends, allowing users to opt-back-in to seeing unpurchasable games if desired.
+- **UI/UX**: Updated the **GameCard** to display a animated **"Match %"** with a sparkle icon when a personalized quality adjustment is active, visually distinguishing tailored ratings from global averages.
+- **Data**: Updated `metadata.parquet` with a pre-calculated `is_delisted` flag for high-performance filtering.
+- **Reliability**: Hardened the backend to automatically re-calculate missing boolean flags (VR-only, NSFW, Delisted, etc.) if the underlying metadata file is stale.
+
 ## [43] - 2026-02-20
 ### Build 43
 ### Version 0.0.1-pre-alpha.43

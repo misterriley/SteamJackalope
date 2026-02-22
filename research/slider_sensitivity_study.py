@@ -72,7 +72,7 @@ def run_simulation(num_samples=1000):
         sem_sims = np.dot(embeddings_desc, seed_desc_unit)
         denom_desc = embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
         z_semantic = (sem_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
-        z_semantic = (z_semantic - SEMANTIC_SIMILARITY_MEAN) / (SEMANTIC_SIMILARITY_STD + EPSILON)
+        # z_semantic = (z_semantic - SEMANTIC_SIMILARITY_MEAN) / (SEMANTIC_SIMILARITY_STD + EPSILON) # REMOVED in Build 40
         
         # Calculate tag similarity to seed
         seed_tag = tag_vectors[seed_idx].astype(np.float32)

@@ -49,6 +49,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       remove_nsfw: true,
       remove_utilities: true,
       remove_unreleased: true,
+      remove_delisted: true,
       top_k: 30,
       prompt: '',
       seed_games: [],
@@ -206,6 +207,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       remove_nsfw: true,
       remove_utilities: true,
       remove_unreleased: true,
+      remove_delisted: true,
       top_k: 30,
       prompt: '',
       seed_games: [],
@@ -261,6 +263,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
 
     setFilters(prev => ({
       ...prev,
+      // Sliders show the ABSOLUTE solved weights
       quality_pref: typeof meta.quality === 'number' ? meta.quality : 1.0,
       age_pref: typeof meta.age === 'number' ? meta.age : 0.0,
       pop_pref: typeof meta.popularity === 'number' ? meta.popularity : 0.0,
@@ -273,13 +276,14 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       vibe_vector: vibeVector,
       semantic_vibe_vector: semVibeVector,
       metadata_weights: meta,
-      intercept: typeof profile.intercept === 'number' ? profile.intercept : 0.0,
+      intercept: typeof profile.intercept === 'number' ? profile.intercept : 5.0,
       scaling_factor: typeof profile.scaling_factor === 'number' ? profile.scaling_factor : 1.0,
       disc_pref: typeof meta.discovery === 'number' ? meta.discovery : 0,
       
       profile_filter: 'all',
       library_appids: profile.library_appids || [],
-      rated_appids: profile.rated_appids || []
+      rated_appids: profile.rated_appids || [],
+      library_details: profile.library_details || {}
     }));
   };
 

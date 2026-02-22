@@ -447,7 +447,7 @@ def whiten(vectors, variance_threshold=0.95, min_components=128):
 
 from common.utils import safe_save_npy
 
-def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, output_norms=None, w_tag_path=None):
+def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, output_norms=None, w_tag_path=None, output_tag_names=None):
     # Use defaults from constants if not provided - now pointing to data/production/
     if output_vectors is None:
         output_vectors = os.path.join(ROOT_DIR, "data", "production", "steam_tag_vectors.npy")
@@ -457,6 +457,10 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
         output_norms = os.path.join(ROOT_DIR, "data", "production", "tag_vectors_norms.npy")
     if w_tag_path is None:
         w_tag_path = os.path.join(ROOT_DIR, "data", "production", "w_tag.npy")
+    if output_tag_names is None:
+        # Import inside function to avoid circular dependency if constants imports this
+        from common.constants import TAG_NAMES_FILE
+        output_tag_names = TAG_NAMES_FILE
     
     df = load_data(csv_path)
     sparse_counts, tag_to_idx, unique_tags, appids = parse_tags(df)
@@ -532,12 +536,9 @@ def generate_tag_vectors(csv_path, output_vectors=None, output_constants=None, o
     with open(output_constants, "w") as f:
         json.dump(reg_constants, f, indent=4)
         
-    # Add parent directory to sys.path
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-    from common.constants import TAG_NAMES_FILE
-    
-    print(f"Saving master tag list to {TAG_NAMES_FILE}...")
-    with open(TAG_NAMES_FILE, 'w') as f:
+    # Save master tag list
+    print(f"Saving master tag list to {output_tag_names}...")
+    with open(output_tag_names, 'w') as f:
         json.dump(unique_tags, f, indent=4)
         
     return whitened_vectors, appids
@@ -567,6 +568,7 @@ if __name__ == "__main__":
     parser.add_argument("--constants", default=None, help="Path to output constants (.json)")
     parser.add_argument("--norms", default=None, help="Path to output norms (.npy)")
     parser.add_argument("--w_tag", default=None, help="Path to output whitening matrix (.npy)")
+    parser.add_argument("--tag_names", default=None, help="Path to output tag names (.json)")
     args = parser.parse_args()
         
     # Determine output paths from constants if not provided
@@ -574,13 +576,15 @@ if __name__ == "__main__":
     output_constants = args.constants if args.constants else os.path.join(ROOT_DIR, "data", "production", "regularization_constants.json")
     output_norms = args.norms if args.norms else os.path.join(ROOT_DIR, "data", "production", "tag_vectors_norms.npy")
     w_tag_path = args.w_tag if args.w_tag else os.path.join(ROOT_DIR, "data", "production", "w_tag.npy")
+    output_tag_names = args.tag_names if args.tag_names else None
         
     vectors, appids = generate_tag_vectors(
         args.csv, 
         output_vectors=output_vectors, 
         output_constants=output_constants, 
         output_norms=output_norms,
-        w_tag_path=w_tag_path
+        w_tag_path=w_tag_path,
+        output_tag_names=output_tag_names
     )
     
     searcher = TagSearchEngine(vectors, appids)

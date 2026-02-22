@@ -12,12 +12,16 @@ export interface GameMetadata {
   tags: string;
   price?: string;
   is_nsfw?: boolean;
+  is_delisted?: boolean;
   raw_pop?: number;
   raw_length?: number;
   weighted_score?: number;
   semantic_match?: number;
   tag_match?: number;
   rating?: number;
+  personalized_quality?: number;
+  match_percent?: number;
+  is_personalized?: boolean;
   
   // Debug components
   z_semantic?: number;
@@ -59,6 +63,7 @@ export interface RecommendationRequest {
   remove_nsfw: boolean;
   remove_utilities: boolean;
   remove_unreleased: boolean;
+  remove_delisted: boolean;
   top_k: number;
   prompt: string;
   seed_games: string[];
@@ -74,6 +79,7 @@ export interface RecommendationRequest {
   profile_filter?: 'none' | 'rated' | 'all';
   library_appids?: number[];
   rated_appids?: number[];
+  library_details?: Record<number, { playtime: number; personalized_q: number; p_plus_t: number }>;
 }
 
 export interface ListResponse {

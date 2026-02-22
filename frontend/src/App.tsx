@@ -82,6 +82,7 @@ function App() {
         remove_nsfw: true,
         remove_utilities: true,
         remove_unreleased: true,
+        remove_delisted: true,
         top_k: 30,
         prompt: '',
         seed_games: [],
@@ -116,8 +117,9 @@ function App() {
         remove_nsfw: true,
         remove_utilities: true,
         remove_unreleased: true,
+        remove_delisted: true,
 
-        // Direct Mapping
+        // Direct Mapping: Sliders now show the ABSOLUTE solved weights
         quality_pref: meta.quality ?? 1.0,
         age_pref: meta.age ?? 0.0,
         pop_pref: meta.popularity ?? 0.0,
@@ -131,13 +133,14 @@ function App() {
         vibe_vector: vibeVector,
         semantic_vibe_vector: semVibeVector,
         metadata_weights: meta,
-        intercept: profile.intercept ?? 0.0,
+        intercept: profile.intercept ?? 5.0, 
         scaling_factor: profile.scaling_factor ?? 1.0,
         disc_pref: meta.discovery ?? 0,
         
         profile_filter: 'all',
         library_appids: profile.library_appids || [],
-        rated_appids: profile.rated_appids || []
+        rated_appids: profile.rated_appids || [],
+        library_details: profile.library_details || {}
       };
 
       console.log("!!! APP: Final Filter Payload !!!", newFilters);

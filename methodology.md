@@ -204,10 +204,14 @@ To provide transparency into the "why" behind recommendations, we introduced a s
 
 - **Dynamic Data Cleaning:** The visualization layer automatically filters anomalous data (like future placeholder dates or year-zero entries) and handles non-positive values on log scales to ensure the charts remain high-fidelity and informative.
 
-## 15. Data Hygiene & External Integration (Build 13)
+## 16. Transparency & Parity Refinement (Build 45)
 
-To ensure the recommender remains a useful portal to the Steam ecosystem, Build 13 introduced a verified external link layer:
+To resolve subtle "slippage" between the analyzer's preview and the live recommender, Build 45 introduced a series of mathematical constraints to ensure **Perfect Ordinal Parity**.
 
-1. **Steam Store Mapping**: A validation process (`tools/validate_steam_links.py`) maps Steam Store patterns (`/tags/en/`, `/genre/`, `/category/`, and feature-specific search IDs) to verify valid landing pages for every term in our database.
-2. **Dead Tag Filtering**: Terms that do not map to a valid Steam Store page are flagged as "dead." The backend filters these from the game metadata during the loading phase. This removes junk data and legacy metadata from the discovery engine.
-3. **Interactive Taxonomy**: Verified terms are served as a linkable mapping, enabling the UI to render tags and genres as clickable pathways directly to the Steam community hubs.
+- **The Neutral Anchor (5.0):** Both the solver and the recommender now utilize a fixed **5.0 intercept** as the "Average Game" baseline. This represents the prior expectation of a game's rating before any specific metadata or tag affinities are applied. By anchoring to 5.0, the system ensures that "Match %" calculations are centered on a meaningful, stable point.
+
+- **Transparency Mode (Absolute Weights):** In Taste DNA mode, the UI sliders (Quality, Age, Tag Match, etc.) now represent the **Absolute Weights** learned by the solver. Previously, sliders acted as multipliers for hidden internal weights, which caused a "Squaring Bug" where weights were being multiplied by themselves upon import. By switching to absolute weights, the UI becomes a transparent reflection of the underlying model, ensuring that a "Quality" setting of 0.86 in the UI is exactly what the backend uses for scoring.
+
+- **Intercept Isolation:** We identified a "Scaling Regression" (the "82% Bug") where high-affinity games were capped at an 82% match. This was caused by dividing the 5.0 intercept by the global scaling factor. In Build 45, we isolated the intercept: `Score = (Weighted_Sum / 3.0) + 5.0`. This preserves the 5.0 neutral point while allowing strong positive deviations to reach their true potential (e.g., 98-99% matches).
+
+- **Discovery-Aware Bias Correction:** Because semantic and tag similarity features often have non-zero global means, an "Average Game" might accidentally receive a non-neutral score. To correct this, the system calculates the **Expected Score of a Random Game** for the current weights and subtracts this bias from the final result. This ensures that a game with no specific affinity to the user's profile correctly results in exactly a 5.0 score (50% match).

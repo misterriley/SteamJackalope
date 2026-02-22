@@ -13,6 +13,7 @@ class TestTagVectorGeneration(unittest.TestCase):
         self.output_constants = "test_regularization_constants.json"
         self.w_tag_file = "test_w_tag.npy"
         self.tag_norms_file = "test_tag_vectors_norms.npy"
+        self.tag_names_file = "test_tag_names.json"
         
         # Create a small test CSV
         data = {
@@ -33,7 +34,8 @@ class TestTagVectorGeneration(unittest.TestCase):
             self.output_vectors, 
             self.output_constants, 
             self.w_tag_file,
-            self.tag_norms_file
+            self.tag_norms_file,
+            self.tag_names_file
         ]
         
         for f in files_to_remove:
@@ -50,10 +52,12 @@ class TestTagVectorGeneration(unittest.TestCase):
             output_vectors=self.output_vectors, 
             output_constants=self.output_constants,
             output_norms=self.tag_norms_file,
-            w_tag_path=self.w_tag_file
+            w_tag_path=self.w_tag_file,
+            output_tag_names=self.tag_names_file
         )
         
         self.assertTrue(os.path.exists(self.output_vectors))
+        self.assertTrue(os.path.exists(self.tag_names_file))
         vectors = np.load(self.output_vectors)
         
         # 3 games. The number of components may be less than the number of tags (4)

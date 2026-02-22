@@ -16,6 +16,7 @@ import subprocess
 import asyncio
 import json
 import unicodedata
+from scipy.stats import norm
 
 # Configure logging
 logging.basicConfig(
@@ -81,7 +82,7 @@ from common.constants import (
     SEMANTIC_SIMILARITY_MEAN,
     SEMANTIC_SIMILARITY_STD
 )
-from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores
+from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores, calculate_personalized_quality
 
 app = FastAPI()
 
@@ -115,6 +116,7 @@ class DataManager:
         self.term_links = {}
         self.tag_dimension_descriptions = {}
         self.lists_cache = {}
+        self.appid_to_idx = {}
 
     def normalize_string(self, s):
         """Removes accents and special characters for fuzzy matching."""
@@ -222,7 +224,7 @@ class DataManager:
             'genres', 'tags', 'categories', 'supported_languages',
             'mature_content', 'price', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z',
             'estimated_playtime', 'difficulty_predicted',
-            'is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_hollow'
+            'is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_delisted', 'is_hollow'
         ]
         # Only request short_description if it exists
         if 'short_description' in available_cols:
@@ -255,7 +257,7 @@ class DataManager:
 
         # Boolean features are now pre-calculated in the pipeline
         logger.info("Verifying pre-calculated boolean features...")
-        bool_cols = ['is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_hollow']
+        bool_cols = ['is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_delisted', 'is_hollow']
         for col in bool_cols:
             if col not in self.metadata.columns:
                 logger.warning(f"Feature {col} missing from metadata! Re-calculating...")
@@ -271,6 +273,11 @@ class DataManager:
                     self.metadata['is_nsfw'] = (
                         (self.metadata['mature_content'] > 0) | 
                         (self.metadata['tags'].fillna('').astype(str).str.contains(nsfw_tags_pattern, regex=True, case=False))
+                    ).values
+                elif col == 'is_delisted':
+                    self.metadata['is_delisted'] = (
+                        self.metadata['price'].fillna('').astype(str).str.contains('delisted', case=False) |
+                        self.metadata['name'].fillna('').astype(str).str.contains('DELISTED', case=False)
                     ).values
                 elif col == 'is_hollow':
                     self.metadata['is_hollow'] = (
@@ -319,6 +326,9 @@ class DataManager:
         # Pre-calculate normalized names for fuzzy search
         logger.info("Pre-calculating normalized names for search...")
         self.metadata['normalized_name'] = self.metadata['name'].apply(self.normalize_string)
+        
+        # Mapping AppID to Index for fast lookups
+        self.appid_to_idx = {appid: i for i, appid in enumerate(self.metadata['appid'])}
         
         logger.info(f"Metadata loaded: {len(self.metadata)} rows, {len(self.metadata.columns)} columns")
         
@@ -501,6 +511,7 @@ class RecommendationRequest(BaseModel):
     remove_nsfw: bool = True
     remove_utilities: bool = True
     remove_unreleased: bool = True
+    remove_delisted: bool = True
     top_k: int = 10
     prompt: str = ""
     seed_games: List[str] = []
@@ -518,6 +529,7 @@ class RecommendationRequest(BaseModel):
     profile_filter: Optional[str] = "none" # "none", "rated", "all"
     library_appids: Optional[List[int]] = []
     rated_appids: Optional[List[int]] = []
+    library_details: Optional[Dict[int, Dict[str, float]]] = {}
 
 # --- Endpoints ---
 
@@ -885,25 +897,35 @@ def get_list(category: str, discovery_pref: float = 0.0):
     logger.info(f"GET /lists/{category} cache MISS (discovery_pref={discovery_pref})")
     metadata = data_manager.metadata
     
+    # Filter Mask: Remove delisted, hollow, and utility games by default for all lists
+    # This prevents junk from cluttering up the category views
+    base_mask = (~metadata['is_delisted']) & (~metadata['is_hollow']) & (~metadata['is_utility'])
+    
     if category == "quality":
         logger.debug(f"Quality list request: quality_grid shape={data_manager.quality_grid.shape}")
         num_grid_rows = data_manager.quality_grid.shape[0]
         grid_index = int(round(((discovery_pref - (-1.0)) / 2.0) * (num_grid_rows - 1)))
         grid_index = max(0, min(num_grid_rows - 1, grid_index))
-        scores = data_manager.quality_grid[grid_index]
+        scores = data_manager.quality_grid[grid_index].copy()
+        
+        # Apply mask using float16-safe values (min/max ~65504)
+        scores[~base_mask.values] = -60000.0
         
         top_indices = np.argsort(-scores)[:50]
-        bottom_indices = np.argsort(scores)[:50]
+        # For bottom, we need a different mask because -60000.0 would be the bottom!
+        bottom_scores = data_manager.quality_grid[grid_index].copy()
+        bottom_scores[~base_mask.values] = 60000.0
+        bottom_indices = np.argsort(bottom_scores)[:50]
         
-        def format_quality_list(indices):
+        def format_quality_list(indices, scores_array):
             df = metadata.iloc[indices].copy()
-            df['quality_score'] = scores[indices]
+            df['quality_score'] = scores_array[indices]
             return df[['appid', 'name', 'quality_score']].to_dict(orient='records')
 
         logger.info(f"Quality list: {len(top_indices)} top, {len(bottom_indices)} bottom")
         result = ensure_python_types({
-            "top": format_quality_list(top_indices),
-            "bottom": format_quality_list(bottom_indices)
+            "top": format_quality_list(top_indices, data_manager.quality_grid[grid_index]),
+            "bottom": format_quality_list(bottom_indices, data_manager.quality_grid[grid_index])
         })
         data_manager.lists_cache[cache_key] = result
         return result
@@ -911,7 +933,7 @@ def get_list(category: str, discovery_pref: float = 0.0):
     elif category == "length":
         logger.debug("Length list request")
         playtime_col = 'estimated_playtime'
-        valid = metadata[metadata[playtime_col] > 0].copy()
+        valid = metadata[base_mask & (metadata[playtime_col] > 0)].copy()
         logger.info(f"Games with valid playtime: {len(valid)}")
         
         longest = valid.sort_values(playtime_col, ascending=False).head(50)
@@ -935,7 +957,7 @@ def get_list(category: str, discovery_pref: float = 0.0):
             metadata = metadata.copy()
             metadata['total_reviews'] = metadata['positive'] + metadata['negative']
         
-        popular_df = metadata[metadata['total_reviews'] >= 1]
+        popular_df = metadata[base_mask & (metadata['total_reviews'] >= 1)]
         logger.info(f"Games with >=1 review: {len(popular_df)}")
         most_pop = popular_df.sort_values('total_reviews', ascending=False).head(50)
         least_pop = popular_df.sort_values('total_reviews', ascending=True).head(50)
@@ -959,7 +981,7 @@ def get_list(category: str, discovery_pref: float = 0.0):
         else:
             build_time = pd.Timestamp.now()
             
-        valid_dates = metadata[metadata['parsed_date'] <= build_time].copy()
+        valid_dates = metadata[base_mask & (metadata['parsed_date'] <= build_time)].copy()
         logger.info(f"Games released before {build_time}: {len(valid_dates)}")
         oldest = valid_dates.sort_values('parsed_date', ascending=True).head(50)
         newest = valid_dates.sort_values('parsed_date', ascending=False).head(50)
@@ -973,8 +995,9 @@ def get_list(category: str, discovery_pref: float = 0.0):
 
     elif category == "difficulty":
         logger.debug("Difficulty list request")
-        hardest = metadata.sort_values('difficulty_predicted', ascending=False).head(50)
-        easiest = metadata.sort_values('difficulty_predicted', ascending=True).head(50)
+        valid_diff = metadata[base_mask].copy()
+        hardest = valid_diff.sort_values('difficulty_predicted', ascending=False).head(50)
+        easiest = valid_diff.sort_values('difficulty_predicted', ascending=True).head(50)
         
         logger.info(f"Difficulty range: hardest={hardest.iloc[0]['difficulty_predicted'] if not hardest.empty else 'N/A'}, easiest={easiest.iloc[0]['difficulty_predicted'] if not easiest.empty else 'N/A'}")
         
@@ -1042,6 +1065,7 @@ def get_metadata(request: MetadataRequest):
             "tags": game_meta['tags'],
             "price": game_meta['price'] if pd.notna(game_meta['price']) else "Free",
             "is_nsfw": game_meta['is_nsfw'],
+            "is_delisted": game_meta['is_delisted'],
             "raw_pop": raw_pop,
             "raw_length": raw_length
         }
@@ -1058,57 +1082,40 @@ def recommend(request: RecommendationRequest):
         logger.error("Data not loaded when /recommend called")
         raise HTTPException(status_code=503, detail="Data not loaded yet")
 
-    # Determine Mode early to avoid UnboundLocalError in filtering
+    # Determine Mode early
     expected_tag_dim = data_manager.tag_vectors.shape[1]
-    is_vibe_present = request.vibe_vector is not None and len(request.vibe_vector) > 0
-    is_vibe_valid = is_vibe_present and (len(request.vibe_vector) == expected_tag_dim)
+    is_vibe_present = request.vibe_vector is not None and len(request.vibe_vector) > 0 
+    is_vibe_valid = is_vibe_present and (len(request.vibe_vector) == expected_tag_dim) 
     is_linear_mode = is_vibe_valid
 
     logger.info(f"Mode Analysis: vibe_present={is_vibe_present}, vibe_len={len(request.vibe_vector) if request.vibe_vector else 0}, expected={expected_tag_dim}, is_linear={is_linear_mode}")
-    
-    logger.debug(f"Request params: alpha={request.alpha:.3f}, beta={request.beta:.3f}, quality_pref={request.quality_pref:.3f}, "
-                 f"prompt='{request.prompt}', seed_games={request.seed_games}, genres={request.genres}, is_linear={is_linear_mode}")
-    
+
     metadata = data_manager.metadata
-    
+
     # Identify seeds
     seed_indices = np.where(metadata['name'].isin(request.seed_games))[0]
     logger.info(f"Seed games: requested={len(request.seed_games)}, found={len(seed_indices)}")
     seed_appids = metadata.iloc[seed_indices]['appid'].tolist()
-    
+
     # 1. Filtering
     mask = np.ones(len(metadata), dtype=bool)
-    initial_count = np.sum(mask)
-    logger.info(f"Initial pool: {initial_count} games")
     
-    # English Only: If DNA is active, we MUST match solver's English-only assumption
     if request.english_only or is_linear_mode:
-        mask &= metadata['is_english'].values
-        logger.debug(f"English filter: {np.sum(mask)} remaining")
-    
-    # Utilities: If DNA is active, we MUST match solver's no-utility assumption
+        mask &= metadata['is_english'].values.astype(bool)
     if request.remove_utilities or is_linear_mode:
-        mask &= ~metadata['is_utility'].values
-        logger.debug(f"Utilities filter: {np.sum(mask)} remaining")
-
-    # Unreleased: If DNA is active, we MUST match solver's released-only assumption
+        mask &= ~metadata['is_utility'].values.astype(bool)
     if request.remove_unreleased or is_linear_mode:
         if os.path.exists(METADATA_FILE):
             try:
                 build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s')
-                # Handle possible NaT in parsed_date
                 is_future = (metadata['parsed_date'] > build_time).fillna(False).values
-                mask &= ~is_future
-                logger.info(f"Unreleased filter: {np.sum(is_future)} games identified as future. {np.sum(mask)} remaining.")
+                mask &= ~is_future.astype(bool)
             except Exception as e:
                 logger.error(f"Error in unreleased filter: {e}")
-        else:
-            logger.warning(f"Metadata file not found at {METADATA_FILE}, skipping unreleased filter.")
-
-    # VR Only: If DNA is active, we MUST match solver's no-vr-only assumption
     if request.remove_vr or is_linear_mode:
-        mask &= ~metadata['is_vr_only'].values
-        logger.debug(f"VR filter: {np.sum(mask)} remaining")
+        mask &= ~metadata['is_vr_only'].values.astype(bool)
+    if request.remove_delisted or is_linear_mode:
+        mask &= ~metadata['is_delisted'].values.astype(bool)
 
     if request.genres:
         genre_mask = np.zeros(len(metadata), dtype=bool)
@@ -1116,56 +1123,43 @@ def recommend(request: RecommendationRequest):
             escaped_genre = re.escape(genre)
             genre_mask |= metadata['genres'].fillna('').astype(str).str.contains(escaped_genre, regex=True, case=False).values
         mask &= genre_mask
-        logger.debug(f"Genre filter ({request.genres}): {np.sum(mask)} remaining")
-
     if request.tags:
         tag_mask = np.ones(len(metadata), dtype=bool)
         for tag in request.tags:
-            # Requirement: AND logic - all tags must be present
             escaped_tag = re.escape(tag)
-            # Match 'Tag': as a key in the dictionary string
             pattern = rf"'{escaped_tag}':"
             tag_mask &= metadata['tags'].fillna('').astype(str).str.contains(pattern, regex=True).values
         mask &= tag_mask
-        logger.debug(f"Tag filter ({request.tags}): {np.sum(mask)} remaining")
 
     keep_indices = np.where(mask)[0]
     logger.info(f"Final filtered pool: {len(keep_indices)} games")
-    
+
     if len(keep_indices) == 0:
         logger.warning("All games were filtered out!")
         return []
 
     # 2. Semantic Component
     all_semantic_sims = np.zeros(len(metadata))
-    
     try:
         if request.prompt or seed_appids or request.semantic_vibe_vector:
-            # Helper to normalize vectors to unit length
             def norm_vec(v):
                 mag = np.linalg.norm(v)
                 return v / (mag if mag > EPSILON else 1.0)
 
-            # DNA Semantic Component (Pre-solved vibe)
             dna_sem_sims = None
             if request.semantic_vibe_vector:
-                logger.info("Using DNA Semantic Vibe Vector")
                 sem_vibe = np.array(request.semantic_vibe_vector, dtype=np.float32)
-                # Solve assumes whitened features. embeddings_desc_norm ARE whitened.
                 dot_products = np.dot(data_manager.embeddings_desc_norm, sem_vibe)
                 denom = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
                 dna_sem_sims = (dot_products / denom) * SEMANTIC_GLOBAL_SCALING_FACTOR
-                # Weighting is handled by request.alpha slider later
 
             prompt_sims = None
             if request.prompt:
                 clean_prompt = request.prompt.lower()
-                logger.info(f"Processing prompt: '{clean_prompt}'")
                 prompt_vec = data_manager.model.encode([clean_prompt])[0]
                 p_desc = np.dot(prompt_vec, data_manager.w_desc) if data_manager.w_desc is not None else prompt_vec
                 p_desc_norm = norm_vec(p_desc)
                 prompt_desc_sims = np.dot(data_manager.embeddings_desc_norm, p_desc_norm)
-                
                 if data_manager.embeddings_desc_norms is not None:
                     denom_desc = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
                     prompt_desc_sims = (prompt_desc_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
@@ -1173,11 +1167,9 @@ def recommend(request: RecommendationRequest):
 
             seed_sims = None
             if seed_indices.size > 0:
-                logger.info(f"Processing {len(seed_indices)} seeds for semantic similarity")
                 avg_seed_desc = np.mean(data_manager.embeddings_desc_norm[seed_indices], axis=0)
                 sd_norm = norm_vec(avg_seed_desc)
                 seed_desc_sims = np.dot(data_manager.embeddings_desc_norm, sd_norm)
-                
                 if data_manager.embeddings_desc_norms is not None:
                     denom_desc = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
                     seed_desc_sims = (seed_desc_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
@@ -1188,137 +1180,93 @@ def recommend(request: RecommendationRequest):
             if dna_sem_sims is not None: sims_to_blend.append(dna_sem_sims)
             if prompt_sims is not None: sims_to_blend.append(prompt_sims)
             if seed_sims is not None: sims_to_blend.append(seed_sims)
-            
+
             if sims_to_blend:
                 all_semantic_sims = np.mean(sims_to_blend, axis=0)
                 all_semantic_sims[data_manager.metadata['is_hollow'].values] = 0.0
-                logger.info(f"Combined semantic similarities computed: max={all_semantic_sims.max():.4f}")
-
     except Exception as e:
         logger.exception(f"Semantic similarity calculation failed: {e}")
-        # Non-fatal: all_semantic_sims remains zeros
 
-    # 2.1 Z-Score Semantic similarities to natural range
-    if request.prompt or seed_appids:
-        all_semantic_sims = (all_semantic_sims - SEMANTIC_SIMILARITY_MEAN) / (SEMANTIC_SIMILARITY_STD + EPSILON)
-        logger.info(f"Z-scored semantic similarities: max={all_semantic_sims.max():.4f}")
-
+    # 3. Tag Component (Hybrid Beta Calculation)
     all_tag_sims = np.zeros(len(metadata))
     if seed_indices.size > 0 or request.vibe_vector:
-        logger.debug("Computing unified tag scoring (Linear Mode)...")
-        
-        # 1. Calculate Seed Beta (if any)
-        # beta_seed = mean( V / (||V|| + lambda) )
         if seed_indices.size > 0:
             tag_seed_vectors = data_manager.tag_vectors[seed_indices].astype(np.float32)
             seed_norms = data_manager.tag_vectors_norms[seed_indices].astype(np.float32)
-            
-            # Penalized normalization for each seed
             penalized_seeds = tag_seed_vectors / (seed_norms[:, None] + DOT_PRODUCT_LAMBDA)
             beta_seed_unit = np.mean(penalized_seeds, axis=0)
-            
-            # If DNA is present, the Tag Match slider (request.beta) is a multiplier.
-            # If NOT, it is the absolute weight.
-            # Identity multiplier is 1.0. Identity absolute weight is DNA_UI_SCALING_FACTOR (3.0).
-            if request.vibe_vector:
-                beta_seed = beta_seed_unit * (request.beta * (DNA_UI_SCALING_FACTOR if request.beta != 1.0 else 1.0))
-            else:
-                beta_seed = beta_seed_unit * request.beta
         else:
-            beta_seed = None
+            beta_seed_unit = None
 
-        # 2. Calculate DNA Beta (if any)
-        # request.vibe_vector contains the UNIT coefficients.
         if request.vibe_vector:
             beta_dna_unit = np.array(request.vibe_vector, dtype=np.float32)
-            # Use the absolute weight from metadata (the norm of the solver's tag coeffs)
-            w_tag_dna = request.metadata_weights.get('tag_match', 1.0) if request.metadata_weights else 1.0
-            beta_dna = beta_dna_unit * w_tag_dna
-            logger.info(f"Loaded DNA Beta: Unit norm={np.linalg.norm(beta_dna_unit):.4f}, Scale={w_tag_dna:.4f}")
         else:
-            beta_dna = None
+            beta_dna_unit = None
 
-        # 3. Select or Blend Betas
-        if beta_seed is not None and beta_dna is not None:
-            # We blend DNA and Seeds equally. 
-            combined_beta = (beta_seed + beta_dna) / 2.0
-            logger.info("Blended Seed Beta and DNA Beta")
-        elif beta_seed is not None:
-            combined_beta = beta_seed
-            logger.info("Using Seed Beta only")
+        if beta_seed_unit is not None and beta_dna_unit is not None:
+            combined_beta_unit = (beta_seed_unit + beta_dna_unit) / 2.0
+        elif beta_seed_unit is not None:
+            combined_beta_unit = beta_seed_unit
         else:
-            combined_beta = beta_dna
-            logger.info("Using DNA Beta only")
+            combined_beta_unit = beta_dna_unit
 
-        # 4. Global Tag Score Calculation
-        # This part is for hybrid mode (non-linear). Linear mode uses calculate_linear_scores later.
-        dot_products = np.dot(data_manager.tag_vectors, combined_beta)
+        dot_products = np.dot(data_manager.tag_vectors, combined_beta_unit)
         denom = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
         all_tag_sims = (dot_products / denom) * TAG_GLOBAL_SCALING_FACTOR
-
-        logger.info(f"Unified Tag Scorer: Range=[{all_tag_sims.min():.4f}, {all_tag_sims.max():.4f}], count>0={np.sum(all_tag_sims > 0)}")
 
     semantic_sims = all_semantic_sims[keep_indices]
     tag_sims = all_tag_sims[keep_indices]
 
-    # 4. Rating Component
+    # 4. Rating Component (Grid lookup)
     num_grid_rows = data_manager.quality_grid.shape[0]
     grid_index = int(round(((request.disc_pref - (-1.0)) / 2.0) * (num_grid_rows - 1)))
     grid_index = max(0, min(num_grid_rows - 1, grid_index))
-    logger.debug(f"Quality grid index: {grid_index} (discovery={request.disc_pref:.3f})")
     
-    z_spps = np.clip(data_manager.quality_grid[grid_index][keep_indices], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-    
+    q_grid_working = data_manager.quality_grid[grid_index].copy()
+    if request.library_details:
+        for appid_str, details in request.library_details.items():
+            appid = int(appid_str)
+            if appid in data_manager.appid_to_idx:
+                idx = data_manager.appid_to_idx[appid]
+                p_plus_t = details.get('p_plus_t')
+                if p_plus_t is not None:
+                    q_global = q_grid_working[idx]
+                    q_grid_working[idx] = calculate_personalized_quality(np.array([q_global]), np.array([p_plus_t]))[0]
+
+    z_spps = np.clip(q_grid_working[keep_indices], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     z_date = np.clip(metadata.iloc[keep_indices]['date_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     z_pop = np.clip(metadata.iloc[keep_indices]['pop_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     z_length = np.clip(metadata.iloc[keep_indices]['playtime_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     z_difficulty = np.clip(metadata.iloc[keep_indices]['difficulty_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     z_price = np.clip(metadata.iloc[keep_indices]['price_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
 
-    # Initialize variables for the response to prevent UnboundLocalError
-    z_semantic = np.zeros(len(keep_indices))
-    z_tag = tag_sims # In linear mode, tag_sims IS the feature. In recommender mode, it's the dot product.
-
-    # 5. Unified Linear Scoring
-    # All weights (alpha, beta, quality_pref, etc.) are now ABSOLUTE contributions 
-    # (rating points per SD of the feature) to ensure consistent scale between modes.
-    
-    if is_vibe_present and not is_vibe_valid:
-        logger.warning(f"Vibe vector dimension mismatch: received {len(request.vibe_vector)}, expected {expected_tag_dim}. Profile may be outdated. Falling back to manual mode.")
-    
+    # 5. Final Scoring
     if is_linear_mode:
-        # PURE LINEAR MODE: Match solve_user_taste.py exactly using unified utility
-        logger.info("Using Pure Linear Mode (Taste DNA) via unified scoring path")
-        
-        # In Linear Mode, the sliders (request.quality_pref, etc.) ARE the absolute weights
-        # We use the vibe_vector as the unit direction for tags.
-        beta_dna_unit = np.array(request.vibe_vector, dtype=np.float32)
-        beta_to_use = beta_dna_unit * request.beta
-        
+        logger.info("Using Linear Mode (Taste DNA)")
+        # Sliders are now ABSOLUTE weights, exactly as shown in the UI
+        w_tag = request.beta
+        w_semantic = request.alpha
+
         effective_weights = {
             'quality': request.quality_pref,
             'age': request.age_pref,
             'popularity': request.pop_pref,
             'length': request.length_pref,
             'difficulty': request.difficulty_pref,
-            'price': request.price_pref
+            'price': request.price_pref,
+            'tag_match': w_tag
         }
-        
-        logger.info(f"DNA Effective Weights: {effective_weights}")
-        logger.info(f"DNA Tag Match Norm: {np.linalg.norm(beta_to_use)}")
-        
-        # Handle Seed blending if present (Seeds use beta multiplier)
+
+        beta_dna_unit = np.array(request.vibe_vector, dtype=np.float32)
         if seed_indices.size > 0:
             tag_seed_vectors = data_manager.tag_vectors[seed_indices].astype(np.float32)
             seed_norms = data_manager.tag_vectors_norms[seed_indices].astype(np.float32)
             penalized_seeds = tag_seed_vectors / (seed_norms[:, None] + DOT_PRODUCT_LAMBDA)
-            beta_seed = np.mean(penalized_seeds, axis=0) * request.beta
-            beta_to_use = (beta_to_use + beta_seed) / 2.0
-            logger.info("Blended Seed Beta with DNA Beta (Absolute)")
-        
-        # Construction of final scores
+            beta_seed_unit = np.mean(penalized_seeds, axis=0)
+            beta_dna_unit = (beta_dna_unit + beta_seed_unit) / 2.0
+
         final_scores_all = calculate_linear_scores(
-            z_quality=data_manager.quality_grid[grid_index],
+            z_quality=q_grid_working,
             z_date=metadata['date_z'].values,
             z_pop=metadata['pop_z'].values,
             z_playtime=metadata['playtime_z'].values,
@@ -1326,195 +1274,110 @@ def recommend(request: RecommendationRequest):
             z_price=metadata['price_z'].values,
             tag_vectors=data_manager.tag_vectors,
             tag_norms=data_manager.tag_vectors_norms,
-            beta_tag=beta_to_use,
+            beta_tag=beta_dna_unit,
             weights=effective_weights,
             tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
             dot_product_lambda=DOT_PRODUCT_LAMBDA,
+            z_semantic=all_semantic_sims if (request.prompt or seed_appids or request.semantic_vibe_vector) else None,
+            w_semantic=w_semantic,
             z_clamp_min=Z_SCORE_CLAMP_MIN,
             z_clamp_max=Z_SCORE_CLAMP_MAX,
             dna_scaling_factor=request.scaling_factor or 1.0,
-            intercept=request.intercept or 0.0
+            intercept=5.0
         )
-        
-        # Final selection
         final_scores = final_scores_all[keep_indices]
-        
-        # If there's a prompt, seeds, or DNA, we apply the semantic offset
-        if request.prompt or seed_appids or request.semantic_vibe_vector:
-            z_semantic = semantic_sims
-            final_scores += (z_semantic * request.alpha)
-            
-        # Unified Clamping to 0-10 range
-        final_scores = np.clip(final_scores, 0, 10)
-            
-        # Set weights for response metadata (for UI display of contributions)
-        w_tag = request.beta
-        w_semantic = request.alpha
-        w_quality = request.quality_pref
-        w_date = request.age_pref
-        w_pop = request.pop_pref
-        w_length = request.length_pref
-        w_difficulty = request.difficulty_pref
-        w_price = request.price_pref
-            
+        w_semantic_active = w_semantic
+        w_tag_active = w_tag
+        w_quality_active, w_date_active, w_pop_active, w_length_active, w_difficulty_active, w_price_active = [effective_weights[k] for k in ['quality', 'age', 'popularity', 'length', 'difficulty', 'price']]
     else:
-        # RECOMMENDER MODE: Similarity-based weighting
-        w_semantic = request.alpha
-        w_tag = request.beta
-        w_quality = request.quality_pref
-        w_date = request.age_pref
-        w_pop = request.pop_pref
-        w_length = request.length_pref
-        w_difficulty = request.difficulty_pref
-        w_price = request.price_pref
-
-        logger.debug(f"Weights (Absolute): semantic={w_semantic:.2f}, tag={w_tag:.2f}, quality={w_quality:.2f}, "
-                    f"age={w_date:.2f}, pop={w_pop:.2f}, length={w_length:.2f}, difficulty={w_difficulty:.2f}, price={w_price:.2f}")
-
-        # Process Semantic Component
-        if request.prompt or seed_appids:
-            # Semantic sims are already penalized dot products scaled to variance ~1.0
-            z_semantic = semantic_sims
-            
-        # Process Tag Component
-        # Use the raw penalized dot product similarity (absolute contribution)
-        # to ensure that adding filters doesn't change the score of remaining games.
-        z_tag = np.clip(tag_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-
+        logger.info("Using Manual Mode")
+        w_semantic_active, w_tag_active, w_quality_active, w_date_active, w_pop_active, w_length_active, w_difficulty_active, w_price_active = [
+            request.alpha, request.beta, request.quality_pref, request.age_pref, request.pop_pref, request.length_pref, request.difficulty_pref, request.price_pref
+        ]
+        z_tag_hybrid = np.clip(tag_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
         final_scores = (
-            (z_semantic * w_semantic) +
-            (z_tag * w_tag) +
-            (z_spps * w_quality) +
-            (z_date * w_date) +
-            (z_pop * w_pop) +
-            (z_length * w_length) +
-            (z_difficulty * w_difficulty) +
-            (z_price * w_price)
+            (semantic_sims * w_semantic_active) +
+            (z_tag_hybrid * w_tag_active) +
+            (z_spps * w_quality_active) +
+            (z_date * w_date_active) +
+            (z_pop * w_pop_active) +
+            (z_length * w_length_active) +
+            (z_difficulty * w_difficulty_active) +
+            (z_price * w_price_active) +
+            5.0
         )
 
-    logger.debug(f"Final scores: min={final_scores.min():.3f}, max={final_scores.max():.3f}, mean={final_scores.mean():.3f}")
-
-    # Exclude seeds
+    # Filter Seeds and Profile
     meta_filt = metadata.iloc[keep_indices].copy()
     if seed_appids:
-        seed_mask = meta_filt['appid'].isin(seed_appids)
-        seeds_excluded = np.sum(seed_mask)
-        final_scores[seed_mask] = -1e12
-        logger.debug(f"Excluded {seeds_excluded} seed games from results")
-
-    # Exclude profile games (Library/Rated)
+        final_scores[meta_filt['appid'].isin(seed_appids)] = -1e12
     if request.profile_filter != "none":
-        exclude_appids = []
-        if request.profile_filter == "all":
-            exclude_appids = request.library_appids or []
-            logger.info(f"Filtering ALL profile games ({len(exclude_appids)})")
-        elif request.profile_filter == "rated":
-            exclude_appids = request.rated_appids or []
-            logger.info(f"Filtering RATED profile games ({len(exclude_appids)})")
-            
+        exclude_appids = request.library_appids if request.profile_filter == "all" else request.rated_appids
         if exclude_appids:
-            profile_mask = meta_filt['appid'].isin(exclude_appids).values
-            profile_excluded = np.sum(profile_mask)
-            if profile_excluded > 0:
-                # Set scores for excluded games to a very low value
-                final_scores[profile_mask] = -1e12
-                
-                # Log a few examples of excluded games for debugging
-                excluded_names = meta_filt[profile_mask]['name'].head(5).tolist()
-                logger.info(f"Excluded {profile_excluded} profile games (Mode: {request.profile_filter}). Examples: {excluded_names}")
-            else:
-                logger.debug(f"Profile Filter ({request.profile_filter}): No matches found in current results.")
+            final_scores[meta_filt['appid'].isin(exclude_appids)] = -1e12
 
-    # 6. Sorting and Result Formatting
-    total_weight = abs(w_semantic) + abs(w_tag) + abs(w_quality) + abs(w_date) + abs(w_pop) + abs(w_length) + abs(w_difficulty) + abs(w_price)
-    
-    if total_weight < EPSILON:
-        # All weights zero: alphabetical fallback
-        if seed_appids:
-            seed_mask = meta_filt['appid'].isin(seed_appids).values
-            non_seed_mask = ~seed_mask
-        else:
-            non_seed_mask = np.ones(len(meta_filt), dtype=bool)
-        if np.any(non_seed_mask):
-            positions = np.where(non_seed_mask)[0]
-            non_seed_names = meta_filt['name'].fillna("").values[non_seed_mask]
-            sorted_name_positions = positions[np.argsort(non_seed_names)]
-            top_indices = sorted_name_positions[:request.top_k]
-        else:
-            top_indices = []
+    # Sorting
+    num_to_extract = min(len(final_scores), request.top_k * TOP_K_SORT_MULTIPLIER)
+    if num_to_extract > 0:
+        partitioned_indices = np.argpartition(-final_scores, num_to_extract-1)[:num_to_extract]
+        subset_scores = final_scores[partitioned_indices]
+        subset_names = meta_filt['name'].fillna("").values[partitioned_indices]
+        subset_sorted_indices = np.lexsort((subset_names, -subset_scores))
+        top_indices = partitioned_indices[subset_sorted_indices[:request.top_k]]
     else:
-        num_to_extract = min(len(final_scores), request.top_k * TOP_K_SORT_MULTIPLIER)
-        if num_to_extract > 0:
-            partitioned_indices = np.argpartition(-final_scores, num_to_extract-1)[:num_to_extract]
-            subset_scores = final_scores[partitioned_indices]
-            subset_names = meta_filt['name'].fillna("").values[partitioned_indices]
-            subset_sorted_indices = np.lexsort((subset_names, -subset_scores))
-            top_indices = partitioned_indices[subset_sorted_indices[:request.top_k]]
-        else:
-            top_indices = []
+        top_indices = []
 
     results = meta_filt.iloc[top_indices].copy()
-    
-    # Mask weights for UI cleanliness if they aren't contributing
-    ui_w_semantic = w_semantic if (request.prompt or seed_appids or request.semantic_vibe_vector) else 0.0
-    ui_w_tag = w_tag if (seed_appids or is_vibe_present) else 0.0
+    ui_w_semantic = w_semantic_active if (request.prompt or seed_appids or request.semantic_vibe_vector) else 0.0
+    ui_w_tag = w_tag_active if (seed_appids or is_vibe_present) else 0.0
 
-    response_items = []
+    # Inverse Probability Mapping
+    from common.constants import GLOBAL_POSITIVE_RATE, QUALITY_SCORE_S_CONST, QUALITY_SCORE_S_BASE, SEMANTIC_SIMILARITY_MEAN
     
+    s_discovery = QUALITY_SCORE_S_CONST * (QUALITY_SCORE_S_BASE ** (-request.disc_pref))
+    all_pos, all_neg = metadata['positive'].values.astype(float), metadata['negative'].values.astype(float)
+    all_prob_discovery = (all_pos + s_discovery * GLOBAL_POSITIVE_RATE) / (all_pos + all_neg + s_discovery)
+    all_q_natural = norm.ppf(np.clip(all_prob_discovery, 1e-6, 1-1e-6))
+    all_q_grid = data_manager.quality_grid[grid_index]
+    sort_idx = np.argsort(all_q_grid)
+    ref_q_grid, ref_q_natural = all_q_grid[sort_idx], all_q_natural[sort_idx]
+    
+    mean_semantic_contrib = SEMANTIC_SIMILARITY_MEAN * w_semantic_active if ui_w_semantic > 0 else 0.0
+    mean_tag_contrib = all_tag_sims.mean() * w_tag_active if ui_w_tag > 0 else 0.0
+    expected_neutral_score = 5.0 + mean_semantic_contrib + mean_tag_contrib
+    
+    response_items = []
     for i, idx in enumerate(top_indices):
         game_meta = results.iloc[i]
+        current_score = final_scores[idx]
+        w_q_for_map = abs(w_quality_active) if abs(w_quality_active) > 1e-3 else 1.0
+        q_equiv_grid = (current_score - expected_neutral_score) / w_q_for_map
+        q_final_probit = np.interp(q_equiv_grid, ref_q_grid, ref_q_natural)
+        match_percent = float(norm.cdf(q_final_probit) * 100.0)
         
-        raw_pop = game_meta['positive'] + game_meta['negative']
-        raw_length = game_meta['estimated_playtime'] / 60.0
-        
-        desc = ""
-        if 'short_description' in game_meta and pd.notna(game_meta['short_description']):
-            desc = str(game_meta['short_description'])
+        lib_details = request.library_details.get(str(game_meta['appid'])) if request.library_details else None
+        is_pers = lib_details is not None and lib_details.get('p_plus_t') is not None
         
         item = {
-            "appid": game_meta['appid'],
-            "name": game_meta['name'],
-            "release_date": game_meta['release_date'],
-            "short_description": desc,
-            "release_year": game_meta['release_year'],
-            "estimated_playtime": game_meta['estimated_playtime'],
-            "difficulty_predicted": game_meta['difficulty_predicted'],
-            "positive": game_meta['positive'],
-            "negative": game_meta['negative'],
-            "genres": game_meta['genres'], 
-            "tags": game_meta['tags'],     
-            "price": game_meta['price'] if pd.notna(game_meta['price']) else "Free",
-            "is_nsfw": game_meta['is_nsfw'],
-            
-            "weighted_score": final_scores[idx],
-            "semantic_match": semantic_sims[idx],
-            "tag_match": tag_sims[idx],
-            "rating": z_spps[idx], 
-            
-            "z_semantic": z_semantic[idx],
-            "w_semantic": ui_w_semantic,
-            "z_tag": tag_sims[idx] if is_linear_mode else z_tag[idx],
-            "w_tag": ui_w_tag,
-            "z_spps": z_spps[idx],
-            "w_spps": w_quality,
-            "z_date": z_date[idx],
-            "w_date": w_date,
-            "z_pop": z_pop[idx],
-            "w_pop": w_pop,
-            "z_length": z_length[idx],
-            "w_length": w_length,
-            "z_difficulty": z_difficulty[idx],
-            "w_difficulty": w_difficulty,
-            "z_price": z_price[idx],
-            "w_price": w_price,
-            
-            "raw_date": game_meta['release_year'],
-            "raw_pop": raw_pop,
-            "raw_length": raw_length,
-            "raw_difficulty": game_meta['difficulty_predicted']
+            "appid": int(game_meta['appid']), "name": str(game_meta['name']), "release_date": str(game_meta['release_date']),
+            "short_description": str(game_meta.get('short_description', '')), "release_year": int(game_meta['release_year']),
+            "estimated_playtime": float(game_meta['estimated_playtime']), "difficulty_predicted": float(game_meta['difficulty_predicted']),
+            "positive": int(game_meta['positive']), "negative": int(game_meta['negative']), "genres": str(game_meta['genres']),
+            "tags": str(game_meta['tags']), "price": str(game_meta['price'] if pd.notna(game_meta['price']) else "Free"),
+            "is_nsfw": bool(game_meta['is_nsfw']), "is_delisted": bool(game_meta['is_delisted']),
+            "match_percent": match_percent, "is_personalized": is_pers, "weighted_score": float(np.clip(current_score, 0, 10)),
+            "z_semantic": float(semantic_sims[idx]), "w_semantic": float(ui_w_semantic),
+            "z_tag": float(tag_sims[idx]), "w_tag": float(ui_w_tag),
+            "z_spps": float(z_spps[idx]), "w_spps": float(w_quality_active),
+            "z_date": float(z_date[idx]), "w_date": float(w_date_active),
+            "z_pop": float(z_pop[idx]), "w_pop": float(w_pop_active),
+            "z_length": float(z_length[idx]), "w_length": float(w_length_active),
+            "z_difficulty": float(z_difficulty[idx]), "w_difficulty": float(w_difficulty_active),
+            "z_price": float(z_price[idx]), "w_price": float(w_price_active),
+            "raw_pop": int(game_meta['positive'] + game_meta['negative']), "raw_length": float(game_meta['estimated_playtime'] / 60.0)
         }
         response_items.append(item)
-    
+
     cleaned_response = ensure_python_types(response_items)
     logger.info(f"/recommend returning {len(cleaned_response)} results")
     return cleaned_response
@@ -1540,4 +1403,3 @@ else:
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-            

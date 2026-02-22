@@ -64,6 +64,7 @@ def main():
     parser.add_argument("--config", default=os.path.join(SCRIPT_DIR, "pipeline_config.json"), help="Path to pipeline_config.json")
     parser.add_argument("--games", default=config.get("games_file", "scraped_games.csv"), help="Path to scraped_games.csv")
     parser.add_argument("--reviews", default=config.get("reviews_file", "scraped_reviews.csv"), help="Path to scraped_reviews.csv")
+    parser.add_argument("--tag_names", default=None, help="Path to output tag_names.json")
     parser.add_argument("--download", action="store_true", help="Step 1: Download raw data from Steam")
     parser.add_argument("--build", action="store_true", help="Step 2: Build CSVs from raw data")
     args = parser.parse_args()
@@ -119,13 +120,19 @@ def main():
     tag_vectors_path = config.get("tag_vectors_file", "steam_tag_vectors.npy")
     tag_norms_path = config.get("tag_norms_file", "tag_vectors_norms.npy")
     w_tag_path = config.get("w_tag_file", W_TAG_FILE)
-    run_script(os.path.join(SCRIPT_DIR, "generate_tag_vectors.py"), [
+    tag_names_out = args.tag_names if args.tag_names else config.get("tag_names_file")
+    
+    tag_script_args = [
         args.games, 
         "--output", tag_vectors_path, 
         "--constants", reg_json,
         "--norms", tag_norms_path,
         "--w_tag", w_tag_path
-    ])
+    ]
+    if tag_names_out:
+        tag_script_args.extend(["--tag_names", tag_names_out])
+        
+    run_script(os.path.join(SCRIPT_DIR, "generate_tag_vectors.py"), tag_script_args)
 
     # 1.5 Generate Difficulty Model
     difficulty_preds_path = config.get("difficulty_preds_file", DIFFICULTY_PREDICTIONS_FILE)

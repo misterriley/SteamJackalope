@@ -253,6 +253,10 @@ REMOVE_UNRELEASED_LABEL = "Filter Unreleased"
 REMOVE_UNRELEASED_HELP = "Excludes games that haven't been released yet."
 REMOVE_UNRELEASED_DEFAULT = True
 
+REMOVE_DELISTED_LABEL = "Filter Delisted"
+REMOVE_DELISTED_HELP = "Excludes games that are no longer available for purchase on Steam."
+REMOVE_DELISTED_DEFAULT = True
+
 GENRE_FILTER_LABEL = "Filter by Genre"
 GENRE_FILTER_HELP = "Only show games that match at least one selected genre."
 

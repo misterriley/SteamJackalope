@@ -3,11 +3,12 @@ import pytest
 from common.utils import to_z, calculate_hybrid_score
 from common.constants import Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX
 
-def test_calculate_hybrid_score_normalization():
+def test_calculate_hybrid_score_summation():
     # Setup inputs
     z = np.array([1.0, 2.0])
     
-    # Case 1: Weights sum to 1.0 (Identity)
+    # Case 1: Weights sum to 1.0 (Identity + Anchor)
+    # Result: z + 5.0 = [6.0, 7.0]
     res = calculate_hybrid_score(
         z_semantic=z, w_semantic=1.0,
         z_tag=z, w_tag=0.0,
@@ -18,10 +19,10 @@ def test_calculate_hybrid_score_normalization():
         z_difficulty=z, w_difficulty=0.0,
         z_price=z, w_price=0.0
     )
-    assert np.allclose(res, z)
+    assert np.allclose(res, z + 5.0)
 
-    # Case 2: Weights sum to 2.0. Result should be normalized.
-    # Raw sum: z * 2.0. Total weight: 2.0. Result: z.
+    # Case 2: Weights sum to 2.0. No internal normalization.
+    # Raw sum: z * 2.0 + 5.0 = [2.0, 4.0] + 5.0 = [7.0, 9.0]
     res2 = calculate_hybrid_score(
         z_semantic=z, w_semantic=2.0,
         z_tag=z, w_tag=0.0,
@@ -32,10 +33,10 @@ def test_calculate_hybrid_score_normalization():
         z_difficulty=z, w_difficulty=0.0,
         z_price=z, w_price=0.0
     )
-    assert np.allclose(res2, z)
+    assert np.allclose(res2, (z * 2.0) + 5.0)
 
-    # Case 3: Mixed weights
-    # z=10. w_sem=1. z_tag=20. w_tag=1. Total weight=2. Raw sum=30. Result=15.
+    # Case 3: Mixed weights + Anchor
+    # z=10. w_sem=1. z_tag=20. w_tag=1. Raw sum=30. Anchor=5. Result=35.
     res3 = calculate_hybrid_score(
         z_semantic=np.array([10.0]), w_semantic=1.0,
         z_tag=np.array([20.0]), w_tag=1.0,
@@ -46,9 +47,9 @@ def test_calculate_hybrid_score_normalization():
         z_difficulty=np.array([0.0]), w_difficulty=0.0,
         z_price=np.array([0.0]), w_price=0.0
     )
-    assert res3[0] == 15.0
+    assert res3[0] == 35.0
     
-    # Case 4: Zero weights
+    # Case 4: Zero weights -> Anchor only
     res4 = calculate_hybrid_score(
         z_semantic=z, w_semantic=0.0,
         z_tag=z, w_tag=0.0,
@@ -59,7 +60,7 @@ def test_calculate_hybrid_score_normalization():
         z_difficulty=z, w_difficulty=0.0,
         z_price=z, w_price=0.0
     )
-    assert np.all(res4 == 0.0)
+    assert np.all(res4 == 5.0)
 
 def test_to_z_scaling():
     # Create data with high variance
