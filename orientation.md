@@ -7,6 +7,9 @@ This project is a Steam game recommendation engine that combines semantic search
 - This is being executed in VS Code via the Cline extension. 
 - The operating system is Windows 11.
 
+## Before You Start
+**CRITICAL**: Read `user.md` immediately. It contains the user's non-negotiable standards for **Mathematical Parity** and **Transparency Mode**. Do not attempt to refactor the scoring logic or UI sliders without understanding the user's preference for absolute weight control over hidden multipliers.
+
 ## Repository Overview
 
 For detailed documentation of each directory, see the individual README files:

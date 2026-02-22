@@ -24,3 +24,6 @@ This document provides context about the user's working style, technical prefere
 - **Single Source of Truth**: `common/constants.py` must manage all magic numbers and paths.
 - **Artifact Synchronization**: Row counts and ordering in `.npy` and `.parquet` files must ALWAYS match `data/pipeline_games_clean.csv`.
 - **Tag Stabilization**: Always save tag names and prior anchors (`G_final`, `V_prior`) to prevent "Global Shift" instability.
+- **Perfect Ordinal Parity**: The user is extremely sensitive to any "slippage" between the analyzer's preview and the recommender's results. The top-10 lists MUST be identical.
+- **Transparency Mode**: Prefers UI sliders to be **Absolute Weights** (e.g., Quality = 0.86) rather than hidden multipliers or scaled constants. They want direct, transparent control over the underlying scoring engine.
+- **High-Fidelity Testing**: Tests must be rigorous and actually capable of detecting logic regressions (like the "Squaring Bug"). Passing a test while the UI remains inconsistent is considered a failure of the test's design.
