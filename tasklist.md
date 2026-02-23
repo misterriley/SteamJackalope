@@ -8,6 +8,8 @@
 ### Recently Completed
 - [x] **Consensus Blending (Softmin)**: Integrated Softmin similarity blending (T=3.0) for multi-signal targets (DNA + Seeds + Prompts) to enforce a "consensus" requirement.
 - [x] **Backlog Integration**: Decoupled owned-but-unplayed games from exclusion filters. Added a dedicated "From Your Backlog" discovery section to the Insights page.
+- [x] **Profile-Aware Reset**: Refactored the "Reset All" functionality to snap sliders to the solved DNA baseline while clearing search-specific prompts and seeds.
+- [x] **Scroll to Top**: Implemented a floating, animated "Scroll to Top" button on the Recommender page for better navigation.
 - [x] **Perfect Parity**: Synchronized Analyzer's "Similar to Favorites" scoring with Recommender's manual mode, including personalized p+t quality and normalization fixes.
 - [x] **Robust Metadata Filtering**: Implemented text-based placeholder detection ("Coming Soon", "TBD") for unreleased game filtering to supplement build-time cutoffs.
 - [x] **Legacy Removal**: Excised unused structural semantic/tag artifacts to reclaim RAM and minimize Git footprint.
