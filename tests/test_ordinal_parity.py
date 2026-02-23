@@ -62,9 +62,10 @@ def test_ordinal_parity_user_profile(client):
         "semantic_vibe_vector": semantic_vibe_vector,
         "metadata_weights": solver_weights,
         "intercept": solver_results['intercept'],
-        "scaling_factor": solver_results['scaling_factor'],
-        "profile_filter": "all", # Solver excludes all library games in preview
-        "library_appids": solver_results['library_appids'],
+                    "scaling_factor": solver_results['scaling_factor'],
+                    "profile_filter": "completed", # Solver excludes only completed games in preview
+                    "library_appids": solver_results['library_appids'],
+        
         "rated_appids": solver_results['rated_appids'],
         "library_details": solver_results.get('library_details', {}),
         # Default filters used by solver

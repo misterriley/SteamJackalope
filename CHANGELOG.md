@@ -2,6 +2,20 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [46] - 2026-02-22
+### Build 46
+### Version 0.0.1-pre-alpha.46
+
+- **Algorithm**: Implemented **Softmin Multi-Signal Blending** ($T=3.0$) for multi-signal targets (DNA + Seeds + Prompts). This rewards "consensus" among all active signals, preventing a single dominant match from overwhelming the final recommendations.
+- **Algorithm**: Decoupled "Owned" status from "Discovery" eligibility. Added a dedicated **"From Your Backlog"** discovery list to the Insights page, allowing users to surface high-rated titles they already own but haven't yet played.
+- **Algorithm**: Fixed a critical **Tag Similarity Normalization Bug** in the solver to ensure parity with the backend's penalized pathway, improving the quality of "Similar to Favorites" results.
+- **Algorithm**: Implemented **Robust Release Date Filtering** using a dual-layer approach: build-time comparison and explicit text-search for placeholders ("Coming soon", "TBD"). This ensures unreleased games are correctly excluded even with stale metadata.
+- **UI/UX**: Enhanced the **Insights UI** with a dedicated "Backlog" section and added lucide icons for better navigation.
+- **UI/UX**: Removed confusing projected rating badges from horizontal similarity lists ("Tag Recommendations" and "Similar to Favorites") to eliminate mismatch with global profile-based ratings.
+- **UI/UX**: Added a smooth **"Scroll to Top"** button on the Recommender page with responsive positioning and Framer Motion animations.
+- **UI/UX**: Refactored the **"Reset All"** functionality to be profile-aware. It now snaps sliders back to the user's solved DNA baseline while clearing search-specific prompts and seeds.
+- **Cleanup**: Excised redundant structural semantic and tag artifacts (`embeddings_structural.npy`, etc.) to minimize RAM footprint and reclaim disk space.
+
 ## [45] - 2026-02-22
 ### Build 45
 ### Version 0.0.1-pre-alpha.45

@@ -4,7 +4,7 @@ This document serves as a condensed reference for Gemini instances working on th
 
 ## 🚀 Quick Start Workflow
 1.  **Orient**: Read `orientation.md` (architecture), `methodology.md` (math/stats), and `user.md` (user expectations and working style).
-2.  **Sync**: Ensure you are working with the latest artifacts. Production data (`metadata.parquet`, `.npy` files) should be in the root and synchronized.
+2.  **Sync**: Ensure you are working with the latest artifacts. Production data (`metadata.parquet`, `.npy` files) should be in `data/production/` and synchronized.
 3.  **Tasking**: Check `tasklist.md` for active tasks. If empty, check `ideas.md` to propose new ones.
 4.  **Environment**: 
     *   Backend: `python -m uvicorn app.server:app --host 127.0.0.1 --port 8000`
@@ -14,7 +14,7 @@ This document serves as a condensed reference for Gemini instances working on th
 
 ## 🏗️ Architecture & Tech Stack
 *   **Decoupled Design**: FastAPI Backend (`app/server.py`) + Modern React 19 Frontend (`frontend/`) or Legacy Streamlit Frontend (`app/app.py`).
-*   **Data Storage**: Metadata in `metadata.parquet` (root). Vectors in `.npy` files.
+*   **Data Storage**: Production artifacts (`metadata.parquet`, `.npy` files) are stored in `data/production/`.
 *   **Memory Optimization**: Use `mmap_mode='r'` for all large NumPy arrays.
     *   Use `float16` for storage but `float64` for statistical calculations (`mean`, `std`) to avoid overflow.
 *   **Vectorization**: Use `numpy` for all scoring and similarity logic. Avoid Python loops in the hot path.

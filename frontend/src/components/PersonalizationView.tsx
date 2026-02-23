@@ -21,7 +21,8 @@ import {
   Hash,
   Compass,
   Anchor,
-  Sparkles
+  Sparkles,
+  Library
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { searchGames, getMetadata, getTermLinks, getTagDimensions, API_BASE_URL } from '../api';
@@ -648,7 +649,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   </h3>
                   <div className="space-y-4">
                     {Object.entries(insights.metadata || {}).map(([key, val]: [string, any]) => {
-                      const denominator = key === 'discovery' ? 1.0 : 3.0;
+                      const denominator = 1.0;
                       return (
                         <div 
                           key={key} 
@@ -987,6 +988,146 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                     ))}
                   </div>
                 </div>
+
+                {/* BACKLOG LIST */}
+                {insights.backlog_recommendations?.length > 0 && (
+                  <div className="md:col-span-2 bg-card border border-primary/20 rounded-2xl p-6 space-y-6 shadow-lg">
+                    <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
+                      <Library size={22} />
+                      From Your Backlog
+                    </h3>
+                    <p className="text-xs text-muted-foreground italic -mt-4">Top-rated games already in your library that you haven't played yet.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {insights.backlog_recommendations.slice(0, 10).map((game: any, idx: number) => (
+                        <a 
+                          key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-primary/30 transition-colors group"
+                        >
+                          <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
+                          <img 
+                            src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
+                            className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`} 
+                            onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                          />
+                          <div className="flex-grow min-w-0">
+                            <div className="font-bold text-[11px] truncate group-hover:text-primary transition-colors">{game.name}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[10px] font-bold text-primary">{Math.round(game.predicted_rating)}</div>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* TAG-SPECIFIC RECOMMENDATIONS */}
+                {insights.associative_tags?.top?.some((t: any) => t.top_games && t.top_games.length > 0) && (
+                  <div className="md:col-span-2 space-y-8 mt-4">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={20} className="text-primary" />
+                      <h3 className="text-xl font-bold">Top Recommendations by Tag</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {insights.associative_tags.top
+                        .filter((t: any) => t.top_games && t.top_games.length > 0)
+                        .map((t: any) => (
+                          <div key={t.tag} className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {termLinks[t.tag] ? (
+                                  <a 
+                                    href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer"
+                                    className="px-2.5 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-bold text-green-500 hover:bg-green-500/20 transition-colors uppercase tracking-wider"
+                                  >
+                                    {t.tag}
+                                  </a>
+                                ) : (
+                                  <div className="px-2.5 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-bold text-green-500 uppercase tracking-wider">
+                                    {t.tag}
+                                  </div>
+                                )}
+                              </div>
+                              <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest bg-secondary/50 px-2 py-0.5 rounded">Tag Expert</span>
+                            </div>
+                            
+                            <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+                              {t.top_games.map((game: any) => (
+                                <a 
+                                  key={game.appid} 
+                                  href={`https://store.steampowered.com/app/${game.appid}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="flex-shrink-0 w-32 group/tag-game"
+                                >
+                                  <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/tag-game:border-primary/50 transition-colors">
+                                    <img 
+                                      src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
+                                      className={`w-full h-full object-cover group-hover/tag-game:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
+                                      onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                                    />
+                                  </div>
+                                  <div className="mt-1.5 px-0.5">
+                                    <div className="text-[10px] font-bold truncate group-hover/tag-game:text-primary transition-colors leading-tight">{game.name}</div>
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* FAVORITE-SEED RECOMMENDATIONS */}
+                {insights.favorite_game_recommendations?.length > 0 && (
+                  <div className="md:col-span-2 space-y-8 mt-12">
+                    <div className="flex items-center gap-2">
+                      <ThumbsUp size={20} className="text-primary" />
+                      <h3 className="text-xl font-bold">Similar to Your Favorites</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {insights.favorite_game_recommendations.map((fav: any) => (
+                        <div key={fav.seed_appid} className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <img 
+                                src={`https://cdn.akamai.steamstatic.com/steam/apps/${fav.seed_appid}/header.jpg`}
+                                className="w-10 h-5 object-cover rounded shadow-sm border border-border/50 shrink-0"
+                                onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                              />
+                              <div className="text-[10px] font-bold truncate text-muted-foreground uppercase tracking-wider">{fav.seed_name}</div>
+                            </div>
+                            <span className="text-[8px] font-bold text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded whitespace-nowrap">Seed Source</span>
+                          </div>
+                          
+                          <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+                            {fav.top_games.map((game: any) => (
+                              <a 
+                                key={game.appid} 
+                                href={`https://store.steampowered.com/app/${game.appid}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex-shrink-0 w-32 group/fav-game"
+                              >
+                                <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/fav-game:border-primary/50 transition-colors">
+                                  <img 
+                                    src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
+                                    className={`w-full h-full object-cover group-hover/fav-game:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
+                                    onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/csv" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                                  />
+                                </div>
+                                <div className="mt-1.5 px-0.5">
+                                  <div className="text-[10px] font-bold truncate group-hover/fav-game:text-primary transition-colors leading-tight">{game.name}</div>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>

@@ -4,7 +4,6 @@ from sentence_transformers import SentenceTransformer
 import argparse
 import os
 import sys
-import ast
 import json
 
 # Add parent directory to sys.path so we can import common
@@ -13,17 +12,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common.constants import (
     EMBEDDINGS_DESC_FILE, 
     EMBEDDINGS_DESC_NORMS_FILE,
-    EMBEDDINGS_TAG_FILE, 
-    EMBEDDINGS_STRUCTURAL_NORMS_FILE,
     W_DESC_FILE,
-    W_STRUCTURAL_FILE,
     MEAN_DESC_FILE,
-    MEAN_STRUCTURAL_FILE,
     EPSILON,
     MODEL_NAME,
     SENTENCE_TRANSFORMER_BACKEND,
     SENTENCE_TRANSFORMER_MODEL_KWARGS,
-    METADATA_FILE,
     REGULARIZATION_FILE
 )
 from common.utils import safe_save_npy, calculate_dot_product_lambda
@@ -63,25 +57,9 @@ def whiten(vectors, variance_threshold=0.95):
     
     return whitened, W, mean
 
-def clean_tag_string(tag_str):
-    """
-    Converts a Steam tag dictionary string into a comma-separated list of tag names.
-    e.g., "{'Action': 100, 'Indie': 50}" -> "Action, Indie"
-    """
-    if pd.isna(tag_str) or tag_str == "" or tag_str == "{}":
-        return ""
-    try:
-        # Steam tags are stored as a string representation of a dict
-        tags_dict = ast.literal_eval(tag_str)
-        if isinstance(tags_dict, dict):
-            return ", ".join(tags_dict.keys())
-        return str(tag_str)
-    except:
-        return str(tag_str)
-
-def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_tag_out, metadata_out,
-                        w_desc_out=None, w_structural_out=None, mean_desc_out=None, mean_structural_out=None,
-                        desc_norms_out=None, structural_norms_out=None):
+def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, metadata_out,
+                        w_desc_out=None, mean_desc_out=None,
+                        desc_norms_out=None):
     """
     Generate semantic embeddings with optional custom output paths for whitening matrices and means.
     If the weight/mean outputs are None, they will not be saved (to prevent overwriting production files).
@@ -106,28 +84,6 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     # Identify relevant columns for embedding
     print("Preprocessing data for embeddings...")
     df['short_description'] = df['short_description'].fillna('')
-    df['genres'] = df['genres'].fillna('')
-    
-    # Clean tags for cleaner semantic matching (extract keys from dict string)
-    tqdm_available = False
-    try:
-        from tqdm import tqdm
-        tqdm_available = True
-    except ImportError:
-        pass
-
-    print("Cleaning tags for structural embeddings...")
-    if tqdm_available:
-        tqdm.pandas(desc="Cleaning tags", smoothing=0)
-        df['clean_tags'] = df['tags'].progress_apply(clean_tag_string)
-    else:
-        df['clean_tags'] = df['tags'].apply(clean_tag_string)
-    
-    # Vector A: Structural/Categorical (Genres + Tags) - LOWERCASE
-    df['structural_text'] = (
-        "genres: " + df['genres'].str.lower() + 
-        " tags: " + df['clean_tags'].str.lower()
-    )
     
     # Vector B: Narrative/Descriptive (Description + Reviews) - LOWERCASE
     df['desc_text'] = (
@@ -153,13 +109,6 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     # Use a larger batch size to saturate the GPU
     BATCH_SIZE = 256 if device == "cuda" else 32
     
-    print("Generating structural embeddings...")
-    structural_texts = df['structural_text'].tolist()
-    # Identify empty inputs to zero them out later
-    is_empty_struct = df['structural_text'].str.strip() == "genres:  tags:"
-    embeddings_structural = model.encode(structural_texts, show_progress_bar=True, batch_size=BATCH_SIZE)
-    embeddings_structural[is_empty_struct] = 0
-    
     print("Generating descriptive embeddings...")
     desc_texts = df['desc_text'].tolist()
     # Empty descriptive text is "description:  reviews: "
@@ -167,33 +116,15 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     embeddings_desc = model.encode(desc_texts, show_progress_bar=True, batch_size=BATCH_SIZE)
     embeddings_desc[is_empty_desc] = 0
 
-    print("Whitening embeddings...")
-    embeddings_structural, W_structural, mean_structural = whiten(embeddings_structural, variance_threshold=0.95)
+    print("Whitening descriptive embeddings...")
     embeddings_desc, W_desc, mean_desc = whiten(embeddings_desc, variance_threshold=0.95)
 
     print("Processing embeddings for storage...")
     # Calculate norms before float16 conversion
-    structural_norms = np.linalg.norm(embeddings_structural.astype(np.float32), axis=1).astype(np.float16)
     desc_norms = np.linalg.norm(embeddings_desc.astype(np.float32), axis=1).astype(np.float16)
 
     # Cast to float16 for memory mapping
-    embeddings_structural_f16 = embeddings_structural.astype(np.float16)
     embeddings_desc_f16 = embeddings_desc.astype(np.float16)
-    
-    print(f"Saving structural embeddings to {embeddings_tag_out}...")
-    safe_save_npy(embeddings_tag_out, embeddings_structural_f16)
-    
-    struct_norms_path = structural_norms_out if structural_norms_out else EMBEDDINGS_STRUCTURAL_NORMS_FILE
-    print(f"Saving structural norms to {struct_norms_path}...")
-    safe_save_npy(struct_norms_path, structural_norms)
-    
-    # Save whitening matrices and means only if paths are provided
-    if w_structural_out:
-        print(f"Saving structural whitening matrix to {w_structural_out}...")
-        safe_save_npy(w_structural_out, W_structural.astype(np.float16))
-    if mean_structural_out:
-        print(f"Saving structural mean vector to {mean_structural_out}...")
-        safe_save_npy(mean_structural_out, mean_structural.astype(np.float16))
     
     print(f"Saving descriptive embeddings to {embeddings_desc_out}...")
     safe_save_npy(embeddings_desc_out, embeddings_desc_f16)
@@ -256,16 +187,8 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
         v2_desc = embeddings_desc[indices2].astype(np.float32)
         dot_desc = np.sum(v1_desc * v2_desc, axis=1)
         
-        # Structural dot products
-        v1_struct = embeddings_structural[indices1].astype(np.float32)
-        v2_struct = embeddings_structural[indices2].astype(np.float32)
-        dot_struct = np.sum(v1_struct * v2_struct, axis=1)
-        
-        # Use ONLY Descriptive dot products (dropping structural for now to reduce noise)
-        dot_combined = dot_desc
-        
-        sim_mean = float(np.mean(dot_combined))
-        sim_std = float(np.std(dot_combined))
+        sim_mean = float(np.mean(dot_desc))
+        sim_std = float(np.std(dot_desc))
         print(f"Semantic Similarity Natural Range (Descriptive Only): Mean={sim_mean:.4f}, Std={sim_std:.4f}")
     else:
         sim_mean = 0.0
@@ -294,7 +217,6 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     # Run distribution analysis
     try:
         from research.analyze_vector_distributions import analyze_distribution
-        analyze_distribution(embeddings_structural.astype(np.float32), "Whitened Structural Embeddings")
         analyze_distribution(embeddings_desc.astype(np.float32), "Whitened Descriptive Embeddings")
     except ImportError:
         print("Warning: could not import analyze_distribution from research.analyze_vector_distributions")
@@ -302,18 +224,14 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, embeddings_
     print("Done!")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate split embeddings for Steam games.")
+    parser = argparse.ArgumentParser(description="Generate description embeddings for Steam games.")
     parser.add_argument("--csv", default="scraped_games.csv", help="Input CSV file")
     parser.add_argument("--reviews", default="scraped_reviews.csv", help="Input reviews CSV file")
     parser.add_argument("--embeddings_desc", default=EMBEDDINGS_DESC_FILE, help="Output .npy file for description embeddings")
-    parser.add_argument("--embeddings_tag", default=EMBEDDINGS_TAG_FILE, help="Output .npy file for structural embeddings")
     parser.add_argument("--metadata", default=None, help="Deprecated: metadata is now handled by generate_metadata.py")
     parser.add_argument("--w_desc", default=W_DESC_FILE, help="Output .npy file for desc whitening matrix")
-    parser.add_argument("--w_structural", default=W_STRUCTURAL_FILE, help="Output .npy file for structural whitening matrix")
     parser.add_argument("--mean_desc", default=MEAN_DESC_FILE, help="Output .npy file for desc mean vector")
-    parser.add_argument("--mean_structural", default=MEAN_STRUCTURAL_FILE, help="Output .npy file for structural mean vector")
     parser.add_argument("--desc_norms", default=EMBEDDINGS_DESC_NORMS_FILE, help="Output .npy file for desc norms")
-    parser.add_argument("--structural_norms", default=EMBEDDINGS_STRUCTURAL_NORMS_FILE, help="Output .npy file for structural norms")
     
     args = parser.parse_args()
     
@@ -322,14 +240,10 @@ if __name__ == "__main__":
             args.csv, 
             args.reviews, 
             args.embeddings_desc, 
-            args.embeddings_tag, 
             args.metadata,
             args.w_desc,
-            args.w_structural,
             args.mean_desc,
-            args.mean_structural,
-            args.desc_norms,
-            args.structural_norms
+            args.desc_norms
         )
     else:
         print(f"Error: {args.csv} not found.")

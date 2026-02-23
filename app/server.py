@@ -43,13 +43,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common.constants import (
     EMBEDDINGS_DESC_FILE,
     EMBEDDINGS_DESC_NORMS_FILE,
-    EMBEDDINGS_TAG_FILE,
-    EMBEDDINGS_STRUCTURAL_NORMS_FILE,
     QUALITY_GRID_FILE,
     W_DESC_FILE,
-    W_STRUCTURAL_FILE,
     MEAN_DESC_FILE,
-    MEAN_STRUCTURAL_FILE,
     TAG_VECTORS_FILE,
     TAG_NORMS_FILE,
     METADATA_FILE,
@@ -79,10 +75,11 @@ from common.constants import (
     ROOT_DIR,
     TAG_GLOBAL_SCALING_FACTOR,
     SEMANTIC_GLOBAL_SCALING_FACTOR,
+    SOFTMIN_TEMPERATURE,
     SEMANTIC_SIMILARITY_MEAN,
     SEMANTIC_SIMILARITY_STD
 )
-from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores, calculate_personalized_quality
+from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores, calculate_personalized_quality, softmin_blend
 
 app = FastAPI()
 
@@ -100,15 +97,12 @@ app.add_middleware(
 class DataManager:
     def __init__(self):
         self.embeddings_desc_norm = None
-        self.embeddings_structural_norm = None
         self.metadata = None
         self.tag_vectors = None
         self.quality_grid = None
         self.tag_vectors_norms = None
         self.w_desc = None
-        self.w_structural = None
         self.mean_desc = None
-        self.mean_structural = None
         self.model = None
         self.all_genres = []
         self.all_tags = []
@@ -196,10 +190,6 @@ class DataManager:
         logger.info(f"Loading embeddings_desc_norm from {EMBEDDINGS_DESC_FILE}")
         self.embeddings_desc_norm = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
         logger.info(f"Embeddings_desc_norm: shape={self.embeddings_desc_norm.shape}, dtype={self.embeddings_desc_norm.dtype}")
-        
-        logger.info(f"Loading embeddings_structural_norm from {EMBEDDINGS_TAG_FILE}")
-        self.embeddings_structural_norm = np.load(EMBEDDINGS_TAG_FILE, mmap_mode='r')
-        logger.info(f"Embeddings_structural_norm: shape={self.embeddings_structural_norm.shape}, dtype={self.embeddings_structural_norm.dtype}")
 
         # 2. Memory Map Tag Vectors and Quality Grid
         logger.info(f"Loading tag_vectors from {TAG_VECTORS_FILE}")
@@ -337,15 +327,9 @@ class DataManager:
         self.w_desc = np.load(W_DESC_FILE).astype(np.float16) if os.path.exists(W_DESC_FILE) else None
         if self.w_desc is not None:
             logger.info(f"W_desc: shape={self.w_desc.shape}")
-        self.w_structural = np.load(W_STRUCTURAL_FILE).astype(np.float16) if os.path.exists(W_STRUCTURAL_FILE) else None
-        if self.w_structural is not None:
-            logger.info(f"W_structural: shape={self.w_structural.shape}")
         self.mean_desc = np.load(MEAN_DESC_FILE).astype(np.float16) if os.path.exists(MEAN_DESC_FILE) else None
         if self.mean_desc is not None:
             logger.info(f"Mean_desc: shape={self.mean_desc.shape}")
-        self.mean_structural = np.load(MEAN_STRUCTURAL_FILE).astype(np.float16) if os.path.exists(MEAN_STRUCTURAL_FILE) else None
-        if self.mean_structural is not None:
-            logger.info(f"Mean_structural: shape={self.mean_structural.shape}")
 
         # Release year
         if 'release_year' not in self.metadata.columns:
@@ -373,7 +357,6 @@ class DataManager:
         # Load semantic norms
         logger.info("Loading semantic norms...")
         self.embeddings_desc_norms = np.load(EMBEDDINGS_DESC_NORMS_FILE).astype(np.float16) if os.path.exists(EMBEDDINGS_DESC_NORMS_FILE) else None
-        self.embeddings_structural_norms = np.load(EMBEDDINGS_STRUCTURAL_NORMS_FILE).astype(np.float16) if os.path.exists(EMBEDDINGS_STRUCTURAL_NORMS_FILE) else None
         
         # Extract genres
         logger.info("Extracting unique genres...")
@@ -497,8 +480,8 @@ class UserVerifyUpdate(BaseModel):
     ignore: bool
 
 class RecommendationRequest(BaseModel):
-    alpha: float = 0.25
-    beta: float = 1.5
+    alpha: float = 0.5
+    beta: float = 0.5
     quality_pref: float = 1.0
     age_pref: float = 0.0
     pop_pref: float = 0.0
@@ -780,12 +763,19 @@ def get_verification_data(steam_id: str):
                 })
         
         # 3. Merge library games
-        # Also need is_nsfw for library games
+        # Also need is_nsfw, parsed_date, and release_date for library games
         metadata = data_manager.metadata
-        df_sl = df_sl.merge(metadata[['appid', 'is_nsfw']], on='appid', how='left')
+        df_sl = df_sl.merge(metadata[['appid', 'is_nsfw', 'parsed_date', 'release_date']], on='appid', how='left')
         
-        # FILTER: Only show games with playtime in the verification UI
-        df_sl_visible = df_sl[df_sl['has_playtime'] == True].copy()
+        # FILTER: Only show games with playtime in the verification UI and that are already released
+        build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s') if os.path.exists(METADATA_FILE) else pd.Timestamp.now()
+        placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
+        
+        # Better: use the merged metadata columns
+        df_sl_visible = df_sl[(df_sl['has_playtime'] == True) & (df_sl['parsed_date'] <= build_time)].copy()
+        # Add placeholder check to merged df
+        is_placeholder_merged = df_sl_visible['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True)
+        df_sl_visible = df_sl_visible[~is_placeholder_merged].copy()
         
         df = df_sl_visible.merge(df_gt[['appid', 'actual_rating', 'ignore']], on='appid', how='left')
         df['actual_rating'] = df['actual_rating'].fillna(df['predicted_rating'])
@@ -796,12 +786,18 @@ def get_verification_data(steam_id: str):
         final_list = df.to_dict(orient='records') + manual_rows
     else:
         # Initial fetch (no ground truth yet)
-        # Add is_nsfw from metadata
+        # Add is_nsfw, parsed_date, and release_date from metadata
         metadata = data_manager.metadata
-        df = df_sl.merge(metadata[['appid', 'is_nsfw']], on='appid', how='left')
+        df = df_sl.merge(metadata[['appid', 'is_nsfw', 'parsed_date', 'release_date']], on='appid', how='left')
         
-        # FILTER: Only show games with playtime in the verification UI
-        df_visible = df[df['has_playtime'] == True].copy()
+        # FILTER: Only show games with playtime in the verification UI and that are already released
+        build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s') if os.path.exists(METADATA_FILE) else pd.Timestamp.now()
+        df_visible = df[(df['has_playtime'] == True) & (df['parsed_date'] <= build_time)].copy()
+        
+        # Explicitly check for placeholders in the raw string as well
+        placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
+        is_placeholder = df_visible['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True)
+        df_visible = df_visible[~is_placeholder].copy()
         
         df_visible['actual_rating'] = df_visible['predicted_rating']
         df_visible['ignore'] = False
@@ -1108,7 +1104,10 @@ def recommend(request: RecommendationRequest):
         if os.path.exists(METADATA_FILE):
             try:
                 build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s')
-                is_future = (metadata['parsed_date'] > build_time).fillna(False).values
+                # Fallback: also check release_date string for placeholders
+                placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
+                is_placeholder = metadata['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True).values
+                is_future = (metadata['parsed_date'] > build_time).fillna(False).values | is_placeholder
                 mask &= ~is_future.astype(bool)
             except Exception as e:
                 logger.error(f"Error in unreleased filter: {e}")
@@ -1175,14 +1174,14 @@ def recommend(request: RecommendationRequest):
                     seed_desc_sims = (seed_desc_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
                 seed_sims = seed_desc_sims
 
-            # Combine all available semantic signals
+            # Combine all available semantic signals using Softmin for consensus
             sims_to_blend = []
             if dna_sem_sims is not None: sims_to_blend.append(dna_sem_sims)
             if prompt_sims is not None: sims_to_blend.append(prompt_sims)
             if seed_sims is not None: sims_to_blend.append(seed_sims)
 
             if sims_to_blend:
-                all_semantic_sims = np.mean(sims_to_blend, axis=0)
+                all_semantic_sims = softmin_blend(sims_to_blend, temperature=SOFTMIN_TEMPERATURE)
                 all_semantic_sims[data_manager.metadata['is_hollow'].values] = 0.0
     except Exception as e:
         logger.exception(f"Semantic similarity calculation failed: {e}")
@@ -1190,29 +1189,28 @@ def recommend(request: RecommendationRequest):
     # 3. Tag Component (Hybrid Beta Calculation)
     all_tag_sims = np.zeros(len(metadata))
     if seed_indices.size > 0 or request.vibe_vector:
+        tag_sims_to_blend = []
+        
         if seed_indices.size > 0:
             tag_seed_vectors = data_manager.tag_vectors[seed_indices].astype(np.float32)
             seed_norms = data_manager.tag_vectors_norms[seed_indices].astype(np.float32)
             penalized_seeds = tag_seed_vectors / (seed_norms[:, None] + DOT_PRODUCT_LAMBDA)
             beta_seed_unit = np.mean(penalized_seeds, axis=0)
-        else:
-            beta_seed_unit = None
+            
+            dot_products_seed = np.dot(data_manager.tag_vectors, beta_seed_unit)
+            denom = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
+            seed_tag_sims = (dot_products_seed / denom) * TAG_GLOBAL_SCALING_FACTOR
+            tag_sims_to_blend.append(seed_tag_sims)
 
         if request.vibe_vector:
             beta_dna_unit = np.array(request.vibe_vector, dtype=np.float32)
-        else:
-            beta_dna_unit = None
+            dot_products_dna = np.dot(data_manager.tag_vectors, beta_dna_unit)
+            denom = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
+            dna_tag_sims = (dot_products_dna / denom) * TAG_GLOBAL_SCALING_FACTOR
+            tag_sims_to_blend.append(dna_tag_sims)
 
-        if beta_seed_unit is not None and beta_dna_unit is not None:
-            combined_beta_unit = (beta_seed_unit + beta_dna_unit) / 2.0
-        elif beta_seed_unit is not None:
-            combined_beta_unit = beta_seed_unit
-        else:
-            combined_beta_unit = beta_dna_unit
-
-        dot_products = np.dot(data_manager.tag_vectors, combined_beta_unit)
-        denom = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
-        all_tag_sims = (dot_products / denom) * TAG_GLOBAL_SCALING_FACTOR
+        if tag_sims_to_blend:
+            all_tag_sims = softmin_blend(tag_sims_to_blend, temperature=SOFTMIN_TEMPERATURE)
 
     semantic_sims = all_semantic_sims[keep_indices]
     tag_sims = all_tag_sims[keep_indices]
@@ -1258,12 +1256,25 @@ def recommend(request: RecommendationRequest):
         }
 
         beta_dna_unit = np.array(request.vibe_vector, dtype=np.float32)
+        dot_products_dna = np.dot(data_manager.tag_vectors, beta_dna_unit)
+        denom_dna = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
+        dna_tag_sims = (dot_products_dna / denom_dna) * TAG_GLOBAL_SCALING_FACTOR
+        
+        tag_sims_to_blend = [dna_tag_sims]
+
         if seed_indices.size > 0:
             tag_seed_vectors = data_manager.tag_vectors[seed_indices].astype(np.float32)
             seed_norms = data_manager.tag_vectors_norms[seed_indices].astype(np.float32)
             penalized_seeds = tag_seed_vectors / (seed_norms[:, None] + DOT_PRODUCT_LAMBDA)
             beta_seed_unit = np.mean(penalized_seeds, axis=0)
-            beta_dna_unit = (beta_dna_unit + beta_seed_unit) / 2.0
+            
+            dot_products_seed = np.dot(data_manager.tag_vectors, beta_seed_unit)
+            denom_seed = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
+            seed_tag_sims = (dot_products_seed / denom_seed) * TAG_GLOBAL_SCALING_FACTOR
+            tag_sims_to_blend.append(seed_tag_sims)
+
+        # Blend tag signals using Softmin for consensus
+        blended_tag_sims = softmin_blend(tag_sims_to_blend, temperature=SOFTMIN_TEMPERATURE)
 
         final_scores_all = calculate_linear_scores(
             z_quality=q_grid_working,
@@ -1274,7 +1285,7 @@ def recommend(request: RecommendationRequest):
             z_price=metadata['price_z'].values,
             tag_vectors=data_manager.tag_vectors,
             tag_norms=data_manager.tag_vectors_norms,
-            beta_tag=beta_dna_unit,
+            beta_tag=beta_dna_unit, # Still pass this for non-precalculated cases if any
             weights=effective_weights,
             tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
             dot_product_lambda=DOT_PRODUCT_LAMBDA,
@@ -1283,7 +1294,8 @@ def recommend(request: RecommendationRequest):
             z_clamp_min=Z_SCORE_CLAMP_MIN,
             z_clamp_max=Z_SCORE_CLAMP_MAX,
             dna_scaling_factor=request.scaling_factor or 1.0,
-            intercept=5.0
+            intercept=5.0,
+            tag_sim=blended_tag_sims
         )
         final_scores = final_scores_all[keep_indices]
         w_semantic_active = w_semantic
@@ -1312,7 +1324,23 @@ def recommend(request: RecommendationRequest):
     if seed_appids:
         final_scores[meta_filt['appid'].isin(seed_appids)] = -1e12
     if request.profile_filter != "none":
-        exclude_appids = request.library_appids if request.profile_filter == "all" else request.rated_appids
+        if request.profile_filter == "all":
+            exclude_appids = request.library_appids
+        elif request.profile_filter == "rated":
+            exclude_appids = request.rated_appids
+        elif request.profile_filter == "completed":
+            # Exclude only rated or played games
+            exclude_appids = []
+            if request.library_appids:
+                rated_set = set(request.rated_appids or [])
+                for aid in request.library_appids:
+                    details = (request.library_details or {}).get(str(aid), {})
+                    playtime = details.get('playtime', 0)
+                    if aid in rated_set or playtime > 0:
+                        exclude_appids.append(aid)
+        else:
+            exclude_appids = []
+            
         if exclude_appids:
             final_scores[meta_filt['appid'].isin(exclude_appids)] = -1e12
 

@@ -242,8 +242,8 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
                 // Reset to default weights while removing personalization
                 onChange({ 
                   ...filters,
-                  alpha: 0.25,
-                  beta: 1.5,
+                  alpha: 0.5,
+                  beta: 0.5,
                   quality_pref: 1.0,
                   age_pref: 0.0,
                   pop_pref: 0.0,
@@ -277,23 +277,23 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
           <Slider 
             label="Semantic (Prompt)" 
             value={filters.alpha} 
-            min={0} max={2} step={0.01} 
+            min={0} max={1} step={0.05} 
             onChange={(v: number) => handleChange('alpha', v)}
-            onReset={() => handleChange('alpha', 0.25)}
+            onReset={() => handleChange('alpha', 0.5)}
             tooltip="Boosts Match % for games whose descriptions/reviews align with your text prompt."
           />
           <Slider 
             label="Tag Match (Vibes)" 
             value={filters.beta} 
-            min={0} max={2} step={0.01} 
+            min={0} max={1} step={0.05} 
             onChange={(v: number) => handleChange('beta', v)}
-            onReset={() => handleChange('beta', 1.5)}
+            onReset={() => handleChange('beta', 0.5)}
             tooltip="Boosts Match % for games with tags matching your profile or seed games."
           />
           <Slider 
             label="Quality" 
             value={filters.quality_pref} 
-            min={-2} max={2} step={0.01} 
+            min={-1} max={1} step={0.05} 
             onChange={(v: number) => handleChange('quality_pref', v)}
             onReset={() => handleChange('quality_pref', 1.0)}
             tooltip="Boosts Match % for games with higher Bayesian review scores."
@@ -313,7 +313,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
           <Slider 
             label="Popularity" 
             value={filters.pop_pref} 
-            min={-2} max={2} step={0.01} 
+            min={-1} max={1} step={0.05} 
             onChange={(v: number) => handleChange('pop_pref', v)}
             onReset={() => handleChange('pop_pref', 0.0)}
             tooltip="Points per SD of Review Count."
@@ -321,7 +321,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
           <Slider 
             label="Price" 
             value={filters.price_pref} 
-            min={-2} max={2} step={0.01} 
+            min={-1} max={1} step={0.05} 
             onChange={(v: number) => handleChange('price_pref', v)}
             onReset={() => handleChange('price_pref', 0.0)}
             tooltip="Points per SD of Price (Left = Cheap, Right = Expensive)."
@@ -329,7 +329,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
           <Slider 
             label="Release Date" 
             value={filters.age_pref} 
-            min={-2} max={2} step={0.01} 
+            min={-1} max={1} step={0.05} 
             onChange={(v: number) => handleChange('age_pref', v)}
             onReset={() => handleChange('age_pref', 0.0)}
             tooltip="Points per SD of Release Date."
@@ -337,7 +337,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
           <Slider 
             label="Length" 
             value={filters.length_pref} 
-            min={-2} max={2} step={0.01} 
+            min={-1} max={1} step={0.05} 
             onChange={(v: number) => handleChange('length_pref', v)}
             onReset={() => handleChange('length_pref', 0.0)}
             tooltip="Points per SD of Estimated Playtime."
@@ -345,7 +345,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
           <Slider 
             label="Difficulty" 
             value={filters.difficulty_pref} 
-            min={-2} max={2} step={0.01} 
+            min={-1} max={1} step={0.05} 
             onChange={(v: number) => handleChange('difficulty_pref', v)}
             onReset={() => handleChange('difficulty_pref', 0.0)}
             tooltip="Points per SD of Predicted Difficulty."

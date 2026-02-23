@@ -10,9 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Import constants for default file paths
 from common.constants import (
     W_DESC_FILE,
-    W_STRUCTURAL_FILE,
     MEAN_DESC_FILE,
-    MEAN_STRUCTURAL_FILE,
     W_TAG_FILE,
     DIFFICULTY_PREDICTIONS_FILE
 )
@@ -143,25 +141,17 @@ def main():
     # This takes both games and reviews.
     embeddings_desc_path = config.get("embeddings_desc_file", "embeddings_desc.npy")
     embeddings_desc_norms_path = config.get("embeddings_desc_norms_file", "embeddings_desc_norms.npy")
-    embeddings_tag_path = config.get("embeddings_tag_file", "embeddings_structural.npy")
-    embeddings_tag_norms_path = config.get("embeddings_structural_norms_file", "embeddings_structural_norms.npy")
     w_desc_path = config.get("w_desc_file", W_DESC_FILE)
-    w_structural_path = config.get("w_structural_file", W_STRUCTURAL_FILE)
     mean_desc_path = config.get("mean_desc_file", MEAN_DESC_FILE)
-    mean_structural_path = config.get("mean_structural_file", MEAN_STRUCTURAL_FILE)
     temp_metadata_path = "temp_metadata_for_embeddings.parquet"
     run_script(os.path.join(SCRIPT_DIR, "generate_semantic_vectors.py"), [
         "--csv", args.games, 
         "--reviews", args.reviews,
         "--embeddings_desc", embeddings_desc_path,
-        "--embeddings_tag", embeddings_tag_path,
         "--metadata", temp_metadata_path,
         "--w_desc", w_desc_path,
-        "--w_structural", w_structural_path,
         "--mean_desc", mean_desc_path,
-        "--mean_structural", mean_structural_path,
-        "--desc_norms", embeddings_desc_norms_path,
-        "--structural_norms", embeddings_tag_norms_path
+        "--desc_norms", embeddings_desc_norms_path
     ])
     if os.path.exists(temp_metadata_path):
         os.remove(temp_metadata_path)
@@ -191,7 +181,6 @@ def validate_outputs(clean_games_path):
     import pandas as pd
     from common.constants import (
         EMBEDDINGS_DESC_FILE, 
-        EMBEDDINGS_TAG_FILE, 
         METADATA_FILE, 
         TAG_VECTORS_FILE, 
         TAG_NORMS_FILE,
@@ -222,7 +211,7 @@ def validate_outputs(clean_games_path):
         errors.append(f"{METADATA_FILE} is missing")
         
     # Check Embeddings
-    for emb_file in [EMBEDDINGS_DESC_FILE, EMBEDDINGS_TAG_FILE]:
+    for emb_file in [EMBEDDINGS_DESC_FILE]:
         if os.path.exists(emb_file):
             try:
                 emb = np.load(emb_file)

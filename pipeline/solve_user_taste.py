@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import ast
+import re
 
 # Add parent directory to sys.path so we can import common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -35,6 +36,7 @@ from common.constants import (
     Z_SCORE_CLAMP_MIN,
     Z_SCORE_CLAMP_MAX
 )
+from common.utils import softmin_blend
 
 def solve_user_taste(ground_truth_path, output_path=None):
     """
@@ -90,7 +92,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     print(f"Loading metadata and tag vectors...")
     # Get metadata for needed columns
-    full_metadata = pd.read_parquet(METADATA_FILE, columns=['appid', 'name', 'pop_z', 'date_z', 'playtime_z', 'difficulty_z', 'price_z', 'positive', 'negative', 'tags', 'is_delisted', 'is_english', 'is_vr_only', 'is_utility', 'is_hollow', 'parsed_date'])
+    full_metadata = pd.read_parquet(METADATA_FILE, columns=['appid', 'name', 'pop_z', 'date_z', 'playtime_z', 'difficulty_z', 'price_z', 'positive', 'negative', 'tags', 'is_delisted', 'is_english', 'is_vr_only', 'is_utility', 'is_hollow', 'parsed_date', 'release_date'])
     
     # Ensure boolean columns are actually boolean (Parquet stores them as int8 for space)
     bool_cols = ['is_delisted', 'is_english', 'is_vr_only', 'is_utility', 'is_hollow']
@@ -507,8 +509,28 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Load All Tag Vectors for scoring and similarity
     all_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
     
-    # Exclude games already in user's library or manual additions (including ignored ones)
-    known_indices = [appid_to_idx[aid] for aid in all_library_appids if aid in appid_to_idx]
+    # Identify games that are truly "known" vs "backlog"
+    # Backlog: Owned (in library) but zero playtime OR marked as ignored.
+    # Completed/Known: Played > 0 OR has a rating in ground truth.
+    rated_appids = df['appid'].tolist()
+    completed_indices = []
+    backlog_indices = []
+    
+    for aid in all_library_appids:
+        if aid not in appid_to_idx: continue
+        idx = appid_to_idx[aid]
+        is_rated = aid in rated_appids
+        is_ignored = aid in ignored_appids
+        playtime = library_details.get(aid, {}).get('playtime', 0)
+        
+        # A game is "completed/known" if it has playtime and isn't ignored, OR if it has a manual rating.
+        if (playtime > 0 and not is_ignored) or is_rated:
+            completed_indices.append(idx)
+        else:
+            backlog_indices.append(idx)
+            
+    # Exclude only completed/known games from general discovery
+    exclude_indices = completed_indices
 
     # --- NORTH STAR & ABYSSAL GAMES ---
     # Find games whose TASTE ALIGNMENT (Weighted Tag + Weighted Semantic) is highest/lowest.
@@ -539,7 +561,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     hybrid_alignment = tag_alignment + sem_alignment
     
     # Mask known games (set to a very low value so they don't appear in top/bottom)
-    hybrid_alignment[known_indices] = -np.inf # Use -inf to ensure they are never picked for top
+    hybrid_alignment[exclude_indices] = -np.inf # Use -inf to ensure they are never picked for top
 
     # North Stars (Highest Alignment)
     ns_indices = np.argsort(-hybrid_alignment)[:5]
@@ -547,7 +569,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     north_stars['alignment'] = [float(a) for a in hybrid_alignment[ns_indices]] # Store raw values
 
     # Abyssal Games (Lowest Alignment)
-    hybrid_alignment[known_indices] = np.inf # Use inf to ensure they are never picked for bottom
+    hybrid_alignment[exclude_indices] = np.inf # Use inf to ensure they are never picked for bottom
     ab_indices = np.argsort(hybrid_alignment)[:5]
     abyssal_games = full_metadata.iloc[ab_indices][['appid', 'name']].copy()
     abyssal_games['alignment'] = [float(a) for a in hybrid_alignment[ab_indices]] # Store raw values
@@ -588,6 +610,9 @@ def solve_user_taste(ground_truth_path, output_path=None):
             batch_scaled = (batch_vecs / (sem_norms[i:end] + SEMANTIC_DOT_PRODUCT_LAMBDA)) * SEMANTIC_GLOBAL_SCALING_FACTOR
             all_semantic_sims[i:end] = np.dot(batch_scaled, sem_vibe_unit)
 
+    # Calculate tag similarities for the full dataset using the unit vibe vector
+    all_tag_sims = (np.dot(all_vectors.astype(np.float32), vibe_vector_unit) / (all_tag_norms + DOT_PRODUCT_LAMBDA)) * TAG_GLOBAL_SCALING_FACTOR
+
     scores = calculate_linear_scores(
         z_quality=quality_grid[best_idx],
         z_date=full_metadata['date_z'].values,
@@ -621,9 +646,17 @@ def solve_user_taste(ground_truth_path, output_path=None):
         mask &= ~full_metadata['is_utility'].values.astype(bool)
     # 4. Released Only
     if 'parsed_date' in full_metadata.columns:
-        build_time = pd.Timestamp.now()
-        future_mask = (full_metadata['parsed_date'] > build_time).fillna(False)
-        mask &= ~future_mask.values.astype(bool)
+        if os.path.exists(METADATA_FILE):
+            build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s')
+        else:
+            build_time = pd.Timestamp.now()
+            
+        # Explicitly check for placeholders in the raw string as well
+        placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
+        is_placeholder = full_metadata['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True)
+        
+        future_mask = (full_metadata['parsed_date'] > build_time) | is_placeholder
+        mask &= ~future_mask.fillna(False).values.astype(bool)
     # 5. No Delisted
     if 'is_delisted' in full_metadata.columns:
         mask &= ~full_metadata['is_delisted'].values.astype(bool)
@@ -635,8 +668,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # (Clamping to 0-10 is only for display)
     sort_scores = scores.copy()
     
-    # Mask known games
-    sort_scores[known_indices] = -1e12
+    # Mask completed games
+    sort_scores[exclude_indices] = -1e12
     # Apply filters
     sort_scores[~mask] = -1e12
     
@@ -650,15 +683,150 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     # For bottom recs, use inverse mask
     bottom_sort_scores = scores.copy()
-    bottom_sort_scores[known_indices] = 1e12
+    bottom_sort_scores[exclude_indices] = 1e12
     bottom_sort_scores[~mask] = 1e12 # Still exclude invalid games
     bottom_indices = np.lexsort((all_names, bottom_sort_scores))[:30]
     
     bottom_games = full_metadata.iloc[bottom_indices][['appid', 'name']].copy()
     bottom_games['predicted_rating'] = np.clip(scores[bottom_indices], 0, 10)
 
+    # --- BACKLOG RECOMMENDATIONS ---
+    print("Finding what to play next from your backlog...")
+    # These are games in backlog_indices, sorted by the solved score
+    if backlog_indices:
+        backlog_sort_scores = np.full(len(full_metadata), -1e12)
+        backlog_sort_scores[backlog_indices] = scores[backlog_indices]
+        # Apply same default filters
+        backlog_sort_scores[~mask] = -1e12
+        
+        top_backlog_indices = np.lexsort((all_names, -backlog_sort_scores))[:30]
+        backlog_recs = full_metadata.iloc[top_backlog_indices][['appid', 'name']].copy()
+        backlog_recs['predicted_rating'] = np.clip(scores[top_backlog_indices], 0, 10)
+        # Only keep if score is actually set
+        backlog_recs = backlog_recs[backlog_sort_scores[top_backlog_indices] > -1e9]
+    else:
+        backlog_recs = pd.DataFrame(columns=['appid', 'name', 'predicted_rating'])
+
+    # --- TOP GAMES FOR ASSOCIATIVE TAGS ---
+    print("Finding top 3 games for each top associative tag...")
+    # Default filters already calculated in 'mask'
+    for tag_info in top_assoc:
+        tag = tag_info['tag']
+        escaped_tag = re.escape(tag)
+        pattern = rf"'{escaped_tag}':"
+        # Match games with this tag
+        tag_mask = full_metadata['tags'].fillna('').astype(str).str.contains(pattern, regex=True).values
+        
+        # Combine with default filters and exclusion mask
+        combined_mask = tag_mask & mask
+        
+        # Use scores already calculated for the full dataset
+        tag_sort_scores = scores.copy()
+        tag_sort_scores[exclude_indices] = -1e12 # Exclude library
+        tag_sort_scores[~combined_mask] = -1e12 # Exclude invalid/non-matching
+        
+        # Get top 3 using stable lexicographical sort
+        top_tag_indices = np.lexsort((all_names, -tag_sort_scores))[:3]
+        
+        tag_top_games = []
+        for idx in top_tag_indices:
+            if tag_sort_scores[idx] > -1e9:
+                game_meta = full_metadata.iloc[idx]
+                tag_top_games.append({
+                    'appid': int(game_meta['appid']),
+                    'name': str(game_meta['name']),
+                    'predicted_rating': float(np.clip(scores[idx], 0, 10))
+                })
+        tag_info['top_games'] = tag_top_games
+
+    # --- RECOMMENDATIONS FOR FAVORITE GAMES (SEEDS) ---
+    print("Generating recommendations for favorite games (ratings 9-10)...")
+    favorite_recs = []
+    # Use only games with actual_rating >= 9
+    favorites_df = df[df['actual_rating'] >= 9].copy()
+    
+    # Pre-calculate normalized desc for all games for semantic similarity
+    sem_vectors = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
+    sem_norms_all = np.load(EMBEDDINGS_DESC_NORMS_FILE, mmap_mode='r').astype(np.float32)
+    
+    # Apply personalized quality for parity with Recommender
+    from common.utils import calculate_personalized_quality, calculate_hybrid_score
+    q_personalized = quality_grid[best_idx].copy()
+    for aid, details in library_details.items():
+        if aid in appid_to_idx:
+            idx = appid_to_idx[aid]
+            p_plus_t = details.get('p_plus_t')
+            if p_plus_t is not None:
+                q_personalized[idx] = calculate_personalized_quality(np.array([q_personalized[idx]]), np.array([p_plus_t]))[0]
+
+    # Pre-clip metadata for parity
+    z_q_clipped = np.clip(q_personalized, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    z_date_clipped = np.clip(full_metadata['date_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    z_pop_clipped = np.clip(full_metadata['pop_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    z_playtime_clipped = np.clip(full_metadata['playtime_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    z_difficulty_clipped = np.clip(full_metadata['difficulty_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    z_price_clipped = np.clip(full_metadata['price_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+
+    for _, fav in favorites_df.iterrows():
+        fav_appid = int(fav['appid'])
+        if fav_appid not in appid_to_idx: continue
+        fav_idx = appid_to_idx[fav_appid]
+        
+        # Calculate seed-based semantic sims for this game
+        sd_vec = sem_vectors[fav_idx].astype(np.float32)
+        # Re-use the penalized scaling logic
+        seed_sem_sims = (np.dot(sem_vectors.astype(np.float32), sd_vec) / (sem_norms_all + SEMANTIC_DOT_PRODUCT_LAMBDA)) * SEMANTIC_GLOBAL_SCALING_FACTOR
+        
+        # Calculate seed-based tag sims for this game
+        tag_fav_vec = tag_vectors[fav_idx].astype(np.float32)
+        fav_tag_norm = all_tag_norms[fav_idx]
+        
+        # Parity with Recommender: Must divide by (seed_norm + lambda) * (candidate_norm + lambda)
+        seed_tag_sims = (np.dot(all_vectors.astype(np.float32), tag_fav_vec) / ((fav_tag_norm + DOT_PRODUCT_LAMBDA) * (all_tag_norms + DOT_PRODUCT_LAMBDA))) * TAG_GLOBAL_SCALING_FACTOR
+        
+        # Parity with Recommender Manual Mode:
+        # 1. Clip Tag Sims
+        # 2. Use Hybrid Score (sum + 5.0)
+        z_tag_clipped = np.clip(seed_tag_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+        
+        fav_seed_scores = calculate_hybrid_score(
+            z_semantic=seed_sem_sims, w_semantic=float(sem_norm),
+            z_tag=z_tag_clipped, w_tag=float(tag_norm),
+            z_spps=z_q_clipped, w_spps=float(coeffs[0]),
+            z_date=z_date_clipped, w_date=float(coeffs[1]),
+            z_pop=z_pop_clipped, w_pop=float(coeffs[2]),
+            z_length=z_playtime_clipped, w_length=float(coeffs[3]),
+            z_difficulty=z_difficulty_clipped, w_difficulty=float(coeffs[4]),
+            z_price=z_price_clipped, w_price=float(coeffs[5])
+        )
+        
+        # Filter and Sort
+        fav_seed_scores[exclude_indices] = -1e12
+        fav_seed_scores[~mask] = -1e12
+        
+        # Get top 3
+        top_fav_indices = np.lexsort((all_names, -fav_seed_scores))[:3]
+        
+        fav_top_games = []
+        for idx in top_fav_indices:
+            if fav_seed_scores[idx] > -1e9:
+                game_meta = full_metadata.iloc[idx]
+                fav_top_games.append({
+                    'appid': int(game_meta['appid']),
+                    'name': str(game_meta['name']),
+                    'predicted_rating': float(np.clip(fav_seed_scores[idx], 0, 10))
+                })
+        
+        if fav_top_games:
+            favorite_recs.append({
+                'seed_appid': fav_appid,
+                'seed_name': str(full_metadata.iloc[fav_idx]['name']),
+                'top_games': fav_top_games
+            })
+
     # --- WEIGHT SCALING (UI SLIDERS ONLY) ---
-    # We scale metadata weights so the largest absolute value is DNA_UI_SCALING_FACTOR.
+    # We no longer scale weights to a fixed maximum. 
+    # Sliders now display the RAW regression coefficients.
     weights_to_scale = {
         'quality': float(coeffs[0]),
         'age': float(coeffs[1]),
@@ -670,10 +838,10 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'semantic': float(sem_norm) 
     }
     
-    max_abs_weight = max(abs(v) for v in weights_to_scale.values())
-    scaling_factor = DNA_UI_SCALING_FACTOR / max_abs_weight if max_abs_weight > 1e-6 else 1.0
+    # Scaling factor remains 1.0 to preserve raw weights in the UI
+    scaling_factor = 1.0
     
-    scaled_metadata = {k: v * scaling_factor for k, v in weights_to_scale.items()}
+    scaled_metadata = {k: v for k, v in weights_to_scale.items()}
     scaled_metadata['discovery'] = float(optimal_disc_pref)
     
     # --- EXPLAINABILITY DATA ---
@@ -698,7 +866,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
             return float(re.sub(r'[^\d.]', '', p))
         except:
             return 0.0
-    import re
+    
     raw_meta['price_raw'] = raw_meta['price'].apply(parse_price)
     
     # Slice to user games
@@ -732,7 +900,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
         },
         'vibe_vector': vibe_vector_unit,
         'semantic_vibe_vector': sem_vibe_vector_unit,
-        'alpha': float(model.alpha_),
+        'alpha': float(sem_norm),
+        'beta': float(tag_norm),
         'intercept': 5.0, # Match the Neutral Anchor used in preview and UI
         'scaling_factor': float(scaling_factor),
         'r2': float(r2_train), # Use the high-precision training R2
@@ -747,6 +916,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'abyssal_games': abyssal_games.to_dict(orient='records'),
         'top_recommendations': top_games.to_dict(orient='records'),
         'bottom_recommendations': bottom_games.to_dict(orient='records'),
+        'backlog_recommendations': backlog_recs.to_dict(orient='records'),
+        'favorite_game_recommendations': favorite_recs,
         'ignored_appids': list(map(int, ignored_appids)),
         'library_appids': [int(aid) for aid in all_library_appids],
         'rated_appids': [int(aid) for aid in df['appid'].tolist()],

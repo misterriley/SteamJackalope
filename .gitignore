@@ -22,6 +22,17 @@ data/*
 data/production/*
 !data/production/regularization_constants.json
 !data/production/similarity_lists.json
+!data/production/tag_dimension_descriptions.json
+!data/production/tag_names.json
+
+# Explicitly ignore large or derived artifacts even if they were once tracked
+data/production/*.npy
+data/production/*.parquet
+data/production/*.csv
+data/production/*.tmp
+data/production/*.old
+!data/production/tag_prior_counts.npy
+!data/production/tag_prior_transformed.npy
 old/
 scraping/archive_csv/
 research/*.csv

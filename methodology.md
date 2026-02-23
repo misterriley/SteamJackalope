@@ -106,6 +106,8 @@ The final recommendation list is generated as a hybrid, blending normalized comp
 
 2.  **Tag Match:** Similarity between the latent tag vectors. In Build 16, this was unified with the Linear Scorer model. Every game $V$ used as a seed provides a set of regression coefficients $\beta_{seed} = V / (\|V\| + \lambda)$. The contribution is calculated as the penalized dot product $Score = (U \cdot \beta_{seed} / (\|U\| + \lambda)) \cdot 11.283$. This component is no longer Z-scored, as it operates on an absolute 0-10 rating scale calibrated to the user's taste.
 
+- **Softmin Multi-Signal Blending**: When multiple similarity signals are active (e.g., a combination of Taste DNA, text prompts, and multiple seed games), the system employs a **Softmin-based blending** approach ($T=3.0$). Unlike simple additive averages which can be dominated by a single strong match, Softmin rewards "consensus"—games that align well with *all* active targets. This ensures that a multi-seed search for "Gothic Horror" + "Deckbuilder" correctly identifies titles that bridge both genres rather than just suggesting popular games from one or the other.
+
 3.  **Quality Score:** Preference for loved vs. hated games, smoothed by the Discovery setting.
 
 4.  **Popularity:** Preference for high vs. low player counts.
@@ -132,6 +134,8 @@ Users can tune these weights in the UI to prioritize long, easy, niche hidden ge
 
 ## 8. Filtering
 The system allows real-time filtering for **Genres**, **Tags**, VR-Only titles, English language support, Software/Utilities (Breadcrumb detection), and Unreleased games to ensure the results are relevant to the user. The Genre filter supports multi-selection, ensuring that recommended games match at least one of the selected categories. Downloadable Content (DLC) is excluded from the database to focus recommendations on standalone games.
+
+- **Robust Release Date Filtering**: To handle "Coming Soon" titles with stale metadata, the system uses a dual-layer filter. It compares the `parsed_date` against the build-time of the metadata file and performs an explicit text-search for placeholders like "Coming soon", "TBD", and "To be announced". This ensures unreleased games are correctly excluded even if their placeholder dates have technically passed.
 
 ## 15. Tag Dimension Explainability (Build 41)
 
@@ -178,6 +182,8 @@ To ensure perfect alignment between a user's library analysis and their discover
 
 - **Predicted Ratings:** Because the math is unified and utilizes a global scaling factor (3.0), the "Match Score" displayed on game cards becomes a calibrated **Predicted 0-10 Rating** for that game. This ensures bit-perfect parity between the "Games You'll Love" list in the analyzer and the Recommender results.
 
+- **Backlog Discovery**: The system distinguishes between games in the user's library that have been "Completed" (playtime > 0 or manually rated) and those that are in the "Backlog" (playtime = 0 or ignored). Backlog games are eligible for discovery in specialized lists, allowing users to surface high-rated titles they already own but haven't yet experienced.
+
 - **Numerical Stability:** To prevent precision-based ranking swaps, the unified scoring path utilizes explicit **float32** casting for all vector operations and tag normalization.
 
 ## 13. Robust Personalization (Build 41)
@@ -215,3 +221,11 @@ To resolve subtle "slippage" between the analyzer's preview and the live recomme
 - **Intercept Isolation:** We identified a "Scaling Regression" (the "82% Bug") where high-affinity games were capped at an 82% match. This was caused by dividing the 5.0 intercept by the global scaling factor. In Build 45, we isolated the intercept: `Score = (Weighted_Sum / 3.0) + 5.0`. This preserves the 5.0 neutral point while allowing strong positive deviations to reach their true potential (e.g., 98-99% matches).
 
 - **Discovery-Aware Bias Correction:** Because semantic and tag similarity features often have non-zero global means, an "Average Game" might accidentally receive a non-neutral score. To correct this, the system calculates the **Expected Score of a Random Game** for the current weights and subtracts this bias from the final result. This ensures that a game with no specific affinity to the user's profile correctly results in exactly a 5.0 score (50% match).
+
+## 17. Consensus & Discovery Refinement (Build 46)
+
+Build 46 refined the discovery experience by enhancing the recommendation blending logic and expanding the scope of library analysis.
+
+- **Softmin Multi-Signal Blending**: The transition to Softmin blending (T=3.0) for multi-comparator signals (DNA + Seeds + Prompts) ensures that recommendations align with the **consensus** of all active targets. This prevents a single dominant signal (like a very specific prompt) from drowning out the user's broader taste DNA or seed game affinities.
+- **Backlog & discovery Decoupling**: We decoupled "Owned" status from "Discovery" eligibility. Previously, any game in a user's library was excluded from discovery results to prevent redundancy. Build 46 allows games with zero playtime (Backlog) to appear in discovery lists, enabling users to find hidden gems they already own but haven't yet played.
+- **Robustness in Filtering**: Implemented text-based placeholder detection for release dates, ensuring that games marked "Coming Soon" or "TBD" are correctly filtered even when their placeholder dates (like "today + 1 year") have technically passed due to old metadata.

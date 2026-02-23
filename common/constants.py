@@ -36,8 +36,6 @@ PRODUCTION_DATA_DIR = os.path.join(ROOT_DIR, "data", "production")
 # Environment variable overrides for test isolation and flexibility
 EMBEDDINGS_DESC_FILE = os.getenv("STEAM_EMBEDDINGS_DESC_FILE", os.path.join(PRODUCTION_DATA_DIR, "embeddings_desc.npy"))
 EMBEDDINGS_DESC_NORMS_FILE = os.getenv("STEAM_EMBEDDINGS_DESC_NORMS_FILE", os.path.join(PRODUCTION_DATA_DIR, "embeddings_desc_norms.npy"))
-EMBEDDINGS_TAG_FILE = os.getenv("STEAM_EMBEDDINGS_TAG_FILE", os.path.join(PRODUCTION_DATA_DIR, "embeddings_structural.npy"))
-EMBEDDINGS_STRUCTURAL_NORMS_FILE = os.getenv("STEAM_EMBEDDINGS_STRUCTURAL_NORMS_FILE", os.path.join(PRODUCTION_DATA_DIR, "embeddings_structural_norms.npy"))
 TAG_VECTORS_FILE = os.getenv("STEAM_TAG_VECTORS_FILE", os.path.join(PRODUCTION_DATA_DIR, "steam_tag_vectors.npy"))
 TAG_NORMS_FILE = os.getenv("STEAM_TAG_NORMS_FILE", os.path.join(PRODUCTION_DATA_DIR, "tag_vectors_norms.npy"))
 QUALITY_GRID_FILE = os.getenv("STEAM_QUALITY_GRID_FILE", os.path.join(PRODUCTION_DATA_DIR, "quality_scores_grid.npy"))
@@ -48,9 +46,7 @@ TAG_NAMES_FILE = os.getenv("STEAM_TAG_NAMES_FILE", os.path.join(PRODUCTION_DATA_
 TAG_PRIOR_COUNTS_FILE = os.getenv("STEAM_TAG_PRIOR_COUNTS_FILE", os.path.join(PRODUCTION_DATA_DIR, "tag_prior_counts.npy"))
 TAG_PRIOR_TRANSFORMED_FILE = os.getenv("STEAM_TAG_PRIOR_TRANSFORMED_FILE", os.path.join(PRODUCTION_DATA_DIR, "tag_prior_transformed.npy"))
 W_DESC_FILE = os.getenv("STEAM_W_DESC_FILE", os.path.join(PRODUCTION_DATA_DIR, "w_desc.npy"))
-W_STRUCTURAL_FILE = os.getenv("STEAM_W_STRUCTURAL_FILE", os.path.join(PRODUCTION_DATA_DIR, "w_structural.npy"))
 MEAN_DESC_FILE = os.getenv("STEAM_MEAN_DESC_FILE", os.path.join(PRODUCTION_DATA_DIR, "mean_desc.npy"))
-MEAN_STRUCTURAL_FILE = os.getenv("STEAM_MEAN_STRUCTURAL_FILE", os.path.join(PRODUCTION_DATA_DIR, "mean_structural.npy"))
 W_TAG_FILE = os.getenv("STEAM_W_TAG_FILE", os.path.join(PRODUCTION_DATA_DIR, "w_tag.npy"))
 
 # Globally optimized playtime sentiment parameters - Initial Defaults
@@ -59,6 +55,9 @@ _DEFAULT_PLAYTIME_SENTIMENT_S = 1.452654
 
 PLAYTIME_SENTIMENT_GAMMA = _DEFAULT_PLAYTIME_SENTIMENT_GAMMA
 PLAYTIME_SENTIMENT_S = _DEFAULT_PLAYTIME_SENTIMENT_S
+
+# Blending
+SOFTMIN_TEMPERATURE = 3.0
 
 # Regularization & Constants
 REGULARIZATION_FILE = os.getenv("STEAM_REGULARIZATION_JSON", os.path.join(PRODUCTION_DATA_DIR, "regularization_constants.json"))
@@ -73,6 +72,7 @@ if os.path.exists(REGULARIZATION_FILE):
             PLAYTIME_REGULARIZATION_C = reg_data.get("PLAYTIME_REGULARIZATION_C", 0.781171)
             TAG_GLOBAL_SCALING_FACTOR = reg_data.get("TAG_GLOBAL_SCALING_FACTOR", 11.283)
             SEMANTIC_GLOBAL_SCALING_FACTOR = reg_data.get("SEMANTIC_GLOBAL_SCALING_FACTOR", 11.25)
+            SOFTMIN_TEMPERATURE = reg_data.get("SOFTMIN_TEMPERATURE", 3.0)
             QUALITY_TO_RATING_SLOPE = reg_data.get("QUALITY_TO_RATING_SLOPE", 3.008809)
             QUALITY_TO_RATING_INTERCEPT = reg_data.get("QUALITY_TO_RATING_INTERCEPT", 3.277190)
             PLAYTIME_SENTIMENT_GAMMA = reg_data.get("PLAYTIME_SENTIMENT_GAMMA", _DEFAULT_PLAYTIME_SENTIMENT_GAMMA)
@@ -87,6 +87,8 @@ if os.path.exists(REGULARIZATION_FILE):
         PLAYTIME_REGULARIZATION_C = 0.781171
         TAG_GLOBAL_SCALING_FACTOR = 11.283
         SEMANTIC_GLOBAL_SCALING_FACTOR = 11.25
+        # SOFTMIN_TEMPERATURE already defined above
+        
         QUALITY_TO_RATING_SLOPE = 3.008809
         QUALITY_TO_RATING_INTERCEPT = 3.277190
         # Revert to default if loading fails

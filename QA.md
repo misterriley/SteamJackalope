@@ -15,8 +15,14 @@ This document serves as the manual verification protocol for human testers and d
     - *Expectation*: Dynamic fetch succeeds; latest build number matches `build_count.json`.
 
 ## 🧪 Recommender Features
+- [ ] **Scroll to Top**: Scroll down at least 500px in the recommender results.
+    - *Expectation*: A floating "Scroll to Top" button appears. Clicking it smoothly returns the view to the search bar.
 - [ ] **Autocomplete**: Type "Witcher" or "Cyber" in the seed search.
     - *Expectation*: Results appear; clicking one adds it to the seed list.
+- [ ] **Reset All (Profile-Aware)**: Load a Taste DNA profile, adjust sliders, and add a seed game. Click "Reset All".
+    - *Expectation*: 
+        - **Profile Active**: Sliders snap back to the solved DNA weights; seed games, prompt, and tags are cleared; "PERSONALIZED" badge remains.
+        - **No Profile**: All sliders and inputs return to hardcoded global defaults.
 - [ ] **Surprise Me**: Click the "Surprise Me (Random)" button.
     - *Expectation*: Random prompt/seeds are selected; recommendations generate automatically.
 - [ ] **Trending Random**: Click the flame icon (Trending).
@@ -60,6 +66,10 @@ This document serves as the manual verification protocol for human testers and d
     - *Expectation*: Table is sortable; ratings can be manually adjusted; "Ignore" toggle works.
 - [ ] **Taste Solving**: Click "Solve My Taste DNA".
     - *Expectation*: Pipeline completes; Insights dashboard displays Predictive Tags and Taste Anchors.
+- [ ] **Backlog Discovery**: Solve a profile with unplayed library games. Check the "From Your Backlog" section in Insights.
+    - *Expectation*: Section appears with high-rated titles that have 0 playtime.
+- [ ] **Released Filter Robustness**: Look for a game known to be "Coming Soon" or "TBD" (e.g., *Substructure*).
+    - *Expectation*: Game is correctly filtered out of "Games You'll Love", "Backlog", and "Analyze My Catalogue" even if its placeholder date has passed.
 - [ ] **Unified Recommender**: Click "Apply to Recommender".
     - *Expectation*: Tab switches to Recommender; "PERSONALIZED" badge appears; top results match "Games You'll Love" list from Insights.
 - [ ] **Semantic Slider Import**: After "Apply to Recommender", check the "Semantic Match" slider.

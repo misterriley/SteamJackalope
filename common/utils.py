@@ -1,5 +1,5 @@
 import numpy as np
-from common.constants import EPSILON, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX
+from common.constants import EPSILON, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX, SOFTMIN_TEMPERATURE
 
 def to_z(x, ignore_zeros=False):
     """
@@ -29,7 +29,8 @@ def calculate_linear_scores(
     z_clamp_min=-3.0,
     z_clamp_max=3.0,
     dna_scaling_factor=1.0,
-    intercept=5.0
+    intercept=5.0,
+    tag_sim=None
 ):
     """
     Unified linear scoring function for Taste DNA parity.
@@ -47,10 +48,11 @@ def calculate_linear_scores(
     pr = np.clip(z_price, z_clamp_min, z_clamp_max)
     
     # 2. Tag Scoring: dot(U / (||U|| + lambda) * Scale, beta_unit)
-    beta_tag_arr = np.asarray(beta_tag, dtype=np.float32)
-    dot_products = np.dot(tag_vectors.astype(np.float32), beta_tag_arr)
-    denom = tag_norms.astype(np.float32).reshape(-1) + dot_product_lambda
-    tag_sim = (dot_products / denom) * tag_scaling_factor
+    if tag_sim is None:
+        beta_tag_arr = np.asarray(beta_tag, dtype=np.float32)
+        dot_products = np.dot(tag_vectors.astype(np.float32), beta_tag_arr)
+        denom = tag_norms.astype(np.float32).reshape(-1) + dot_product_lambda
+        tag_sim = (dot_products / denom) * tag_scaling_factor
     
     # 3. Semantic Component
     sem_contrib = (z_semantic * w_semantic) if z_semantic is not None else 0.0
@@ -182,3 +184,26 @@ def safe_save_npy(path, data):
                     time.sleep(retry_delay)
                 else:
                     raise
+
+def softmin_blend(signals: list, temperature: float = SOFTMIN_TEMPERATURE):
+    """
+    Blends multiple similarity signals using a softmin-weighted average.
+    Signals are expected to be NumPy arrays of the same shape.
+    This creates 'consensus' logic: the result is heavily weighted towards the lowest score.
+    """
+    if not signals:
+        return 0.0
+    if len(signals) == 1:
+        return signals[0]
+        
+    stack = np.stack(signals, axis=0) # (num_signals, num_games)
+    
+    # Calculate weights: w_i = exp(-s_i / T) / sum(exp(-s_j / T))
+    # Using log-sum-exp trick for stability
+    scaled = -stack / temperature
+    max_val = np.max(scaled, axis=0)
+    exp_vals = np.exp(scaled - max_val)
+    weights = exp_vals / np.sum(exp_vals, axis=0)
+    
+    # Blended similarity: sum(s_i * w_i)
+    return np.sum(stack * weights, axis=0)

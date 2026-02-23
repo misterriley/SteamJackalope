@@ -6,7 +6,7 @@ import Filters from './Filters';
 import SeedSelector from './SeedSelector';
 import GenreSelector from './GenreSelector';
 import TagSelector from './TagSelector';
-import { Search, RotateCcw, AlertCircle, Dices, Sparkles, TrendingUp } from 'lucide-react';
+import { Search, RotateCcw, AlertCircle, Dices, Sparkles, TrendingUp, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const DEFAULT_GENRES = [
@@ -31,12 +31,28 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   const [error, setError] = useState<string | null>(null);
   const [useTrendingRandom, setUseTrendingRandom] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const isInitialMount = useRef(true);
+
+  // Track window resize and scroll position
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    const handleScroll = () => setShowScrollTop(window.scrollY > 500);
+    
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
 
   const [filters, setFilters] = useState<RecommendationRequest>(() => {
     const defaults: RecommendationRequest = {
-      alpha: 0.25,
-      beta: 1.5,
+      alpha: 0.5,
+      beta: 0.5,
       quality_pref: 1.0,
       age_pref: 0.0,
       pop_pref: 0.0,
@@ -192,36 +208,72 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   }, [filters]); // Still watch filters to ensure UI stays in sync
 
   const handleReset = () => {
-    setFilters({
-      alpha: 0.25,
-      beta: 1.5,
-      quality_pref: 1.0,
-      age_pref: 0.0,
-      pop_pref: 0.0,
-      disc_pref: 0.0,
-      length_pref: 0.0,
-      difficulty_pref: 0.0,
-      price_pref: 0.0,
-      remove_vr: true,
-      english_only: true,
-      remove_nsfw: true,
-      remove_utilities: true,
-      remove_unreleased: true,
-      remove_delisted: true,
-      top_k: 30,
-      prompt: '',
-      seed_games: [],
-      genres: [],
-      tags: [],
-      profile_filter: 'none',
-      library_appids: [],
-      rated_appids: []
-    });
+    if (filters.vibe_vector && filters.metadata_weights) {
+      // Profile-aware reset: return to solved profile weights
+      const meta = filters.metadata_weights;
+      setFilters(prev => ({
+        ...prev,
+        alpha: typeof meta.semantic === 'number' ? meta.semantic : 0.5,
+        beta: typeof meta.tag_match === 'number' ? meta.tag_match : 0.5,
+        quality_pref: typeof meta.quality === 'number' ? meta.quality : 1.0,
+        age_pref: typeof meta.age === 'number' ? meta.age : 0.0,
+        pop_pref: typeof meta.popularity === 'number' ? meta.popularity : 0.0,
+        disc_pref: typeof meta.discovery === 'number' ? meta.discovery : 0.0,
+        length_pref: typeof meta.length === 'number' ? meta.length : 0.0,
+        difficulty_pref: typeof meta.difficulty === 'number' ? meta.difficulty : 0.0,
+        price_pref: typeof meta.price === 'number' ? meta.price : 0.0,
+        
+        // Still reset these to clean state
+        prompt: '',
+        seed_games: [],
+        genres: [],
+        tags: [],
+        
+        // Keep global toggles as they are, or reset to defaults?
+        // Let's reset to defaults for a true "Reset All"
+        remove_vr: true,
+        english_only: true,
+        remove_nsfw: true,
+        remove_utilities: true,
+        remove_unreleased: true,
+        remove_delisted: true,
+        
+        // Ensure profile remains active
+        profile_filter: 'all'
+      }));
+    } else {
+      // Standard global reset
+      setFilters({
+        alpha: 0.5,
+        beta: 0.5,
+        quality_pref: 1.0,
+        age_pref: 0.0,
+        pop_pref: 0.0,
+        disc_pref: 0.0,
+        length_pref: 0.0,
+        difficulty_pref: 0.0,
+        price_pref: 0.0,
+        remove_vr: true,
+        english_only: true,
+        remove_nsfw: true,
+        remove_utilities: true,
+        remove_unreleased: true,
+        remove_delisted: true,
+        top_k: 30,
+        prompt: '',
+        seed_games: [],
+        genres: [],
+        tags: [],
+        profile_filter: 'none',
+        library_appids: [],
+        rated_appids: []
+      });
+    }
   };
 
   const handleRandomizeSliders = () => {
-    const rand = () => parseFloat((Math.random() * 4 - 2).toFixed(2)); // -2.00 to 2.00
-    const randCore = () => parseFloat((Math.random() * 2).toFixed(2)); // 0.00 to 2.00 for alpha/beta
+    const rand = () => parseFloat((Math.random() * 2 - 1).toFixed(2)); // -1.00 to 1.00
+    const randCore = () => parseFloat(Math.random().toFixed(2)); // 0.00 to 1.00 for alpha/beta
     
     setFilters(prev => ({
       ...prev,
@@ -298,9 +350,25 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
         {showMobileFilters ? 'Close Preferences' : 'Preferences'}
       </button>
 
+      {/* Scroll to Top Button */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.5, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: 20 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className={`fixed ${windowWidth < 1024 ? 'bottom-24' : 'bottom-8'} right-8 z-[60] bg-secondary border border-border text-foreground p-3 rounded-full shadow-2xl hover:bg-secondary/80 transition-all group`}
+            title="Scroll to Top"
+          >
+            <ArrowUp size={24} className="group-hover:-translate-y-1 transition-transform" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar - Filters */}
       <AnimatePresence>
-        {(showMobileFilters || window.innerWidth >= 1024) && (
+        {(showMobileFilters || windowWidth >= 1024) && (
           <motion.aside 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
