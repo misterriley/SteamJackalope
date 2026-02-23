@@ -14,8 +14,8 @@ echo "=== SteamJackalope Deployment ==="
 echo "Project: $PROJECT_DIR"
 echo "Timestamp: $(date)"
 
-# Discard any local changes to this script before pulling
-git checkout -- deployment/deploy.sh 2>/dev/null || true
+# Discard any local changes to these files before pulling to prevent merge conflicts
+git checkout -- deployment/deploy.sh frontend/package.json frontend/package-lock.json 2>/dev/null || true
 
 echo ""
 echo ">>> Pulling from git..."
