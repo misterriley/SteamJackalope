@@ -200,13 +200,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     from sklearn.linear_model import LassoCV
     
-    # --- MODEL SELECTION: RAW VS SCALED ---
-    # We choose NOT to use StandardScaler because the input features are already 
-    # globally standardized (pop_z, date_z, whitened tags). 
-    # Local scaling in a biased user sample can over-represent low-variance features 
-    # that aren't actually predictive in the global population.
+    # --- MODEL SELECTION: LASSO ---
+    # We use LassoCV to find the best sparse model on the RAW (globally scaled) features.
+    # This maintains bit-perfect parity with the Recommender scoring logic.
+    from sklearn.linear_model import LassoCV
     
-    # Use LassoCV to find the best sparse model on the RAW (globally scaled) features
     model = LassoCV(cv=5, max_iter=20000, selection='random', tol=1e-3)
     model.fit(X, y)
     
@@ -789,15 +787,25 @@ def solve_user_taste(ground_truth_path, output_path=None):
         # 2. Use Hybrid Score (sum + 5.0)
         z_tag_clipped = np.clip(seed_tag_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
         
+        # Use Manual Mode Weight Multipliers for "Similar to" parity
+        from common.constants import (
+            QUALITY_WEIGHT_MULTIPLIER, AGE_WEIGHT_MULTIPLIER, 
+            SEMANTIC_WEIGHT_MULTIPLIER, TAG_WEIGHT_MULTIPLIER,
+            POPULARITY_WEIGHT_MULTIPLIER, PRICE_WEIGHT_MULTIPLIER,
+            LENGTH_WEIGHT_MULTIPLIER, DIFFICULTY_WEIGHT_MULTIPLIER
+        )
+        
+        # We use standard 1.0 baseline * multipliers to show "Natural Neighbors"
+        # Discovery remains at the user's solved optimal setting
         fav_seed_scores = calculate_hybrid_score(
-            z_semantic=seed_sem_sims, w_semantic=float(sem_norm),
-            z_tag=z_tag_clipped, w_tag=float(tag_norm),
-            z_spps=z_q_clipped, w_spps=float(coeffs[0]),
-            z_date=z_date_clipped, w_date=float(coeffs[1]),
-            z_pop=z_pop_clipped, w_pop=float(coeffs[2]),
-            z_length=z_playtime_clipped, w_length=float(coeffs[3]),
-            z_difficulty=z_difficulty_clipped, w_difficulty=float(coeffs[4]),
-            z_price=z_price_clipped, w_price=float(coeffs[5])
+            z_semantic=seed_sem_sims, w_semantic=1.0 * SEMANTIC_WEIGHT_MULTIPLIER,
+            z_tag=z_tag_clipped, w_tag=0.5 * TAG_WEIGHT_MULTIPLIER, # Default alpha/beta is 0.5
+            z_spps=z_q_clipped, w_spps=1.0 * QUALITY_WEIGHT_MULTIPLIER,
+            z_date=z_date_clipped, w_date=0.0 * AGE_WEIGHT_MULTIPLIER, # Neutral
+            z_pop=z_pop_clipped, w_pop=0.0 * POPULARITY_WEIGHT_MULTIPLIER,    # Neutral
+            z_length=z_playtime_clipped, w_length=0.0 * LENGTH_WEIGHT_MULTIPLIER,
+            z_difficulty=z_difficulty_clipped, w_difficulty=0.0 * DIFFICULTY_WEIGHT_MULTIPLIER,
+            z_price=z_price_clipped, w_price=0.0 * PRICE_WEIGHT_MULTIPLIER
         )
         
         # Filter and Sort

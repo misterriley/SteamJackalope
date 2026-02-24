@@ -159,13 +159,16 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, metadata_ou
             idx = np.random.choice(len(tag_vecs), sample_size, replace=False)
             
             t_scaled = (tag_vecs[idx].astype(np.float32) / (tag_norms[idx].reshape(-1, 1).astype(np.float32) + DOT_PRODUCT_LAMBDA)) * TAG_GLOBAL_SCALING_FACTOR
-            s_scaled_unit = embeddings_desc[idx].astype(np.float32) # Already unit normalized
+            
+            # For parity, we must match the variance of the PENALIZED semantic feature
+            # Feature = (raw / (1 + lambda)) * Factor
+            s_unit_penalized = embeddings_desc[idx].astype(np.float32) / (1.0 + semantic_lambda)
             
             tag_std = np.std(t_scaled, axis=0).mean()
-            sem_std_unit = np.std(s_scaled_unit, axis=0).mean()
+            sem_std_penalized = np.std(s_unit_penalized, axis=0).mean()
             
-            semantic_scaling = float(tag_std / (sem_std_unit + EPSILON))
-            print(f"Parity Match: Tag Std={tag_std:.6f}, Sem Unit Std={sem_std_unit:.6f} -> Scaling={semantic_scaling:.4f}")
+            semantic_scaling = float(tag_std / (sem_std_penalized + EPSILON))
+            print(f"Parity Match: Tag Std={tag_std:.6f}, Sem Penalized Std={sem_std_penalized:.6f} -> Scaling={semantic_scaling:.4f}")
         else:
             print("Tag files not found. Using fallback scaling factor 11.25")
             semantic_scaling = 11.25

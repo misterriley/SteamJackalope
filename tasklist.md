@@ -1,5 +1,6 @@
 # How to use this file
 
+- Only tackle one item from this list at a time. 
 - Prioritize tasks that take minimal effort to complete.
 - If a task takes significant effort, break it down into smaller pieces and add them as subtasks to this file before continuing.
 
