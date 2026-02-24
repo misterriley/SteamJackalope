@@ -26,6 +26,8 @@ def calculate_linear_scores(
     dot_product_lambda,
     z_semantic=None,
     w_semantic=0.0,
+    z_topic=None,
+    w_topic=0.0,
     z_clamp_min=-3.0,
     z_clamp_max=3.0,
     dna_scaling_factor=1.0,
@@ -54,8 +56,9 @@ def calculate_linear_scores(
         denom = tag_norms.astype(np.float32).reshape(-1) + dot_product_lambda
         tag_sim = (dot_products / denom) * tag_scaling_factor
     
-    # 3. Semantic Component
+    # 3. Semantic & Topic Components
     sem_contrib = (z_semantic * w_semantic) if z_semantic is not None else 0.0
+    topic_contrib = (z_topic * w_topic) if z_topic is not None else 0.0
 
     # 4. Summation: sum(weight_i * feature_i) + intercept
     scores = (
@@ -66,7 +69,8 @@ def calculate_linear_scores(
         diff * weights.get('difficulty', 0.0) +
         pr * weights.get('price', 0.0) +
         (tag_sim * weights.get('tag_match', 0.0)) +
-        sem_contrib
+        sem_contrib +
+        topic_contrib
     )
     # Divide by scaling factor to map back to original 0-10 scale
     # Only scale the deviations from the intercept.
@@ -207,3 +211,24 @@ def softmin_blend(signals: list, temperature: float = SOFTMIN_TEMPERATURE):
     
     # Blended similarity: sum(s_i * w_i)
     return np.sum(stack * weights, axis=0)
+
+def fast_jsd_similarity(p, Q_matrix, mean=None, std=None):
+    """
+    Calculates Jensen-Shannon Similarity (1 - JSD) between a probability vector p 
+    and a matrix of distributions Q. Optionally Z-scores the result using provided 
+    population mean and std.
+    """
+    eps = 1e-10
+    p = p + eps
+    Q = Q_matrix + eps
+    m = 0.5 * (p + Q)
+    # JS Div = 0.5 * KLD(P||M) + 0.5 * KLD(Q||M)
+    js_div = 0.5 * (np.sum(p * np.log(p / m), axis=-1) + np.sum(Q * np.log(Q / m), axis=-1))
+    # Similarity = 1 - sqrt(JSD)
+    sim = 1.0 - np.sqrt(np.maximum(js_div, 0))
+    
+    if mean is not None and std is not None:
+        # Z-score the similarity based on population stats
+        return (sim - mean) / (std if std > eps else 1.0)
+    
+    return sim

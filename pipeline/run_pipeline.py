@@ -156,6 +156,14 @@ def main():
     if os.path.exists(temp_metadata_path):
         os.remove(temp_metadata_path)
 
+    # 2.5 Generate Topic Model
+    # Uses the raw embeddings produced in the previous step
+    run_script(os.path.join(SCRIPT_DIR, "generate_topic_model.py"), [])
+    
+    # 2.6 Generate Topic Standardization Stats
+    # Required for the Taste Solver to equalize thematic feature variance
+    run_script(os.path.join(SCRIPT_DIR, "generate_topic_stats.py"), [])
+
     # 3. Generate Metadata
     # This ensures we have the most complete metadata, including z-scores and playtime info.
     metadata_path = config.get("metadata_file", "metadata.parquet")
@@ -184,7 +192,8 @@ def validate_outputs(clean_games_path):
         METADATA_FILE, 
         TAG_VECTORS_FILE, 
         TAG_NORMS_FILE,
-        QUALITY_GRID_FILE
+        QUALITY_GRID_FILE,
+        TOPIC_DISTRIBUTIONS_FILE
     )
     
     print("\n>>> Validating pipeline outputs...")
@@ -261,6 +270,27 @@ def validate_outputs(clean_games_path):
             errors.append(f"Error reading {QUALITY_GRID_FILE}: {e}")
     else:
         errors.append(f"{QUALITY_GRID_FILE} is missing")
+
+    # Check Topic Distributions
+    if os.path.exists(TOPIC_DISTRIBUTIONS_FILE):
+        try:
+            topic_dist = np.load(TOPIC_DISTRIBUTIONS_FILE)
+            if len(topic_dist) != expected_len:
+                errors.append(f"{TOPIC_DISTRIBUTIONS_FILE} has {len(topic_dist)} rows, expected {expected_len}")
+            
+            # Check Stats
+            means_path = os.path.join(PRODUCTION_DATA_DIR, "topic_means.npy")
+            stds_path = os.path.join(PRODUCTION_DATA_DIR, "topic_stds.npy")
+            if not os.path.exists(means_path) or not os.path.exists(stds_path):
+                errors.append("Topic standardization stats (means/stds) are missing")
+            else:
+                means = np.load(means_path)
+                if len(means) != topic_dist.shape[1]:
+                    errors.append(f"Topic means count ({len(means)}) does not match topic count ({topic_dist.shape[1]})")
+        except Exception as e:
+            errors.append(f"Error reading Topic artifacts: {e}")
+    else:
+        errors.append(f"{TOPIC_DISTRIBUTIONS_FILE} is missing")
         
     if errors:
         print("Validation FAILED:")

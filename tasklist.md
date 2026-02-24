@@ -23,6 +23,14 @@
 
 ### Next Priority
 
+#### Build 48: High-Fidelity Thematic Search
+- [x] **Raw Semantic Recovery**: Preserved unwhitened SentenceTransformer embeddings for manifold clustering.
+- [x] **BERTopic High-Res Map**: Generated 250 interpretable topics from 154k games with GPU-accelerated pre-processing.
+- [x] **Jensen-Shannon Standard**: Empirically optimized JSD temperature (T=0.05) to balance genre purity and atmospheric nuance.
+- [ ] **Taste Solver Integration**: Update `solve_user_taste.py` to include topic distributions as features for LASSO weight discovery.
+- [ ] **UI Search Slider**: Add 'Thematic Match' (Topic-based JSD) as a primary search signal in the frontend.
+- [ ] **Thematic Breakdown UI**: Display the top 3 topic keywords on the `GameCard` or Detail view for better explainability.
+
 #### Phase 1: Mathematical & Analytical Refinement
 - [ ] **Lognormal Rating Prediction**: Update rating predictions to use lognormal smoothing to estimate the probability of a positive review, then map that percentage to a 0-10 score (synced with the Bayesian quality scale).
 - [ ] **LASSO Difficulty Model**: Train a new difficulty model using both whitened tag and semantic vectors via 10-fold CV LASSO. Re-establish tag-level explainability for the new coefficients.

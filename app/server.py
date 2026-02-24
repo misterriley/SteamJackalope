@@ -77,9 +77,13 @@ from common.constants import (
     SEMANTIC_GLOBAL_SCALING_FACTOR,
     SOFTMIN_TEMPERATURE,
     SEMANTIC_SIMILARITY_MEAN,
-    SEMANTIC_SIMILARITY_STD
+    SEMANTIC_SIMILARITY_STD,
+    TOPIC_DISTRIBUTIONS_FILE,
+    TOPIC_MODEL_FILE,
+    TOPIC_GLOBAL_SCALING_FACTOR,
+    TOPIC_DOT_PRODUCT_LAMBDA
 )
-from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores, calculate_personalized_quality, softmin_blend
+from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores, calculate_personalized_quality, softmin_blend, fast_jsd_similarity
 
 app = FastAPI()
 
@@ -101,6 +105,8 @@ class DataManager:
         self.tag_vectors = None
         self.quality_grid = None
         self.tag_vectors_norms = None
+        self.topic_distributions = None
+        self.topic_model = None
         self.w_desc = None
         self.mean_desc = None
         self.model = None
@@ -200,6 +206,23 @@ class DataManager:
         self.quality_grid = np.load(QUALITY_GRID_FILE, mmap_mode='r')
         logger.info(f"Quality grid: shape={self.quality_grid.shape}, dtype={self.quality_grid.dtype}")
         
+        # 2.5 Load Topic Modeling Artifacts
+        if os.path.exists(TOPIC_DISTRIBUTIONS_FILE):
+            logger.info(f"Loading topic_distributions from {TOPIC_DISTRIBUTIONS_FILE}")
+            self.topic_distributions = np.load(TOPIC_DISTRIBUTIONS_FILE, mmap_mode='r')
+            logger.info(f"Topic distributions: shape={self.topic_distributions.shape}")
+        else:
+            logger.warning(f"Topic distributions file NOT FOUND at {TOPIC_DISTRIBUTIONS_FILE}")
+            
+        if os.path.exists(TOPIC_MODEL_FILE):
+            logger.info(f"Loading topic_model from {TOPIC_MODEL_FILE}")
+            import pickle
+            with open(TOPIC_MODEL_FILE, "rb") as f:
+                self.topic_model = pickle.load(f)
+            logger.info("Topic model loaded successfully")
+        else:
+            logger.warning(f"Topic model file NOT FOUND at {TOPIC_MODEL_FILE}")
+
         # 3. Load Metadata
         logger.info(f"Loading metadata from {METADATA_FILE}")
         # Determine which columns are actually available using pyarrow for speed
@@ -482,6 +505,7 @@ class UserVerifyUpdate(BaseModel):
 class RecommendationRequest(BaseModel):
     alpha: float = 0.5
     beta: float = 0.5
+    gamma: float = 0.5 # Topic Match weight
     quality_pref: float = 1.0
     age_pref: float = 0.0
     pop_pref: float = 0.0
@@ -504,6 +528,7 @@ class RecommendationRequest(BaseModel):
     # Taste DNA Extensions
     vibe_vector: Optional[List[float]] = None
     semantic_vibe_vector: Optional[List[float]] = None
+    topic_vibe_vector: Optional[List[float]] = None
     metadata_weights: Optional[Dict[str, float]] = None
     intercept: Optional[float] = 0.0
     scaling_factor: Optional[float] = 1.0
@@ -1139,7 +1164,53 @@ def recommend(request: RecommendationRequest):
 
     # 2. Semantic Component
     all_semantic_sims = np.zeros(len(metadata))
+    all_topic_sims = np.zeros(len(metadata)) # New Topic signal
+
     try:
+        # --- TOPIC SIGNAL CALCULATION ---
+        from common.constants import TOPIC_SIMILARITY_MEAN, TOPIC_SIMILARITY_STD
+        if data_manager.topic_distributions is not None:
+            topic_signals = []
+            
+            # A. Prompt Topic Distribution
+            if request.prompt:
+                clean_prompt = request.prompt.lower()
+                prompt_vec = data_manager.model.encode([clean_prompt])[0].astype(np.float32)
+                
+                # Map prompt to topic space
+                topic_embeddings = data_manager.topic_model.topic_embeddings_[1:] # Aligned
+                topic_sims_raw = np.dot(topic_embeddings, prompt_vec) # Cosine on unit vecs
+                
+                # Softmax with standardized T=0.05
+                topic_sims_raw = topic_sims_raw - np.max(topic_sims_raw)
+                exp_sim = np.exp(topic_sims_raw / 0.05)
+                prompt_topic_p = exp_sim / np.sum(exp_sim)
+                
+                # JSD Similarity (Z-scored)
+                prompt_topic_sims = fast_jsd_similarity(
+                    prompt_topic_p, 
+                    data_manager.topic_distributions,
+                    mean=TOPIC_SIMILARITY_MEAN,
+                    std=TOPIC_SIMILARITY_STD
+                )
+                topic_signals.append(prompt_topic_sims)
+            
+            # B. DNA Topic Vector
+            if request.topic_vibe_vector:
+                topic_vibe_p = np.array(request.topic_vibe_vector, dtype=np.float32)
+                dna_topic_sims = fast_jsd_similarity(
+                    topic_vibe_p, 
+                    data_manager.topic_distributions,
+                    mean=TOPIC_SIMILARITY_MEAN,
+                    std=TOPIC_SIMILARITY_STD
+                )
+                topic_signals.append(dna_topic_sims)
+            
+            # Blend Topic Signals (if multiple)
+            if topic_signals:
+                all_topic_sims = softmin_blend(topic_signals, temperature=SOFTMIN_TEMPERATURE)
+
+        # --- SEMANTIC SIGNAL CALCULATION ---
         if request.prompt or seed_appids or request.semantic_vibe_vector:
             def norm_vec(v):
                 mag = np.linalg.norm(v)
@@ -1252,7 +1323,8 @@ def recommend(request: RecommendationRequest):
             'length': request.length_pref,
             'difficulty': request.difficulty_pref,
             'price': request.price_pref,
-            'tag_match': w_tag
+            'tag_match': w_tag,
+            'topic_match': request.gamma # Add topic match to linear weights
         }
 
         beta_dna_unit = np.array(request.vibe_vector, dtype=np.float32)
@@ -1291,6 +1363,8 @@ def recommend(request: RecommendationRequest):
             dot_product_lambda=DOT_PRODUCT_LAMBDA,
             z_semantic=all_semantic_sims if (request.prompt or seed_appids or request.semantic_vibe_vector) else None,
             w_semantic=w_semantic,
+            z_topic=all_topic_sims if (request.prompt or request.topic_vibe_vector) else None,
+            w_topic=request.gamma,
             z_clamp_min=Z_SCORE_CLAMP_MIN,
             z_clamp_max=Z_SCORE_CLAMP_MAX,
             dna_scaling_factor=request.scaling_factor or 1.0,
@@ -1300,16 +1374,19 @@ def recommend(request: RecommendationRequest):
         final_scores = final_scores_all[keep_indices]
         w_semantic_active = w_semantic
         w_tag_active = w_tag
+        w_topic_active = request.gamma
         w_quality_active, w_date_active, w_pop_active, w_length_active, w_difficulty_active, w_price_active = [effective_weights[k] for k in ['quality', 'age', 'popularity', 'length', 'difficulty', 'price']]
     else:
         logger.info("Using Manual Mode")
-        w_semantic_active, w_tag_active, w_quality_active, w_date_active, w_pop_active, w_length_active, w_difficulty_active, w_price_active = [
-            request.alpha, request.beta, request.quality_pref, request.age_pref, request.pop_pref, request.length_pref, request.difficulty_pref, request.price_pref
+        w_semantic_active, w_tag_active, w_topic_active, w_quality_active, w_date_active, w_pop_active, w_length_active, w_difficulty_active, w_price_active = [
+            request.alpha, request.beta, request.gamma, request.quality_pref, request.age_pref, request.pop_pref, request.length_pref, request.difficulty_pref, request.price_pref
         ]
         z_tag_hybrid = np.clip(tag_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+        z_topic_hybrid = np.clip(all_topic_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
         final_scores = (
             (semantic_sims * w_semantic_active) +
             (z_tag_hybrid * w_tag_active) +
+            (z_topic_hybrid * w_topic_active) +
             (z_spps * w_quality_active) +
             (z_date * w_date_active) +
             (z_pop * w_pop_active) +

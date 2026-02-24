@@ -16,6 +16,7 @@ from common.constants import (
     TAG_VECTORS_FILE, 
     METADATA_FILE, 
     ROOT_DIR,
+    PRODUCTION_DATA_DIR,
     QUALITY_SCORE_S_CONST,
     GLOBAL_POSITIVE_RATE,
     W_TAG_FILE,
@@ -33,6 +34,9 @@ from common.constants import (
     EMBEDDINGS_DESC_NORMS_FILE,
     SEMANTIC_DOT_PRODUCT_LAMBDA,
     SEMANTIC_GLOBAL_SCALING_FACTOR,
+    TOPIC_DISTRIBUTIONS_FILE,
+    TOPIC_DOT_PRODUCT_LAMBDA,
+    TOPIC_GLOBAL_SCALING_FACTOR,
     Z_SCORE_CLAMP_MIN,
     Z_SCORE_CLAMP_MAX
 )
@@ -187,8 +191,28 @@ def solve_user_taste(ground_truth_path, output_path=None):
     user_sem_norms = semantic_norms[user_indices].reshape(-1, 1).astype(np.float32)
     user_sem_features_scaled = (user_sem_features_raw / (user_sem_norms + SEMANTIC_DOT_PRODUCT_LAMBDA)) * SEMANTIC_GLOBAL_SCALING_FACTOR
     
-    # Combine features: [Q (1)] + [Metadata (5)] + [Tags (k)] + [Semantic (235)]
-    X = np.hstack([q_global.reshape(-1, 1), user_meta_features, user_tag_features_scaled, user_sem_features_scaled])
+    # --- TOPIC FEATURES ---
+    print(f"Loading topic distributions and applying per-topic standardization...")
+    topic_distributions = np.load(TOPIC_DISTRIBUTIONS_FILE, mmap_mode='r')
+    user_topic_features_raw = topic_distributions[user_indices].astype(np.float32)
+    
+    # Load population stats for topic standardization
+    topic_means = np.load(os.path.join(PRODUCTION_DATA_DIR, "topic_means.npy"))
+    topic_stds = np.load(os.path.join(PRODUCTION_DATA_DIR, "topic_stds.npy"))
+    
+    # Z-score each dimension to unit variance
+    eps = 1e-10
+    user_topic_features_std = (user_topic_features_raw - topic_means) / (topic_stds + eps)
+    
+    # Scale to match Tag/Semantic variance (~0.5) before global scaling
+    # Standardizing to 1.0 made them too "loud" for LASSO
+    user_topic_features_calibrated = user_topic_features_std * np.sqrt(0.5)
+    
+    # Apply global scaling to match other components
+    user_topic_features_scaled = user_topic_features_calibrated * TOPIC_GLOBAL_SCALING_FACTOR
+
+    # Combine features: [Q (1)] + [Metadata (5)] + [Tags (k)] + [Semantic (235)] + [Topics (249)]
+    X = np.hstack([q_global.reshape(-1, 1), user_meta_features, user_tag_features_scaled, user_sem_features_scaled, user_topic_features_scaled])
     
     # --- STABILIZATION: Add a dummy game ---
     dummy_X = np.zeros((1, X.shape[1]))
@@ -220,17 +244,29 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # --- TAG PROJECTION ---
     # Project whitened coefficients back to original tag space to find predictive tags
     print("Projecting coefficients back to original tag space...")
+    # X = [Q] + [Meta(5)] + [Tags(k)] + [Semantic(235)] + [Topics(249)]
     tag_coeffs_adaptive = coeffs[6:6+k_adaptive]
-    sem_coeffs_full = coeffs[6+k_adaptive:]
+    sem_coeffs_full = coeffs[6+k_adaptive:6+k_adaptive+235]
+    topic_coeffs_full = coeffs[6+k_adaptive+235:]
     
     # PAD coefficients back to the full production K (e.g., 243)
     full_k = tag_vectors.shape[1]
     tag_coeffs_full = np.zeros(full_k)
     tag_coeffs_full[:k_adaptive] = tag_coeffs_adaptive
     
-    # Create full coefficient vector for scoring: [Q] + [5 Metadata] + [Full Tags]
-    # (Optional: we can keep sem_coeffs separate for better structured response)
-    
+    # --- TOPIC DIMENSIONS ANALYSIS ---
+    print("Extracting top predictive topics...")
+    topic_impacts = []
+    for i, w in enumerate(topic_coeffs_full):
+        if abs(w) > 1e-9:
+            topic_impacts.append({
+                'index': i,
+                'weight': float(w),
+                'abs_weight': abs(float(w))
+            })
+    topic_impacts = sorted(topic_impacts, key=lambda x: x['abs_weight'], reverse=True)
+    top_topics = topic_impacts[:10] # Track more internally, show 5
+
     # --- TAG DIMENSIONS ANALYSIS ---
     # Find the top 5 predictive dimensions from the whitened coefficients
     # These are dimensions that have the largest absolute weights in the LASSO model
@@ -832,6 +868,24 @@ def solve_user_taste(ground_truth_path, output_path=None):
                 'top_games': fav_top_games
             })
 
+    # Calculate Topic Norm and Unit Vector
+    topic_norm = np.linalg.norm(topic_coeffs_full)
+    if topic_norm > 1e-9:
+        topic_vibe_vector_unit = (topic_coeffs_full / topic_norm).tolist()
+    else:
+        topic_vibe_vector_unit = topic_coeffs_full.tolist()
+
+    # Load Topic Descriptions for the UI
+    from common.constants import TOPIC_DESCRIPTIONS_FILE
+    topic_descriptions = {}
+    if os.path.exists(TOPIC_DESCRIPTIONS_FILE):
+        with open(TOPIC_DESCRIPTIONS_FILE, 'r') as f:
+            topic_descriptions = json.load(f)
+
+    # Enhance top_topics with labels
+    for t in top_topics:
+        t['label'] = topic_descriptions.get(str(t['index']), f"Topic {t['index']}")
+
     # --- WEIGHT SCALING (UI SLIDERS ONLY) ---
     # We no longer scale weights to a fixed maximum. 
     # Sliders now display the RAW regression coefficients.
@@ -843,7 +897,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'difficulty': float(coeffs[4]),
         'price': float(coeffs[5]),
         'tag_match': float(tag_norm),
-        'semantic': float(sem_norm) 
+        'semantic': float(sem_norm),
+        'topic_match': float(topic_norm)
     }
     
     # Scaling factor remains 1.0 to preserve raw weights in the UI
@@ -906,10 +961,15 @@ def solve_user_taste(ground_truth_path, output_path=None):
             'correlations': sem_dim_correlations,
             'labels': sem_dim_verified_labels
         },
+        'topics': {
+            'top_topics': top_topics
+        },
         'vibe_vector': vibe_vector_unit,
         'semantic_vibe_vector': sem_vibe_vector_unit,
+        'topic_vibe_vector': topic_vibe_vector_unit,
         'alpha': float(sem_norm),
         'beta': float(tag_norm),
+        'gamma_topic': float(topic_norm),
         'intercept': 5.0, # Match the Neutral Anchor used in preview and UI
         'scaling_factor': float(scaling_factor),
         'r2': float(r2_train), # Use the high-precision training R2

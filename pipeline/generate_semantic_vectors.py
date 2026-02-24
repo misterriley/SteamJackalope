@@ -11,6 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from common.constants import (
     EMBEDDINGS_DESC_FILE, 
+    EMBEDDINGS_DESC_RAW_FILE,
     EMBEDDINGS_DESC_NORMS_FILE,
     W_DESC_FILE,
     MEAN_DESC_FILE,
@@ -59,7 +60,7 @@ def whiten(vectors, variance_threshold=0.95):
 
 def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, metadata_out,
                         w_desc_out=None, mean_desc_out=None,
-                        desc_norms_out=None):
+                        desc_norms_out=None, embeddings_desc_raw_out=None):
     """
     Generate semantic embeddings with optional custom output paths for whitening matrices and means.
     If the weight/mean outputs are None, they will not be saved (to prevent overwriting production files).
@@ -115,6 +116,10 @@ def generate_embeddings(csv_path, reviews_path, embeddings_desc_out, metadata_ou
     is_empty_desc = df['desc_text'].str.strip() == "description:  reviews:"
     embeddings_desc = model.encode(desc_texts, show_progress_bar=True, batch_size=BATCH_SIZE)
     embeddings_desc[is_empty_desc] = 0
+
+    if embeddings_desc_raw_out:
+        print(f"Saving raw (unwhitened) embeddings to {embeddings_desc_raw_out}...")
+        safe_save_npy(embeddings_desc_raw_out, embeddings_desc.astype(np.float16))
 
     print("Whitening descriptive embeddings...")
     embeddings_desc, W_desc, mean_desc = whiten(embeddings_desc, variance_threshold=0.95)
@@ -231,6 +236,7 @@ if __name__ == "__main__":
     parser.add_argument("--csv", default="scraped_games.csv", help="Input CSV file")
     parser.add_argument("--reviews", default="scraped_reviews.csv", help="Input reviews CSV file")
     parser.add_argument("--embeddings_desc", default=EMBEDDINGS_DESC_FILE, help="Output .npy file for description embeddings")
+    parser.add_argument("--embeddings_desc_raw", default=EMBEDDINGS_DESC_RAW_FILE, help="Output .npy file for raw (unwhitened) description embeddings")
     parser.add_argument("--metadata", default=None, help="Deprecated: metadata is now handled by generate_metadata.py")
     parser.add_argument("--w_desc", default=W_DESC_FILE, help="Output .npy file for desc whitening matrix")
     parser.add_argument("--mean_desc", default=MEAN_DESC_FILE, help="Output .npy file for desc mean vector")
@@ -246,7 +252,8 @@ if __name__ == "__main__":
             args.metadata,
             args.w_desc,
             args.mean_desc,
-            args.desc_norms
+            args.desc_norms,
+            args.embeddings_desc_raw
         )
     else:
         print(f"Error: {args.csv} not found.")
