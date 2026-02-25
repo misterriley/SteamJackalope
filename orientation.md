@@ -68,8 +68,10 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
 - **Metadata and Search:** The backend provides `/metadata`, `/genres`, `/term_links`, `/games/search`, and `/games/random` endpoints. `/games/search` enables fast autocomplete for seed game selection.
 - **Personalization Engine:** The system features a sophisticated "Taste DNA" pipeline.
     - **Async Solver:** The `/user/solve` endpoint runs an asynchronous subprocess to build a user's mathematical profile from their Steam history.
-    - **Hybrid LASSO Regression**: The solver uses **LASSO Regression** to identify the sparse subset of both **Tags** and **Semantic Vibe Dimensions** that truly define a user's taste.
-    - **Variance Parity Scaling**: Semantic features are scaled by **11.25x** to match tag variance, ensuring equal treatment in the regression.
+    - **Hybrid LASSO Regression**: The solver uses **LASSO Regression** to identify the sparse subset of **Tags**, **Semantic Vibe Dimensions**, and **Topics** that define a user's taste.
+    - **Status-Based Training (Build 55)**: The solver trains **exclusively** on games marked **'rated'** in the catalogue. Games marked 'played', 'backlog', or 'wishlist' provide library metadata for exclusion but do not influence the vibe vector calculation.
+    - **Zero-Order Relevance Filtering**: To prevent overfitting and increase training $R^2$, the solver applies a Pearson correlation filter to all 700+ thematic dimensions. Only the top $P$ dimensions ($P \le N-7$, where $N$ is the number of ratings) are eligible for the LASSO model.
+    - **Population-Correct Scaling**: Modalities are scaled based on population variance to ensure fair competition in the solver: Tags (1.0x), Semantics (~2.0x), and Topics (~26.4x).
     - **Adaptive Saturation:** Tag dimensionality scales dynamically with library size ($K = \text{clip}(N-6, 1, 243)$).
     - **Ordinal vs. Mathematical Parity:** While the system was designed for bit-perfect parity, the primary requirement is **Ordinal Parity**. The order of games retrieved from "Analyze My Catalogue" must match the order in "Recommendations" after exporting the profile. A linear transformation between the scoring spaces is acceptable as long as the relative ranking of games is preserved.
     - **Unified Pathway:** Both the Solver's preview and the Recommender's rankings utilize the exact same `calculate_linear_scores` logic in `common/utils.py`.

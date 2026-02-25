@@ -477,10 +477,14 @@ def get_storefront_data(app_id, refresh=False, verbose=False):
     data['categories'] = ",".join(set(categories))
 
     # 11. Languages
-    lang_table = re.search(r'<table class="game_language_options".*?>(.*?)</table>', html_content, re.DOTALL)
+    # Robust regex for table with potentially multiple spaces or attributes
+    lang_table = re.search(r'<table\s+class="game_language_options".*?>(.*?)</table>', html_content, re.DOTALL)
     if lang_table:
-        langs = re.findall(r'<td class="ellipsis">\s*([^<]*)\s*</td>', lang_table.group(1))
-        data['supported_languages'] = ",".join([clean_text(l) for l in langs])
+        # Only capture rows that ARE NOT marked as "unsupported"
+        # We look for rows, then check if they contain the unsupported class
+        rows = re.findall(r'<tr\s+style=""\s+class="([^"]*)">.*?<td\s+style="[^"]*"\s+class="ellipsis">\s*([^<]*?)\s*</td>', lang_table.group(1), re.DOTALL)
+        supported = [l.strip() for cls, l in rows if "unsupported" not in cls]
+        data['supported_languages'] = ",".join([clean_text(l) for l in supported])
     else:
         data['supported_languages'] = ""
 

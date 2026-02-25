@@ -228,4 +228,18 @@ Build 46 refined the discovery experience by enhancing the recommendation blendi
 
 - **Softmin Multi-Signal Blending**: The transition to Softmin blending (T=3.0) for multi-comparator signals (DNA + Seeds + Prompts) ensures that recommendations align with the **consensus** of all active targets. This prevents a single dominant signal (like a very specific prompt) from drowning out the user's broader taste DNA or seed game affinities.
 - **Backlog & discovery Decoupling**: We decoupled "Owned" status from "Discovery" eligibility. Previously, any game in a user's library was excluded from discovery results to prevent redundancy. Build 46 allows games with zero playtime (Backlog) to appear in discovery lists, enabling users to find hidden gems they already own but haven't yet played.
-- **Robustness in Filtering**: Implemented text-based placeholder detection for release dates, ensuring that games marked "Coming Soon" or "TBD" are correctly filtered even when their placeholder dates (like "today + 1 year") have technically passed due to old metadata.
+## 18. High-Fidelity Thematic Search (Build 48)
+
+To capture "genre-defying" atmospheric and thematic relationships, we added a third thematic layer using [**BERTopic**](https://maartengr.github.io/BERTopic/). 
+
+- **Topic Discovery**: We trained a topic model on the combined descriptions and reviews of the top 150,000 games on Steam. The model discovered **250 distinct topics** representing specific gameplay loops (e.g., "Deckbuilding + Rogue-lite"), settings ("Underwater + Submarine"), and technical niches ("VR + Physics").
+- **Keywords**: Each topic is defined by its top 10 keywords, which are displayed in the UI to provide human-readable "explainability" for the thematic match.
+- **JSD-Based Similarity**: Instead of cosine similarity, we measure the distance between games in the topic space using [**Jensen-Shannon Divergence (JSD)**](https://en.wikipedia.org/wiki/Jensen%E2%80%93Shannon_divergence). This is a specialized information-theoretic distance for probability distributions that balances the importance of both primary and secondary themes.
+- **Topic Match Slider**: This component provides a high-fidelity "Atmosphere" signal that complements the categorical "Tags" and narrative "Semantic Vibe" sliders.
+
+## 19. Precision DNA Solver (Build 49)
+
+To handle the complexity of solving across three thematic layers (Tags, Semantics, Topics) without overfitting, Build 49 introduced a **Zero-Order Relevance Filter**.
+
+- **Relevance Filtering (p <= N-7)**: Before the LASSO regression runs, the solver calculates the absolute Pearson correlation between every feature and the user's ratings. Only the top $P$ features (where $P$ is constrained by the number of ratings $N$) are allowed into the model. This ensures the solver always has enough "degrees of freedom" to find a stable solution, significantly increasing the training $R^2$ for users with smaller libraries.
+- **Population-Correct Scaling**: To ensure that Tags, Semantics, and Topics compete fairly in the sparse model, we normalize each modality based on its **Population Variance**. This prevents "Topics" (which naturally have low variance) from being ignored by the L1 penalty, ensuring your DNA captures your true atmospheric preferences.

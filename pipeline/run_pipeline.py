@@ -12,7 +12,9 @@ from common.constants import (
     W_DESC_FILE,
     MEAN_DESC_FILE,
     W_TAG_FILE,
-    DIFFICULTY_PREDICTIONS_FILE
+    DIFFICULTY_PREDICTIONS_FILE,
+    ROOT_DIR,
+    PRODUCTION_DATA_DIR
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -158,11 +160,15 @@ def main():
 
     # 2.5 Generate Topic Model
     # Uses the raw embeddings produced in the previous step
-    run_script(os.path.join(SCRIPT_DIR, "generate_topic_model.py"), [])
+    run_script(os.path.join(SCRIPT_DIR, "generate_topic_model.py"), [clean_games_path])
     
     # 2.6 Generate Topic Standardization Stats
     # Required for the Taste Solver to equalize thematic feature variance
-    run_script(os.path.join(SCRIPT_DIR, "generate_topic_stats.py"), [])
+    run_script(os.path.join(SCRIPT_DIR, "generate_topic_stats.py"), [clean_games_path])
+
+    # 2.7 Calculate Modality Multipliers
+    # Calibrates relative weighting of Tags, Semantics, and Topics based on population variance
+    run_script(os.path.join(ROOT_DIR, "research", "calculate_modality_variance.py"), [])
 
     # 3. Generate Metadata
     # This ensures we have the most complete metadata, including z-scores and playtime info.
@@ -193,7 +199,8 @@ def validate_outputs(clean_games_path):
         TAG_VECTORS_FILE, 
         TAG_NORMS_FILE,
         QUALITY_GRID_FILE,
-        TOPIC_DISTRIBUTIONS_FILE
+        TOPIC_DISTRIBUTIONS_FILE,
+        REGULARIZATION_FILE
     )
     
     print("\n>>> Validating pipeline outputs...")
@@ -291,6 +298,21 @@ def validate_outputs(clean_games_path):
             errors.append(f"Error reading Topic artifacts: {e}")
     else:
         errors.append(f"{TOPIC_DISTRIBUTIONS_FILE} is missing")
+
+    # Check Regularization Constants
+    if os.path.exists(REGULARIZATION_FILE):
+        try:
+            import json
+            with open(REGULARIZATION_FILE, 'r') as f:
+                reg_data = json.load(f)
+            required_keys = ["TAG_GLOBAL_SCALING_FACTOR", "SEMANTIC_GLOBAL_SCALING_FACTOR", "TOPIC_GLOBAL_SCALING_FACTOR"]
+            for key in required_keys:
+                if key not in reg_data:
+                    errors.append(f"{REGULARIZATION_FILE} is missing key: {key}")
+        except Exception as e:
+            errors.append(f"Error reading {REGULARIZATION_FILE}: {e}")
+    else:
+        errors.append(f"{REGULARIZATION_FILE} is missing")
         
     if errors:
         print("Validation FAILED:")

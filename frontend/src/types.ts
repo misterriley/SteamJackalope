@@ -79,6 +79,7 @@ export interface RecommendationRequest {
   profile_filter?: 'none' | 'rated' | 'all';
   library_appids?: number[];
   rated_appids?: number[];
+  ignored_appids?: number[];
   library_details?: Record<number, { playtime: number; personalized_q: number; p_plus_t: number }>;
 }
 

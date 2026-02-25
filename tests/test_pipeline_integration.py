@@ -104,11 +104,14 @@ class TestPipelineIntegration(unittest.TestCase):
         test_env = os.environ.copy()
         test_env["STEAM_METADATA_FILE"] = "test_metadata.parquet"
         test_env["STEAM_EMBEDDINGS_DESC_FILE"] = "test_embeddings_desc.npy"
+        test_env["STEAM_EMBEDDINGS_DESC_RAW_FILE"] = "test_embeddings_desc_raw.npy"
         test_env["STEAM_EMBEDDINGS_TAG_FILE"] = "test_embeddings_structural.npy"
         test_env["STEAM_TAG_VECTORS_FILE"] = "test_tag_vectors.npy"
         test_env["STEAM_TAG_NORMS_FILE"] = "test_tag_vectors_norms.npy"
         test_env["STEAM_QUALITY_GRID_FILE"] = "test_quality_scores_grid.npy"
         test_env["STEAM_REGULARIZATION_JSON"] = "test_regularization_constants.json"
+        test_env["STEAM_TOPIC_DISTRIBUTIONS_FILE"] = "test_topic_distributions.npy"
+        test_env["STEAM_TOPIC_MODEL_FILE"] = "test_topic_model.pkl"
 
         cmd = [
             sys.executable, os.path.join("pipeline", "run_pipeline.py"),

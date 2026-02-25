@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import type { TabType } from './components/Layout';
 import RecommendationsView from './components/RecommendationsView';
 import ListsView from './components/ListsView';
+import CatalogueView from './components/CatalogueView';
 import PersonalizationView from './components/PersonalizationView';
 import AboutView from './components/AboutView';
 import MethodologyView from './components/MethodologyView';
@@ -46,12 +47,13 @@ function App() {
     if (saved) {
       try {
         const filters = JSON.parse(saved);
-        const { vibe_vector, intercept, metadata_weights, library_appids, rated_appids, ...rest } = filters;
+        const { vibe_vector, intercept, metadata_weights, library_appids, rated_appids, ignored_appids, ...rest } = filters;
         sessionStorage.setItem('recommendations_filters', JSON.stringify({
           ...rest,
           profile_filter: 'none',
           library_appids: [],
-          rated_appids: []
+          rated_appids: [],
+          ignored_appids: []
         }));
       } catch (e) {}
     }
@@ -90,7 +92,8 @@ function App() {
         tags: [],
         profile_filter: 'none',
         library_appids: [],
-        rated_appids: []
+        rated_appids: [],
+        ignored_appids: []
       };
       
       let currentFilters = savedFiltersStr ? { ...defaults, ...JSON.parse(savedFiltersStr) } : defaults;
@@ -140,6 +143,7 @@ function App() {
         profile_filter: 'all',
         library_appids: profile.library_appids || [],
         rated_appids: profile.rated_appids || [],
+        ignored_appids: profile.ignored_appids || [],
         library_details: profile.library_details || {}
       };
 
@@ -167,6 +171,7 @@ function App() {
         />
       );
       case 'lists': return <ListsView />;
+      case 'catalogue': return <CatalogueView />;
       case 'personalize': return (
         <PersonalizationView 
           onApply={handleApplyProfile} 

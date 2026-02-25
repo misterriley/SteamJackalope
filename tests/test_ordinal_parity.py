@@ -40,6 +40,7 @@ def test_ordinal_parity_user_profile(client):
     solver_weights = solver_results['metadata']
     vibe_vector = solver_results['vibe_vector']
     semantic_vibe_vector = solver_results['semantic_vibe_vector']
+    topic_vibe_vector = solver_results.get('topic_vibe_vector')
     
     # 2. Extract top 10 AppIDs from solver
     solver_top_ids = [r['appid'] for r in solver_top_30[:10]]
@@ -50,6 +51,7 @@ def test_ordinal_parity_user_profile(client):
     payload = {
         "alpha": solver_weights.get('semantic', 1.0),
         "beta": solver_weights.get('tag_match', 1.0),
+        "gamma_topic": solver_weights.get('topic_match', 0.0),
         "quality_pref": solver_weights.get('quality', 1.0),
         "age_pref": solver_weights.get('age', 1.0),
         "pop_pref": solver_weights.get('popularity', 1.0),
@@ -60,6 +62,7 @@ def test_ordinal_parity_user_profile(client):
         "top_k": 30,
         "vibe_vector": vibe_vector,
         "semantic_vibe_vector": semantic_vibe_vector,
+        "topic_vibe_vector": topic_vibe_vector,
         "metadata_weights": solver_weights,
         "intercept": solver_results['intercept'],
                     "scaling_factor": solver_results['scaling_factor'],

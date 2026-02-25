@@ -1,7 +1,7 @@
 import React from 'react';
-import { Sparkles, BarChart2, Github, Info, BookOpen, History, RotateCcw } from 'lucide-react';
+import { Sparkles, BarChart2, Github, Info, BookOpen, History, RotateCcw, Table, Dna } from 'lucide-react';
 
-export type TabType = 'splash' | 'recommend' | 'lists' | 'personalize' | 'about' | 'methodology' | 'changelog';
+export type TabType = 'splash' | 'recommend' | 'lists' | 'catalogue' | 'personalize' | 'about' | 'methodology' | 'changelog';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -48,7 +48,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
               }`}
             >
               <BarChart2 size={16} />
-              Analysis
+              Trends
+            </button>
+            <button
+              onClick={() => onTabChange('catalogue')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'catalogue' 
+                  ? 'bg-card text-primary shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Table size={16} />
+              Catalogue
             </button>
             <button
               onClick={() => onTabChange('personalize')}
@@ -58,8 +69,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Sparkles size={16} />
-              Analyze My Catalogue
+              <Dna size={16} />
+              Taste DNA
             </button>
             <button
               onClick={() => onTabChange('about')}

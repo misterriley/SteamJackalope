@@ -501,11 +501,12 @@ class UserVerifyUpdate(BaseModel):
     appid: int
     actual_rating: float
     ignore: bool
+    status: Optional[str] = None
 
 class RecommendationRequest(BaseModel):
     alpha: float = 0.5
     beta: float = 0.5
-    gamma: float = 0.5 # Topic Match weight
+    gamma_topic: float = 0.5 # Topic Match weight
     quality_pref: float = 1.0
     age_pref: float = 0.0
     pop_pref: float = 0.0
@@ -537,6 +538,7 @@ class RecommendationRequest(BaseModel):
     profile_filter: Optional[str] = "none" # "none", "rated", "all"
     library_appids: Optional[List[int]] = []
     rated_appids: Optional[List[int]] = []
+    ignored_appids: Optional[List[int]] = []
     library_details: Optional[Dict[int, Dict[str, float]]] = {}
 
 # --- Endpoints ---
@@ -766,6 +768,14 @@ def get_verification_data(steam_id: str):
     
     if os.path.exists(gt_path):
         df_gt = pd.read_csv(gt_path)
+        # Ensure required columns exist for backward compatibility
+        if 'status' not in df_gt.columns:
+            df_gt['status'] = np.nan
+        if 'actual_rating' not in df_gt.columns:
+            df_gt['actual_rating'] = np.nan
+        if 'ignore' not in df_gt.columns:
+            df_gt['ignore'] = False
+
         # 1. Identify games in GT that are NOT in SL (Manual Additions)
         manual_appids = df_gt[~df_gt['appid'].isin(df_sl['appid'])]['appid'].tolist()
         
@@ -783,6 +793,7 @@ def get_verification_data(steam_id: str):
                     'predicted_rating': 5, # Default for manual
                     'actual_rating': gt_row['actual_rating'],
                     'ignore': bool(gt_row['ignore']),
+                    'status': gt_row.get('status', 'ignored' if gt_row['ignore'] else 'rated'),
                     'is_manual': True,
                     'is_nsfw': bool(row.get('is_nsfw', False))
                 })
@@ -802,10 +813,22 @@ def get_verification_data(steam_id: str):
         is_placeholder_merged = df_sl_visible['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True)
         df_sl_visible = df_sl_visible[~is_placeholder_merged].copy()
         
-        df = df_sl_visible.merge(df_gt[['appid', 'actual_rating', 'ignore']], on='appid', how='left')
+        df = df_sl_visible.merge(df_gt[['appid', 'actual_rating', 'ignore', 'status']], on='appid', how='left')
         df['actual_rating'] = df['actual_rating'].fillna(df['predicted_rating'])
         df['ignore'] = df['ignore'].fillna(False)
         df['is_manual'] = False
+        
+        # Define default status
+        def get_default_status(row):
+            if not pd.isna(row.get('status')): return row['status']
+            if row['ignore']: return 'ignored'
+            return 'played' # Default for verify view visible games
+        
+        df['status'] = df.apply(get_default_status, axis=1)
+        
+        # Build 55: Filter out ignored games from the Verify view
+        df = df[df['status'] != 'ignored'].copy()
+        manual_rows = [m for m in manual_rows if m.get('status') != 'ignored']
         
         # 4. Combine
         final_list = df.to_dict(orient='records') + manual_rows
@@ -827,9 +850,89 @@ def get_verification_data(steam_id: str):
         df_visible['actual_rating'] = df_visible['predicted_rating']
         df_visible['ignore'] = False
         df_visible['is_manual'] = False
+        df_visible['status'] = 'played'
         final_list = df_visible.to_dict(orient='records')
         
     # JSON cannot handle NaN values, and NumPy types cause errors.
+    return ensure_python_types(final_list)
+
+@app.get("/user/catalogue/{steam_id}")
+def get_catalogue_data(steam_id: str):
+    """Returns all games in library plus manual additions for the Catalogue UI."""
+    gt_path = f"data/user_{steam_id}_ground_truth.csv"
+    sl_path = f"data/user_{steam_id}_soft_labels.csv"
+    
+    if not os.path.exists(sl_path):
+        raise HTTPException(status_code=404, detail="User data not found. Please fetch first.")
+    
+    df_sl = pd.read_csv(sl_path)
+    
+    # Merge with metadata for is_nsfw, etc.
+    metadata = data_manager.metadata
+    df_sl = df_sl.merge(metadata[['appid', 'is_nsfw', 'parsed_date', 'release_date']], on='appid', how='left')
+    
+    if os.path.exists(gt_path):
+        df_gt = pd.read_csv(gt_path)
+        # Ensure required columns exist for backward compatibility
+        if 'status' not in df_gt.columns:
+            df_gt['status'] = np.nan
+        if 'actual_rating' not in df_gt.columns:
+            df_gt['actual_rating'] = np.nan
+        if 'ignore' not in df_gt.columns:
+            df_gt['ignore'] = False
+
+        # Identify manual additions
+        manual_appids = df_gt[~df_gt['appid'].isin(df_sl['appid'])]['appid'].tolist()
+        
+        manual_rows = []
+        if manual_appids:
+            m_data = metadata[metadata['appid'].isin(manual_appids)]
+            for _, row in m_data.iterrows():
+                gt_row = df_gt[df_gt['appid'] == row['appid']].iloc[0]
+                status = gt_row.get('status')
+                if pd.isna(status):
+                    status = 'ignored' if gt_row['ignore'] else 'rated'
+                
+                manual_rows.append({
+                    'appid': int(row['appid']),
+                    'name': row['name'],
+                    'playtime_forever': 0,
+                    'predicted_rating': 5,
+                    'actual_rating': gt_row['actual_rating'],
+                    'ignore': bool(gt_row['ignore']),
+                    'status': status,
+                    'is_manual': True,
+                    'is_nsfw': bool(row.get('is_nsfw', False))
+                })
+        
+        # Merge library games
+        df = df_sl.merge(df_gt[['appid', 'actual_rating', 'ignore', 'status']], on='appid', how='left')
+        df['actual_rating'] = df['actual_rating'].fillna(df['predicted_rating'])
+        df['ignore'] = df['ignore'].fillna(False)
+        df['is_manual'] = False
+        
+        # Define default status if missing
+        def get_default_status(row):
+            if not pd.isna(row.get('status')):
+                return row['status']
+            if row['ignore']:
+                return 'ignored'
+            if row['has_playtime']:
+                return 'played'
+            return 'backlog'
+            
+        df['status'] = df.apply(get_default_status, axis=1)
+        
+        final_list = df.to_dict(orient='records') + manual_rows
+    else:
+        # Initial fetch
+        df = df_sl.copy()
+        df['actual_rating'] = df['predicted_rating']
+        df['ignore'] = False
+        df['is_manual'] = False
+        df['status'] = df.apply(lambda r: 'played' if r['has_playtime'] else 'backlog', axis=1)
+        final_list = df.to_dict(orient='records')
+        
     return ensure_python_types(final_list)
 
 @app.post("/user/verify")
@@ -844,7 +947,7 @@ def update_verification_data(updates: List[UserVerifyUpdate]):
     if os.path.exists(gt_path):
         df = pd.read_csv(gt_path)
     else:
-        df = pd.DataFrame(columns=['appid', 'actual_rating', 'ignore'])
+        df = pd.DataFrame(columns=['appid', 'actual_rating', 'ignore', 'status'])
         
     for up in updates:
         # Update or add
@@ -852,8 +955,15 @@ def update_verification_data(updates: List[UserVerifyUpdate]):
         if mask.any():
             df.loc[mask, 'actual_rating'] = up.actual_rating
             df.loc[mask, 'ignore'] = up.ignore
+            if up.status:
+                df.loc[mask, 'status'] = up.status
         else:
-            new_row = pd.DataFrame([{'appid': up.appid, 'actual_rating': up.actual_rating, 'ignore': up.ignore}])
+            new_row = pd.DataFrame([{
+                'appid': up.appid, 
+                'actual_rating': up.actual_rating, 
+                'ignore': up.ignore,
+                'status': up.status
+            }])
             df = pd.concat([df, new_row], ignore_index=True)
             
     df.to_csv(gt_path, index=False)
@@ -1141,6 +1251,10 @@ def recommend(request: RecommendationRequest):
     if request.remove_delisted or is_linear_mode:
         mask &= ~metadata['is_delisted'].values.astype(bool)
 
+    # 7. No Games with Zero Reviews (Parity with Solver)
+    total_reviews = metadata['positive'].fillna(0) + metadata['negative'].fillna(0)
+    mask &= (total_reviews > 0).values
+
     if request.genres:
         genre_mask = np.zeros(len(metadata), dtype=bool)
         for genre in request.genres:
@@ -1197,17 +1311,17 @@ def recommend(request: RecommendationRequest):
             
             # B. DNA Topic Vector
             if request.topic_vibe_vector:
-                topic_vibe_p = np.array(request.topic_vibe_vector, dtype=np.float32)
-                dna_topic_sims = fast_jsd_similarity(
-                    topic_vibe_p, 
-                    data_manager.topic_distributions,
-                    mean=TOPIC_SIMILARITY_MEAN,
-                    std=TOPIC_SIMILARITY_STD
-                )
+                topic_vibe_unit = np.array(request.topic_vibe_vector, dtype=np.float32)
+                # Use dot product for DNA mode (parity with solver)
+                # Population stats are not applied here because the solver already 
+                # operates on the scaled thematic space.
+                dna_topic_sims = np.dot(data_manager.topic_distributions.astype(np.float32) * TOPIC_GLOBAL_SCALING_FACTOR, topic_vibe_unit)
                 topic_signals.append(dna_topic_sims)
             
             # Blend Topic Signals (if multiple)
             if topic_signals:
+                # Signals are already on the correct global variance scale (Tags/Semantics parity)
+                # Topic JSD is Z-scored, and DNA Topic sims are scaled by TOPIC_GLOBAL_SCALING_FACTOR in dot product.
                 all_topic_sims = softmin_blend(topic_signals, temperature=SOFTMIN_TEMPERATURE)
 
         # --- SEMANTIC SIGNAL CALCULATION ---
@@ -1324,7 +1438,7 @@ def recommend(request: RecommendationRequest):
             'difficulty': request.difficulty_pref,
             'price': request.price_pref,
             'tag_match': w_tag,
-            'topic_match': request.gamma # Add topic match to linear weights
+            'topic_match': request.gamma_topic # Add topic match to linear weights
         }
 
         beta_dna_unit = np.array(request.vibe_vector, dtype=np.float32)
@@ -1364,7 +1478,7 @@ def recommend(request: RecommendationRequest):
             z_semantic=all_semantic_sims if (request.prompt or seed_appids or request.semantic_vibe_vector) else None,
             w_semantic=w_semantic,
             z_topic=all_topic_sims if (request.prompt or request.topic_vibe_vector) else None,
-            w_topic=request.gamma,
+            w_topic=request.gamma_topic,
             z_clamp_min=Z_SCORE_CLAMP_MIN,
             z_clamp_max=Z_SCORE_CLAMP_MAX,
             dna_scaling_factor=request.scaling_factor or 1.0,
@@ -1374,15 +1488,16 @@ def recommend(request: RecommendationRequest):
         final_scores = final_scores_all[keep_indices]
         w_semantic_active = w_semantic
         w_tag_active = w_tag
-        w_topic_active = request.gamma
+        w_topic_active = request.gamma_topic
         w_quality_active, w_date_active, w_pop_active, w_length_active, w_difficulty_active, w_price_active = [effective_weights[k] for k in ['quality', 'age', 'popularity', 'length', 'difficulty', 'price']]
     else:
         logger.info("Using Manual Mode")
         w_semantic_active, w_tag_active, w_topic_active, w_quality_active, w_date_active, w_pop_active, w_length_active, w_difficulty_active, w_price_active = [
-            request.alpha, request.beta, request.gamma, request.quality_pref, request.age_pref, request.pop_pref, request.length_pref, request.difficulty_pref, request.price_pref
+            request.alpha, request.beta, request.gamma_topic, request.quality_pref, request.age_pref, request.pop_pref, request.length_pref, request.difficulty_pref, request.price_pref
         ]
+        topic_sims = all_topic_sims[keep_indices] # Slice to filtered pool
         z_tag_hybrid = np.clip(tag_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-        z_topic_hybrid = np.clip(all_topic_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+        z_topic_hybrid = np.clip(topic_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
         final_scores = (
             (semantic_sims * w_semantic_active) +
             (z_tag_hybrid * w_tag_active) +
@@ -1400,6 +1515,11 @@ def recommend(request: RecommendationRequest):
     meta_filt = metadata.iloc[keep_indices].copy()
     if seed_appids:
         final_scores[meta_filt['appid'].isin(seed_appids)] = -1e12
+    
+    # Global Ignore (Build 55)
+    if request.ignored_appids:
+        final_scores[meta_filt['appid'].isin(request.ignored_appids)] = -1e12
+
     if request.profile_filter != "none":
         if request.profile_filter == "all":
             exclude_appids = request.library_appids

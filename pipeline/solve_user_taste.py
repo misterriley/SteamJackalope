@@ -38,7 +38,9 @@ from common.constants import (
     TOPIC_DOT_PRODUCT_LAMBDA,
     TOPIC_GLOBAL_SCALING_FACTOR,
     Z_SCORE_CLAMP_MIN,
-    Z_SCORE_CLAMP_MAX
+    Z_SCORE_CLAMP_MAX,
+    SIMILARITY_THRESHOLD_FAVORITES,
+    DNA_SOLVER_DOF_PROTECTION
 )
 from common.utils import softmin_blend
 
@@ -48,17 +50,16 @@ def solve_user_taste(ground_truth_path, output_path=None):
     """
     print(f"Loading ground truth from {ground_truth_path}...")
     df_gt = pd.read_csv(ground_truth_path)
-    
-    # Load full library from soft labels to ensure ALL owned games (including zero playtime)
-    # are tracked for exclusion, even if they aren't in the training set.
     sl_path = ground_truth_path.replace('_ground_truth.csv', '_soft_labels.csv')
-    all_library_appids = set()
+    
+    # Load full library from soft labels (Steam owned)
+    steam_library_appids = set()
     library_details = {} # appid -> {playtime, personalized_q, p_plus_t}
     
     if os.path.exists(sl_path):
         print(f"Loading full library list from {sl_path}...")
         df_sl = pd.read_csv(sl_path)
-        all_library_appids.update(df_sl['appid'].unique().tolist())
+        steam_library_appids.update(df_sl['appid'].unique().tolist())
         # Store details for personalization
         for _, row in df_sl.iterrows():
             aid = int(row['appid'])
@@ -68,19 +69,41 @@ def solve_user_taste(ground_truth_path, output_path=None):
                 'p_plus_t': float(row['p_plus_t'])
             }
     
-    # Also include anything in ground truth (manual additions, rated games)
-    all_library_appids.update(df_gt['appid'].unique().tolist())
-    all_library_appids = list(all_library_appids)
+    # Identify games that should be EXCLUDED from discovery (owned/rated/ignored)
+    # Build 55: We explicitly ALLOW 'wishlist' games to show up in discovery lists.
+    discovery_exclude_appids = steam_library_appids.copy()
+    
+    if 'status' in df_gt.columns:
+        # Exclude everything explicitly marked as owned or rated
+        discovery_exclude_appids.update(df_gt[df_gt['status'].isin(['backlog', 'played', 'rated'])]['appid'].tolist())
+        # Ignored games are also excluded
+        discovery_exclude_appids.update(df_gt[df_gt['status'] == 'ignored']['appid'].tolist())
+    else:
+        # Fallback for old files: exclude anything with a rating or marked ignore
+        if 'ignore' in df_gt.columns:
+            discovery_exclude_appids.update(df_gt[df_gt['ignore'] == True]['appid'].tolist())
+        discovery_exclude_appids.update(df_gt.dropna(subset=['actual_rating'])['appid'].tolist())
+
+    # All managed appids for JSON (for stats/debugging)
+    all_managed_appids = list(steam_library_appids.union(set(df_gt['appid'].unique().tolist())))
     
     # Filter for regression training: remove ignored and NaN ratings
     # Get list of ignored appids for the JSON
     ignored_appids = []
-    if 'ignore' in df_gt.columns:
+    if 'status' in df_gt.columns:
+        ignored_appids = df_gt[df_gt['status'] == 'ignored']['appid'].tolist()
+    elif 'ignore' in df_gt.columns:
         ignored_appids = df_gt[df_gt['ignore'] == True]['appid'].tolist()
 
     df = df_gt.copy()
-    if 'ignore' in df.columns:
-        df = df[df['ignore'] == False].copy()
+    # Build 55: The Analysis Filter
+    # Only games marked 'rated' are used for solving Taste DNA.
+    if 'status' in df.columns:
+        df = df[df['status'] == 'rated'].copy()
+    else:
+        # Fallback for legacy files
+        if 'ignore' in df.columns:
+            df = df[df['ignore'] == False].copy()
     
     if 'actual_rating' not in df.columns:
         print("Error: actual_rating column not found. Please verify ratings in the UI first.")
@@ -190,29 +213,42 @@ def solve_user_taste(ground_truth_path, output_path=None):
     user_sem_features_raw = semantic_vectors[user_indices].astype(np.float32)
     user_sem_norms = semantic_norms[user_indices].reshape(-1, 1).astype(np.float32)
     user_sem_features_scaled = (user_sem_features_raw / (user_sem_norms + SEMANTIC_DOT_PRODUCT_LAMBDA)) * SEMANTIC_GLOBAL_SCALING_FACTOR
-    
+
     # --- TOPIC FEATURES ---
-    print(f"Loading topic distributions and applying per-topic standardization...")
+    print(f"Loading topic distributions and applying population-correct scaling...")
     topic_distributions = np.load(TOPIC_DISTRIBUTIONS_FILE, mmap_mode='r')
     user_topic_features_raw = topic_distributions[user_indices].astype(np.float32)
-    
-    # Load population stats for topic standardization
-    topic_means = np.load(os.path.join(PRODUCTION_DATA_DIR, "topic_means.npy"))
-    topic_stds = np.load(os.path.join(PRODUCTION_DATA_DIR, "topic_stds.npy"))
-    
-    # Z-score each dimension to unit variance
-    eps = 1e-10
-    user_topic_features_std = (user_topic_features_raw - topic_means) / (topic_stds + eps)
-    
-    # Scale to match Tag/Semantic variance (~0.5) before global scaling
-    # Standardizing to 1.0 made them too "loud" for LASSO
-    user_topic_features_calibrated = user_topic_features_std * np.sqrt(0.5)
-    
-    # Apply global scaling to match other components
-    user_topic_features_scaled = user_topic_features_calibrated * TOPIC_GLOBAL_SCALING_FACTOR
+    # Simple multiplier scaling for topics (derived from population variance study)
+    user_topic_features_scaled = user_topic_features_raw * TOPIC_GLOBAL_SCALING_FACTOR
 
-    # Combine features: [Q (1)] + [Metadata (5)] + [Tags (k)] + [Semantic (235)] + [Topics (249)]
-    X = np.hstack([q_global.reshape(-1, 1), user_meta_features, user_tag_features_scaled, user_sem_features_scaled, user_topic_features_scaled])
+    # Combine all thematic features for relevance filtering
+    all_thematic_raw = np.hstack([user_tag_features_scaled, user_sem_features_scaled, user_topic_features_scaled])
+    group_names = (['Tag'] * user_tag_features_scaled.shape[1] + 
+                   ['Semantic'] * user_sem_features_scaled.shape[1] + 
+                   ['Topic'] * user_topic_features_scaled.shape[1])
+    
+    # --- RELEVANCE FILTERING (DOF Constraint: p <= n) ---
+    print(f"Applying Zero-Order Relevance Filter (p <= {num_ratings - 7})...")
+    correlations = []
+    for i in range(all_thematic_raw.shape[1]):
+        feat = all_thematic_raw[:, i]
+        # Pearson correlation with actual ratings
+        if np.std(feat) > 1e-9 and np.std(y) > 1e-9:
+            corr = np.corrcoef(feat, y)[0, 1]
+        else:
+            corr = 0.0
+        correlations.append(abs(corr))
+    
+    allowed_p = max(1, num_ratings - DNA_SOLVER_DOF_PROTECTION)
+    # Get indices of top P thematic features
+    thematic_survivor_indices = np.argsort(-np.array(correlations))[:allowed_p]
+    user_thematic_filtered = all_thematic_raw[:, thematic_survivor_indices]
+    
+    # Track which groups survived for reporting
+    survivor_groups = [group_names[i] for i in thematic_survivor_indices]
+
+    # Build Final X: [Q (1)] + [Metadata (5)] + [Filtered Thematic (allowed_p)]
+    X = np.hstack([q_global.reshape(-1, 1), user_meta_features, user_thematic_filtered])
     
     # --- STABILIZATION: Add a dummy game ---
     dummy_X = np.zeros((1, X.shape[1]))
@@ -223,37 +259,60 @@ def solve_user_taste(ground_truth_path, output_path=None):
     print(f"Solving Lasso regression for {len(y)} samples across {X.shape[1]} features...")
     
     from sklearn.linear_model import LassoCV
-    
-    # --- MODEL SELECTION: LASSO ---
-    # We use LassoCV to find the best sparse model on the RAW (globally scaled) features.
-    # This maintains bit-perfect parity with the Recommender scoring logic.
-    from sklearn.linear_model import LassoCV
-    
     model = LassoCV(cv=5, max_iter=20000, selection='random', tol=1e-3)
     model.fit(X, y)
     
-    # Coefficients are already on the correct scale
     coeffs = model.coef_
     intercept = model.intercept_
     
     print(f"Optimal Alpha: {model.alpha_:.4f}")
-    # Calculate R^2 on the training set
     r2_train = model.score(X, y)
     print(f"Model Training R^2: {r2_train:.4f}")
 
-    # --- TAG PROJECTION ---
-    # Project whitened coefficients back to original tag space to find predictive tags
-    print("Projecting coefficients back to original tag space...")
-    # X = [Q] + [Meta(5)] + [Tags(k)] + [Semantic(235)] + [Topics(249)]
-    tag_coeffs_adaptive = coeffs[6:6+k_adaptive]
-    sem_coeffs_full = coeffs[6+k_adaptive:6+k_adaptive+235]
-    topic_coeffs_full = coeffs[6+k_adaptive+235:]
+    # --- COEFFICIENT EXTRACTION ---
+    # Extract meta and thematic parts
+    meta_coeffs = coeffs[:6]
+    thematic_coeffs = coeffs[6:]
     
-    # PAD coefficients back to the full production K (e.g., 243)
+    # Re-map thematic coefficients back to their original groups
+    # This allows us to calculate the norm (Slider Weight) for each modality
+    tag_survivor_coeffs = thematic_coeffs[[i for i, g in enumerate(survivor_groups) if g == 'Tag']]
+    sem_survivor_coeffs = thematic_coeffs[[i for i, g in enumerate(survivor_groups) if g == 'Semantic']]
+    top_survivor_coeffs = thematic_coeffs[[i for i, g in enumerate(survivor_groups) if g == 'Topic']]
+    
+    tag_norm = np.linalg.norm(tag_survivor_coeffs) if len(tag_survivor_coeffs) > 0 else 0.0
+    sem_norm = np.linalg.norm(sem_survivor_coeffs) if len(sem_survivor_coeffs) > 0 else 0.0
+    top_norm = np.linalg.norm(top_survivor_coeffs) if len(top_survivor_coeffs) > 0 else 0.0
+
+    # Project TAG survivors back to original full space for unit vector
     full_k = tag_vectors.shape[1]
     tag_coeffs_full = np.zeros(full_k)
-    tag_coeffs_full[:k_adaptive] = tag_coeffs_adaptive
-    
+    tag_indices_in_survivors = [i for i, g in enumerate(survivor_groups) if g == 'Tag']
+    for idx_in_surv in tag_indices_in_survivors:
+        orig_tag_dim_idx = thematic_survivor_indices[idx_in_surv] # This is 0-indexed in all_thematic
+        # Tag dims were first in all_thematic
+        tag_coeffs_full[orig_tag_dim_idx] = thematic_coeffs[idx_in_surv]
+
+    # Calculate Vibe Vector Unit (for Tag Match Slider)
+    if tag_norm > 1e-9:
+        vibe_vector_unit = tag_coeffs_full / tag_norm
+    else:
+        vibe_vector_unit = np.zeros(full_k)
+
+    # Project SEMANTIC survivors back to full 235-dim space
+    sem_coeffs_full = np.zeros(235)
+    sem_indices_in_survivors = [i for i, g in enumerate(survivor_groups) if g == 'Semantic']
+    for idx_in_surv in sem_indices_in_survivors:
+        orig_dim_idx = thematic_survivor_indices[idx_in_surv] - k_adaptive # Offset by tag count
+        sem_coeffs_full[orig_dim_idx] = thematic_coeffs[idx_in_surv]
+
+    # Project TOPIC survivors back to full 249-dim space
+    topic_coeffs_full = np.zeros(249)
+    top_indices_in_survivors = [i for i, g in enumerate(survivor_groups) if g == 'Topic']
+    for idx_in_surv in top_indices_in_survivors:
+        orig_dim_idx = thematic_survivor_indices[idx_in_surv] - k_adaptive - 235 # Offset by tags + semantics
+        topic_coeffs_full[orig_dim_idx] = thematic_coeffs[idx_in_surv]
+
     # --- TOPIC DIMENSIONS ANALYSIS ---
     print("Extracting top predictive topics...")
     topic_impacts = []
@@ -265,14 +324,13 @@ def solve_user_taste(ground_truth_path, output_path=None):
                 'abs_weight': abs(float(w))
             })
     topic_impacts = sorted(topic_impacts, key=lambda x: x['abs_weight'], reverse=True)
-    top_topics = topic_impacts[:10] # Track more internally, show 5
+    top_topics = topic_impacts[:10] 
 
     # --- TAG DIMENSIONS ANALYSIS ---
-    # Find the top 5 predictive dimensions from the whitened coefficients
-    # These are dimensions that have the largest absolute weights in the LASSO model
+    # Find the top 5 predictive dimensions from the survivors
     print("Extracting top predictive dimensions...")
     dim_impacts = []
-    for i, w in enumerate(tag_coeffs_adaptive):
+    for i, w in enumerate(tag_coeffs_full):
         if abs(w) > 1e-9:
             dim_impacts.append({
                 'index': i,
@@ -280,17 +338,22 @@ def solve_user_taste(ground_truth_path, output_path=None):
                 'abs_weight': abs(float(w))
             })
     
-    # Sort by absolute weight descending
     dim_impacts = sorted(dim_impacts, key=lambda x: x['abs_weight'], reverse=True)
-    
-    # Take top 5 or just positive if sparse (as requested)
-    if len(dim_impacts) < 5:
-        top_dims = [d for d in dim_impacts if d['weight'] > 0]
-    else:
-        top_dims = dim_impacts[:5]
+    top_dims = dim_impacts[:5]
 
     # --- SEMANTIC DIMENSIONS ANALYSIS ---
     print("Extracting top predictive semantic dimensions...")
+    sem_dim_impacts = []
+    for i, w in enumerate(sem_coeffs_full):
+        if abs(w) > 1e-9:
+            sem_dim_impacts.append({
+                'index': i,
+                'weight': float(w),
+                'abs_weight': abs(float(w))
+            })
+    
+    sem_dim_impacts = sorted(sem_dim_impacts, key=lambda x: x['abs_weight'], reverse=True)
+    top_sem_dims = sem_dim_impacts[:5]
     sem_dim_impacts = []
     for i, w in enumerate(sem_coeffs_full):
         if abs(w) > 1e-9:
@@ -543,28 +606,15 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Load All Tag Vectors for scoring and similarity
     all_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
     
-    # Identify games that are truly "known" vs "backlog"
-    # Backlog: Owned (in library) but zero playtime OR marked as ignored.
-    # Completed/Known: Played > 0 OR has a rating in ground truth.
-    rated_appids = df['appid'].tolist()
-    completed_indices = []
-    backlog_indices = []
+    # Build 55: Precise Status Filtering
+    # Backlog: Specifically marked 'backlog' in catalogue.
+    # Exclude: All owned games (library) + all ignored games.
+    backlog_appids = []
+    if 'status' in df_gt.columns:
+        backlog_appids = df_gt[df_gt['status'] == 'backlog']['appid'].tolist()
     
-    for aid in all_library_appids:
-        if aid not in appid_to_idx: continue
-        idx = appid_to_idx[aid]
-        is_rated = aid in rated_appids
-        is_ignored = aid in ignored_appids
-        playtime = library_details.get(aid, {}).get('playtime', 0)
-        
-        # A game is "completed/known" if it has playtime and isn't ignored, OR if it has a manual rating.
-        if (playtime > 0 and not is_ignored) or is_rated:
-            completed_indices.append(idx)
-        else:
-            backlog_indices.append(idx)
-            
-    # Exclude only completed/known games from general discovery
-    exclude_indices = completed_indices
+    exclude_indices = [appid_to_idx[aid] for aid in discovery_exclude_appids if aid in appid_to_idx]
+    backlog_indices = [appid_to_idx[aid] for aid in backlog_appids if aid in appid_to_idx]
 
     # --- NORTH STAR & ABYSSAL GAMES ---
     # Find games whose TASTE ALIGNMENT (Weighted Tag + Weighted Semantic) is highest/lowest.
@@ -647,6 +697,19 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Calculate tag similarities for the full dataset using the unit vibe vector
     all_tag_sims = (np.dot(all_vectors.astype(np.float32), vibe_vector_unit) / (all_tag_norms + DOT_PRODUCT_LAMBDA)) * TAG_GLOBAL_SCALING_FACTOR
 
+    # Load topic similarities for the full dataset
+    all_topic_sims = np.zeros(len(full_metadata))
+    if top_norm > 1e-9:
+        topic_distributions_all = np.load(TOPIC_DISTRIBUTIONS_FILE, mmap_mode='r')
+        topic_vibe_unit = topic_coeffs_full / top_norm
+        
+        batch_size = 50000
+        for i in range(0, len(full_metadata), batch_size):
+            end = min(i + batch_size, len(full_metadata))
+            batch_dist = topic_distributions_all[i:end].astype(np.float32)
+            # Scaling derived from population variance
+            all_topic_sims[i:end] = np.dot(batch_dist * TOPIC_GLOBAL_SCALING_FACTOR, topic_vibe_unit)
+
     scores = calculate_linear_scores(
         z_quality=quality_grid[best_idx],
         z_date=full_metadata['date_z'].values,
@@ -662,6 +725,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
         dot_product_lambda=DOT_PRODUCT_LAMBDA,
         z_semantic=all_semantic_sims,
         w_semantic=float(sem_norm),
+        z_topic=all_topic_sims,
+        w_topic=float(top_norm),
         z_clamp_min=Z_SCORE_CLAMP_MIN,
         z_clamp_max=Z_SCORE_CLAMP_MAX,
         intercept=5.0 # Anchored to global prior
@@ -697,6 +762,9 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # 6. No Hollow Games (Metadata-deficient)
     if 'is_hollow' in full_metadata.columns:
         mask &= ~full_metadata['is_hollow'].values.astype(bool)
+    # 7. No Games with Zero Reviews
+    total_reviews = full_metadata['positive'].fillna(0) + full_metadata['negative'].fillna(0)
+    mask &= (total_reviews > 0).values
 
     # Use raw scores for sorting to maintain perfect ordinal parity with backend
     # (Clamping to 0-10 is only for display)
@@ -774,6 +842,9 @@ def solve_user_taste(ground_truth_path, output_path=None):
         tag_info['top_games'] = tag_top_games
 
     # --- RECOMMENDATIONS FOR FAVORITE GAMES (SEEDS) ---
+    # Build 51: High-Fidelity Threshold Strategy
+    # We find games exceeding a fixed similarity threshold (0.3),
+    # then rank those survivors by the user's global taste score.
     print("Generating recommendations for favorite games (ratings 9-10)...")
     favorite_recs = []
     # Use only games with actual_rating >= 9
@@ -818,47 +889,33 @@ def solve_user_taste(ground_truth_path, output_path=None):
         # Parity with Recommender: Must divide by (seed_norm + lambda) * (candidate_norm + lambda)
         seed_tag_sims = (np.dot(all_vectors.astype(np.float32), tag_fav_vec) / ((fav_tag_norm + DOT_PRODUCT_LAMBDA) * (all_tag_norms + DOT_PRODUCT_LAMBDA))) * TAG_GLOBAL_SCALING_FACTOR
         
-        # Parity with Recommender Manual Mode:
-        # 1. Clip Tag Sims
-        # 2. Use Hybrid Score (sum + 5.0)
-        z_tag_clipped = np.clip(seed_tag_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+        # --- SIMILARITY THRESHOLD FILTER ---
+        # Combine semantic and tag similarity for a pure thematic similarity score
+        pure_thematic_sim = seed_sem_sims + seed_tag_sims
         
-        # Use Manual Mode Weight Multipliers for "Similar to" parity
-        from common.constants import (
-            QUALITY_WEIGHT_MULTIPLIER, AGE_WEIGHT_MULTIPLIER, 
-            SEMANTIC_WEIGHT_MULTIPLIER, TAG_WEIGHT_MULTIPLIER,
-            POPULARITY_WEIGHT_MULTIPLIER, PRICE_WEIGHT_MULTIPLIER,
-            LENGTH_WEIGHT_MULTIPLIER, DIFFICULTY_WEIGHT_MULTIPLIER
-        )
+        # Use a fixed threshold (e.g. 0.3) for high-fidelity similarity
+        # This ensures we only recommend games that are statistically in the top ~0.1%
+        threshold_mask = pure_thematic_sim >= SIMILARITY_THRESHOLD_FAVORITES
         
-        # We use standard 1.0 baseline * multipliers to show "Natural Neighbors"
-        # Discovery remains at the user's solved optimal setting
-        fav_seed_scores = calculate_hybrid_score(
-            z_semantic=seed_sem_sims, w_semantic=1.0 * SEMANTIC_WEIGHT_MULTIPLIER,
-            z_tag=z_tag_clipped, w_tag=0.5 * TAG_WEIGHT_MULTIPLIER, # Default alpha/beta is 0.5
-            z_spps=z_q_clipped, w_spps=1.0 * QUALITY_WEIGHT_MULTIPLIER,
-            z_date=z_date_clipped, w_date=0.0 * AGE_WEIGHT_MULTIPLIER, # Neutral
-            z_pop=z_pop_clipped, w_pop=0.0 * POPULARITY_WEIGHT_MULTIPLIER,    # Neutral
-            z_length=z_playtime_clipped, w_length=0.0 * LENGTH_WEIGHT_MULTIPLIER,
-            z_difficulty=z_difficulty_clipped, w_difficulty=0.0 * DIFFICULTY_WEIGHT_MULTIPLIER,
-            z_price=z_price_clipped, w_price=0.0 * PRICE_WEIGHT_MULTIPLIER
-        )
+        # Combine with default filters (mask) and exclusion mask (library)
+        final_fav_mask = threshold_mask & mask
         
-        # Filter and Sort
-        fav_seed_scores[exclude_indices] = -1e12
-        fav_seed_scores[~mask] = -1e12
+        # Rank the survivors by the user's global taste score
+        fav_seed_rank_scores = scores.copy()
+        fav_seed_rank_scores[exclude_indices] = -1e12
+        fav_seed_rank_scores[~final_fav_mask] = -1e12
         
         # Get top 3
-        top_fav_indices = np.lexsort((all_names, -fav_seed_scores))[:3]
+        top_fav_indices = np.lexsort((all_names, -fav_seed_rank_scores))[:3]
         
         fav_top_games = []
         for idx in top_fav_indices:
-            if fav_seed_scores[idx] > -1e9:
+            if fav_seed_rank_scores[idx] > -1e9:
                 game_meta = full_metadata.iloc[idx]
                 fav_top_games.append({
                     'appid': int(game_meta['appid']),
                     'name': str(game_meta['name']),
-                    'predicted_rating': float(np.clip(fav_seed_scores[idx], 0, 10))
+                    'predicted_rating': float(np.clip(scores[idx], 0, 10))
                 })
         
         if fav_top_games:
@@ -901,8 +958,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'topic_match': float(topic_norm)
     }
     
-    # Scaling factor remains 1.0 to preserve raw weights in the UI
-    scaling_factor = 1.0
+    # Scaling factor 3.0 maps typical regression deviations back to the 0-10 scale
+    scaling_factor = 3.0
     
     scaled_metadata = {k: v for k, v in weights_to_scale.items()}
     scaled_metadata['discovery'] = float(optimal_disc_pref)
@@ -973,7 +1030,6 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'intercept': 5.0, # Match the Neutral Anchor used in preview and UI
         'scaling_factor': float(scaling_factor),
         'r2': float(r2_train), # Use the high-precision training R2
-        'library_size': int(num_ratings),
         'top_tags': top_tags,
         'bottom_tags': bottom_tags,
         'associative_tags': {
@@ -986,10 +1042,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'bottom_recommendations': bottom_games.to_dict(orient='records'),
         'backlog_recommendations': backlog_recs.to_dict(orient='records'),
         'favorite_game_recommendations': favorite_recs,
-        'ignored_appids': list(map(int, ignored_appids)),
-        'library_appids': [int(aid) for aid in all_library_appids],
+        'ignored_appids': [int(aid) for aid in ignored_appids],
+        'library_appids': [int(aid) for aid in discovery_exclude_appids],
         'rated_appids': [int(aid) for aid in df['appid'].tolist()],
-        'library_details': library_details
+        'library_details': library_details,
+        'library_size': len(all_managed_appids)
     }
 
     # Clean NaN values and NumPy types for JSON safety

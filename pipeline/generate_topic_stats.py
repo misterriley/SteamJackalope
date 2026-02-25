@@ -15,8 +15,10 @@ def generate_topic_stats():
     stds = np.std(data, axis=0)
     
     # Save as .npy files for the solver to load
-    np.save(os.path.join(PRODUCTION_DATA_DIR, "topic_means.npy"), means)
-    np.save(os.path.join(PRODUCTION_DATA_DIR, "topic_stds.npy"), stds)
+    # Use the same directory as the distributions file (important for tests)
+    output_dir = os.path.dirname(TOPIC_DISTRIBUTIONS_FILE)
+    np.save(os.path.join(output_dir, "topic_means.npy"), means)
+    np.save(os.path.join(output_dir, "topic_stds.npy"), stds)
     
     print(f"Saved stats for {len(means)} topics.")
 

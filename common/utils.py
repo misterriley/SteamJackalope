@@ -57,18 +57,19 @@ def calculate_linear_scores(
         tag_sim = (dot_products / denom) * tag_scaling_factor
     
     # 3. Semantic & Topic Components
-    sem_contrib = (z_semantic * w_semantic) if z_semantic is not None else 0.0
-    topic_contrib = (z_topic * w_topic) if z_topic is not None else 0.0
+    sem_contrib = np.nan_to_num(z_semantic * w_semantic) if z_semantic is not None else 0.0
+    topic_contrib = np.nan_to_num(z_topic * w_topic) if z_topic is not None else 0.0
 
     # 4. Summation: sum(weight_i * feature_i) + intercept
+    # Apply nan_to_num to all components to prevent score collapse
     scores = (
-        q * weights.get('quality', 0.0) +
-        d * weights.get('age', 0.0) +
-        p * weights.get('popularity', 0.0) +
-        l * weights.get('length', 0.0) +
-        diff * weights.get('difficulty', 0.0) +
-        pr * weights.get('price', 0.0) +
-        (tag_sim * weights.get('tag_match', 0.0)) +
+        np.nan_to_num(q) * weights.get('quality', 0.0) +
+        np.nan_to_num(d) * weights.get('age', 0.0) +
+        np.nan_to_num(p) * weights.get('popularity', 0.0) +
+        np.nan_to_num(l) * weights.get('length', 0.0) +
+        np.nan_to_num(diff) * weights.get('difficulty', 0.0) +
+        np.nan_to_num(pr) * weights.get('price', 0.0) +
+        (np.nan_to_num(tag_sim) * weights.get('tag_match', 0.0)) +
         sem_contrib +
         topic_contrib
     )
@@ -218,17 +219,29 @@ def fast_jsd_similarity(p, Q_matrix, mean=None, std=None):
     and a matrix of distributions Q. Optionally Z-scores the result using provided 
     population mean and std.
     """
-    eps = 1e-10
-    p = p + eps
-    Q = Q_matrix + eps
+    eps = 1e-12
+    # Ensure p and Q are normalized and strictly positive for log
+    p = np.clip(p, eps, 1.0)
+    Q = np.clip(Q_matrix, eps, 1.0)
+    # Re-normalize to 1.0
+    p = p / np.sum(p)
+    Q = Q / np.sum(Q, axis=-1, keepdims=True)
+    
     m = 0.5 * (p + Q)
+    
     # JS Div = 0.5 * KLD(P||M) + 0.5 * KLD(Q||M)
-    js_div = 0.5 * (np.sum(p * np.log(p / m), axis=-1) + np.sum(Q * np.log(Q / m), axis=-1))
+    # Using np.where to avoid log(0) and maintaining precision
+    term1 = p * np.log(p / m)
+    term2 = Q * np.log(Q / m)
+    js_div = 0.5 * (np.sum(term1, axis=-1) + np.sum(term2, axis=-1))
+    
     # Similarity = 1 - sqrt(JSD)
+    # JSD is strictly [0, ln(2)] for base e or [0, 1] for base 2. 
+    # Our formula uses natural log, so we clamp to ln(2)
     sim = 1.0 - np.sqrt(np.maximum(js_div, 0))
     
     if mean is not None and std is not None:
         # Z-score the similarity based on population stats
-        return (sim - mean) / (std if std > eps else 1.0)
+        return (sim - mean) / (std if std > 1e-9 else 1.0)
     
     return sim

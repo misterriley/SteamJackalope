@@ -7,6 +7,10 @@
 ## Task List
 
 ### Recently Completed
+- [x] **Build 55-68: Library Management Update**: Implemented categorical status filtering (Rated/Played/Backlog/Ignored/Wishlist) across engine and UI. Resolved severe UI lag using Lite Virtualization (Infinite Scroll), React memoization, and isolated search components. Standardized keyboard-driven data entry with auto-scroll across search dropdowns. Fixed multiple server and solver crashes related to the status migration.
+- [x] **Catalogue View (User Hub)**: Created a high-performance management page for categorized game identity. Features infinite scroll for 1000+ items, multi-column sorting, and real-time status syncing.
+- [x] **Build 49: Precision Update**: Implemented population-wide modality scaling ($1.0, 2.0, 26.5$) and Zero-Order Relevance Filtering ($p \le N-7$) for the Taste Solver. Synchronized all similarity signals across pipeline and recommender.
+- [x] **Build 48: High-Fidelity Thematic Search**: Integrated 250-topic BERTopic layer with JSD-based similarity and population Z-scoring. Added Topic Match signal to Taste DNA and backend.
 - [x] **Consensus Blending (Softmin)**: Integrated Softmin similarity blending (T=3.0) for multi-signal targets (DNA + Seeds + Prompts) to enforce a "consensus" requirement.
 - [x] **Backlog Integration**: Decoupled owned-but-unplayed games from exclusion filters. Added a dedicated "From Your Backlog" discovery section to the Insights page.
 - [x] **Profile-Aware Reset**: Refactored the "Reset All" functionality to snap sliders to the solved DNA baseline while clearing search-specific prompts and seeds.
@@ -23,14 +27,6 @@
 
 ### Next Priority
 
-#### Build 48: High-Fidelity Thematic Search
-- [x] **Raw Semantic Recovery**: Preserved unwhitened SentenceTransformer embeddings for manifold clustering.
-- [x] **BERTopic High-Res Map**: Generated 250 interpretable topics from 154k games with GPU-accelerated pre-processing.
-- [x] **Jensen-Shannon Standard**: Empirically optimized JSD temperature (T=0.05) to balance genre purity and atmospheric nuance.
-- [ ] **Taste Solver Integration**: Update `solve_user_taste.py` to include topic distributions as features for LASSO weight discovery.
-- [ ] **UI Search Slider**: Add 'Thematic Match' (Topic-based JSD) as a primary search signal in the frontend.
-- [ ] **Thematic Breakdown UI**: Display the top 3 topic keywords on the `GameCard` or Detail view for better explainability.
-
 #### Phase 1: Mathematical & Analytical Refinement
 - [ ] **Lognormal Rating Prediction**: Update rating predictions to use lognormal smoothing to estimate the probability of a positive review, then map that percentage to a 0-10 score (synced with the Bayesian quality scale).
 - [ ] **LASSO Difficulty Model**: Train a new difficulty model using both whitened tag and semantic vectors via 10-fold CV LASSO. Re-establish tag-level explainability for the new coefficients.
@@ -39,6 +35,7 @@
 
 #### Phase 2: High Impact / Low Effort (The "Agency Update")
 - [ ] **Infinite Scroll**: Implement infinite scrolling in the Recommender view to allow seamless browsing of deep results without manual pagination or "Load More" interruptions.
+- [ ] **Thematic Breakdown UI**: Display the top 3 topic keywords on the `GameCard` or Detail view for better explainability.
 - [ ] **Review Count Indicators**: Add color-coded thumbs up/down counts to `GameCard`. Use significant-digit rounding for values > 1000 (e.g., 1.1k, 120k).
 - [ ] **Explainable Hover Tooltips**: Implement contribution-aware hover explanations on the Insights page. Display top 3 contributors (Quality, Pop, etc.) with valence-aware text.
 - [ ] **Kernel-Based Vibe Attribution**: For Vibe-led recommendations, identify and list the two training games contributing most to the prediction using `sim(A,B) * (rating_A - rating_mean)`.
@@ -46,7 +43,6 @@
 - [ ] **Visual Previews**: Implement "Hover-to-Play" gameplay clips in `GameCard` using the `movies` metadata.
 
 #### Phase 3: Strategic Alignment (User Hub & Identity)
-- [ ] **User Management Hub**: Create a dedicated page for managing categorized game identity (Rated, Played, Backlog, Wishlist, Ignored) in a searchable interface.
 - [ ] **Global Visual Cues**: Reflect user categories (icons/overlays) on game images throughout the site and add quick-action buttons to `GameCard` for categorization.
 - [ ] **Wishlist External Links**: Integrate isthereanydeal.com links for wishlisted titles.
 - [ ] **Architectural Decoupling**: Separate "User Identity" from "Taste DNA". Allow multiple independent DNA profiles to be hot-swapped while maintaining a stable exclusion context.

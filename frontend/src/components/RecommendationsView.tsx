@@ -73,7 +73,8 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       tags: [],
       profile_filter: 'none',
       library_appids: [],
-      rated_appids: []
+      rated_appids: [],
+      ignored_appids: []
     };
 
     const saved = sessionStorage.getItem('recommendations_filters');
@@ -266,7 +267,8 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
         tags: [],
         profile_filter: 'none',
         library_appids: [],
-        rated_appids: []
+        rated_appids: [],
+        ignored_appids: []
       });
     }
   };
@@ -335,6 +337,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       profile_filter: 'all',
       library_appids: profile.library_appids || [],
       rated_appids: profile.rated_appids || [],
+      ignored_appids: profile.ignored_appids || [],
       library_details: profile.library_details || {}
     }));
   };

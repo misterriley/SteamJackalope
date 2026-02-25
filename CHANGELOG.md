@@ -2,6 +2,21 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [47] - 2026-02-25
+### Build 47
+### Version 0.0.1-pre-alpha.47
+
+- **UI/UX**: Launched the **My Game Catalogue** (User Hub) for comprehensive library management. Users can now categorize games into **Rated**, **Played**, **Backlog**, **Wishlist**, or **Ignored** states.
+- **UI/UX**: Resolved severe UI lag in large libraries (1000+ items) using **Lite Virtualization (Infinite Scroll)**, React memoization, and isolated search components.
+- **UI/UX**: Standardized **Keyboard-Driven Data Entry** with auto-scrolling dropdowns and 'Enter-to-Commit' support across all search inputs.
+- **Algorithm**: Integrated a **250-Topic BERTopic Layer** providing high-fidelity thematic matching using Jensen-Shannon Divergence (JSD).
+- **Algorithm**: Implemented **Zero-Order Relevance Filtering** ($p \le N-7$) in the Taste DNA solver to prevent overfitting and stabilize $R^2$ for smaller libraries.
+- **Algorithm**: Achieved **Population-Wide Modality Scaling**, calibrating Tags (1.0x), Semantics (~2.0x), and Topics (~26.5x) based on true data variance.
+- **Algorithm**: Synchronized **Topic Match** scoring between the Python solver (Dot Product) and FastAPI backend, ensuring perfect ordinal parity.
+- **Explainability**: Displayed top **Topic Keywords** in the UI to provide human-readable justification for atmospheric recommendations.
+- **Stability**: Fixed multiple critical server and solver crashes related to the categorical status migration and NaN propagation in similarity signals.
+- **Data**: Hardened the scraping pipeline with robust regex for language detection and English-prioritized review count repair.
+
 ## [46] - 2026-02-22
 ### Build 46
 ### Version 0.0.1-pre-alpha.46

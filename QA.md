@@ -49,6 +49,28 @@ This document serves as the manual verification protocol for human testers and d
 - [ ] **Difficulty Tag Links**: In the Lists -> Difficulty Tags view, click a predictor tag.
     - *Expectation*: Opens the validated Steam store link for that tag.
 
+## 📚 Catalogue Management (Build 55-68)
+- [ ] **Catalogue Loading**: Navigate to the "Catalogue" view.
+    - *Expectation*: System fetches library data; "My Game Catalogue" table appears.
+- [ ] **Categorical Sorting**: Click the "Status" column header.
+    - *Expectation*: Games group by Rated -> Played -> Backlog -> Wishlist -> Ignored.
+- [ ] **Infinite Scroll Performance**: Scroll quickly through a 1000+ game library.
+    - *Expectation*: Rendering remains fluid (no lag); "Back to Top" button appears and works.
+- [ ] **Real-time Sync**: Change a game's status (e.g., Backlog -> Played).
+    - *Expectation*: A "Saving..." notification appears; status persists after a page refresh.
+- [ ] **Auto-Promotion**: In Catalogue or Verify view, move a 0-rating slider to 7.
+    - *Expectation*: Game status automatically promotes to "rated" and "Ignore" is unchecked.
+- [ ] **Global Ignore Masking**: Mark a game as "Ignored" in the Catalogue.
+    - *Expectation*: The game is immediately hidden from "Games You'll Love", "North Stars", and the Recommender (regardless of filter settings).
+
+## ⌨️ Keyboard & Input (Build 64)
+- [ ] **Arrow Navigation**: Type "Elden" in the manual add search. Use Arrow Keys.
+    - *Expectation*: Active selection highlights and scrolls into view within the dropdown.
+- [ ] **Keyboard Commit**: Press Enter on a highlighted search result.
+    - *Expectation*: Game is added to the list; dropdown closes; input clears.
+- [ ] **Manual Default Logic**: Add a game manually.
+    - *Expectation*: Game defaults to "Backlog" status, rating "5", and "Ignore: Checked".
+
 ## 📊 Data & Insights
 - [ ] **Ranking Lists**: Cycle through Rating, Popularity, Playtime, and Age.
     - *Expectation*: Top/Bottom 50 tables populate with correct data types (pts, reviews, hours).

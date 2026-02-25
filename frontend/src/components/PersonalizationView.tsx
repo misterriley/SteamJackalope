@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   User, 
   Search, 
@@ -22,7 +22,8 @@ import {
   Compass,
   Anchor,
   Sparkles,
-  Library
+  Library,
+  ArrowUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { searchGames, getMetadata, getTermLinks, getTagDimensions, API_BASE_URL } from '../api';
@@ -38,6 +39,7 @@ interface GameVerification {
   user_review_text?: string;
   user_voted_up?: boolean;
   playtime_forever: number;
+  status: string;
   is_manual?: boolean;
   is_nsfw?: boolean;
 }
@@ -46,11 +48,94 @@ interface PersonalizationViewProps {
   onApply?: (profile: any) => void;
 }
 
+// --- Sub-components for Performance ---
+
+interface VerificationRowProps {
+  game: GameVerification;
+  blurNSFW: boolean;
+  showPlaytime: boolean;
+  onRatingChange: (appid: number, rating: number) => void;
+  onIgnoreChange: (appid: number, ignore: boolean) => void;
+  onDelete?: (appid: number) => void;
+}
+
+const VerificationRow = React.memo(({ game, blurNSFW, showPlaytime, onRatingChange, onIgnoreChange, onDelete }: VerificationRowProps) => {
+  return (
+    <tr className={`hover:bg-secondary/30 transition-colors ${game.ignore ? 'opacity-40' : ''}`}>
+      <td className="px-6 py-3">
+        <a href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80 transition-opacity">
+          <img 
+            src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
+            alt={game.name} 
+            className={`w-16 h-8 object-cover rounded shadow-sm border border-border/50 ${game.is_nsfw && blurNSFW ? 'blur-sm scale-110' : ''}`}
+            onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+          />
+        </a>
+      </td>
+      <td className="px-6 py-3">
+        <a href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="group">
+          <div className="font-bold text-sm leading-tight group-hover:text-primary transition-colors">{game.name}</div>
+          <div className="text-[10px] text-muted-foreground">AppID: {game.appid}</div>
+        </a>
+      </td>
+      <td className="px-6 py-3 text-center">
+        <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest ${
+          game.status === 'ignored' ? 'bg-red-500/10 text-red-500' :
+          game.status === 'rated' ? 'bg-green-500/10 text-green-500' :
+          game.status === 'played' ? 'bg-blue-500/10 text-blue-500' :
+          'bg-secondary text-muted-foreground'
+        }`}>
+          {game.status}
+        </span>
+      </td>
+      {showPlaytime && (
+        <td className="px-6 py-3 text-xs font-mono text-muted-foreground">
+          {(game.playtime_forever / 60).toFixed(1)}h
+        </td>
+      )}
+      <td className="px-6 py-3 text-center">
+        <span className="px-2 py-1 bg-secondary rounded text-[10px] font-mono">
+          {Math.round(game.predicted_rating)}
+        </span>
+      </td>
+      <td className="px-6 py-3 min-w-[180px]">
+        <div className="flex items-center gap-3">
+          <input 
+            type="range" min="0" max="10" step="1" className="w-full accent-primary h-1"
+            value={game.actual_rating}
+            onChange={(e) => onRatingChange(game.appid, parseInt(e.target.value))}
+          />
+          <span className="w-4 text-xs font-bold text-primary text-center">{Math.round(game.actual_rating)}</span>
+        </div>
+      </td>
+      <td className="px-6 py-3 text-center">
+        <input 
+          type="checkbox" checked={game.ignore}
+          onChange={(e) => onIgnoreChange(game.appid, e.target.checked)}
+          className="w-4 h-4 rounded border-border text-primary"
+        />
+      </td>
+      <td className="px-6 py-3 text-center">
+        {game.is_manual ? (
+          <button onClick={() => onDelete?.(game.appid)} className="text-muted-foreground hover:text-destructive transition-colors">
+            <Trash2 size={16} />
+          </button>
+        ) : (
+          <span className="text-[10px] text-muted-foreground/30 font-bold uppercase">Library</span>
+        )}
+      </td>
+    </tr>
+  );
+});
+
+VerificationRow.displayName = 'VerificationRow';
+
 interface VerificationTableProps {
   data: GameVerification[];
   title: string;
   showPlaytime?: boolean;
   blurNSFW?: boolean;
+  visibleCount?: number;
   sortConfig: { key: keyof GameVerification; direction: 'asc' | 'desc' };
   onSort: (key: keyof GameVerification) => void;
   onRatingChange: (appid: number, rating: number) => void;
@@ -58,9 +143,9 @@ interface VerificationTableProps {
   onDelete?: (appid: number) => void;
 }
 
-const VerificationTable: React.FC<VerificationTableProps> = ({ 
-  data, title, showPlaytime = true, blurNSFW = true, sortConfig, onSort, onRatingChange, onIgnoreChange, onDelete 
-}) => (
+const VerificationTable = ({ 
+  data, title, showPlaytime = true, blurNSFW = true, visibleCount = 50, sortConfig, onSort, onRatingChange, onIgnoreChange, onDelete 
+}: VerificationTableProps) => (
   <div className="space-y-4">
     <h3 className="text-sm font-bold uppercase tracking-widest text-primary px-2">{title} ({data.length})</h3>
     <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-xl overflow-x-auto">
@@ -71,6 +156,7 @@ const VerificationTable: React.FC<VerificationTableProps> = ({
             <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground cursor-pointer hover:bg-secondary" onClick={() => onSort('name')}>
               <div className="flex items-center gap-2">Game {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />)}</div>
             </th>
+            <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-center">Status</th>
             {showPlaytime && (
               <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground cursor-pointer hover:bg-secondary" onClick={() => onSort('playtime_forever')}>
                 <div className="flex items-center gap-2">Playtime {sortConfig.key === 'playtime_forever' && (sortConfig.direction === 'asc' ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />)}</div>
@@ -89,67 +175,119 @@ const VerificationTable: React.FC<VerificationTableProps> = ({
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {data.map((game) => (
-            <tr key={game.appid} className={`hover:bg-secondary/30 transition-colors ${game.ignore ? 'opacity-40' : ''}`}>
-              <td className="px-6 py-3">
-                <a href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80 transition-opacity">
-                  <img 
-                    src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
-                    alt={game.name} 
-                    className={`w-16 h-8 object-cover rounded shadow-sm border border-border/50 ${game.is_nsfw && blurNSFW ? 'blur-sm scale-110' : ''}`}
-                    onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
-                  />
-                </a>
-              </td>
-              <td className="px-6 py-3">
-                <a href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="group">
-                  <div className="font-bold text-sm leading-tight group-hover:text-primary transition-colors">{game.name}</div>
-                  <div className="text-[10px] text-muted-foreground">AppID: {game.appid}</div>
-                </a>
-              </td>
-              {showPlaytime && (
-                <td className="px-6 py-3 text-xs font-mono text-muted-foreground">
-                  {(game.playtime_forever / 60).toFixed(1)}h
-                </td>
-              )}
-              <td className="px-6 py-3 text-center">
-                <span className="px-2 py-1 bg-secondary rounded text-[10px] font-mono">
-                  {Math.round(game.predicted_rating)}
-                </span>
-              </td>
-              <td className="px-6 py-3 min-w-[180px]">
-                <div className="flex items-center gap-3">
-                  <input 
-                    type="range" min="0" max="10" step="1" className="w-full accent-primary h-1"
-                    value={game.actual_rating}
-                    onChange={(e) => onRatingChange(game.appid, parseInt(e.target.value))}
-                  />
-                  <span className="w-4 text-xs font-bold text-primary text-center">{Math.round(game.actual_rating)}</span>
-                </div>
-              </td>
-              <td className="px-6 py-3 text-center">
-                <input 
-                  type="checkbox" checked={game.ignore}
-                  onChange={(e) => onIgnoreChange(game.appid, e.target.checked)}
-                  className="w-4 h-4 rounded border-border text-primary"
-                />
-              </td>
-              <td className="px-6 py-3 text-center">
-                {game.is_manual ? (
-                  <button onClick={() => onDelete?.(game.appid)} className="text-muted-foreground hover:text-destructive transition-colors">
-                    <Trash2 size={16} />
-                  </button>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground/30 font-bold uppercase">Library</span>
-                )}
-              </td>
-            </tr>
+          {data.slice(0, visibleCount).map((game) => (
+            <VerificationRow 
+              key={game.appid} 
+              game={game} 
+              blurNSFW={blurNSFW} 
+              showPlaytime={showPlaytime}
+              onRatingChange={onRatingChange}
+              onIgnoreChange={onIgnoreChange}
+              onDelete={onDelete}
+            />
           ))}
         </tbody>
       </table>
     </div>
   </div>
 );
+
+interface VerificationManualAddProps {
+  onAdd: (gameName: string) => Promise<void>;
+}
+
+const VerificationManualAdd = ({ onAdd }: VerificationManualAddProps) => {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<string[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setShowResults(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (activeIndex >= 0 && resultsRef.current) {
+      const activeItem = resultsRef.current.children[activeIndex] as HTMLElement;
+      if (activeItem) activeItem.scrollIntoView({ block: 'nearest' });
+    }
+  }, [activeIndex]);
+
+  const handleSearch = (val: string) => {
+    setQuery(val);
+    setActiveIndex(-1);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (val.length > 1) {
+      timeoutRef.current = setTimeout(async () => {
+        const res = await searchGames(val);
+        setResults(res);
+        setShowResults(true);
+      }, 300);
+    } else {
+      setResults([]);
+      setShowResults(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showResults || results.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex(prev => (prev + 1) % results.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex(prev => (prev - 1 + results.length) % results.length);
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault();
+      onAdd(results[activeIndex]);
+      setQuery('');
+      setShowResults(false);
+    } else if (e.key === 'Escape') setShowResults(false);
+  };
+
+  return (
+    <div className="relative max-w-md" ref={containerRef}>
+      <div className="relative">
+        <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+        <input 
+          type="text" placeholder="Add a game manually (e.g. Elden Ring)"
+          className="w-full bg-card border border-border rounded-lg pl-10 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          value={query} onChange={(e) => handleSearch(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => query.length > 1 && setShowResults(true)}
+        />
+      </div>
+      <AnimatePresence>
+        {showResults && results.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+            ref={resultsRef}
+            className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-2xl max-h-60 overflow-y-auto"
+          >
+            {results.map((res, idx) => (
+              <button 
+                key={res} onClick={() => { onAdd(res); setQuery(''); setShowResults(false); }}
+                className={`w-full text-left px-4 py-2 text-sm transition-colors border-b border-border/50 last:border-0 ${
+                  idx === activeIndex ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary'
+                }`}
+              >
+                {res}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// --- Main View ---
 
 const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) => {
   const [termLinks, setTermLinks] = useState<Record<string, string>>({});
@@ -171,6 +309,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
     };
     fetchData();
   }, []);
+
   // Persistence Helper
   const getSaved = () => {
     const saved = sessionStorage.getItem('personalization_state');
@@ -195,55 +334,47 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
   const [insights, setInsights] = useState<any>(savedState?.insights || null);
   const [error, setError] = useState<string | null>(null);
   const [solverStatus, setSolverStatus] = useState<string>('');
+  const [visibleCount, setVisibleCount] = useState(50);
+  const [blurNSFW, setBlurNSFW] = useState(true);
   const [sortConfig, setSortConfig] = useState<{ key: keyof GameVerification; direction: 'asc' | 'desc' }>({
     key: 'predicted_rating',
     direction: 'desc'
   });
 
-  const [manualSearch, setManualSearch] = useState('');
-  const [manualSearchResults, setManualSearchResults] = useState<string[]>([]);
-  const [showManualResults, setShowManualResults] = useState(false);
-  const manualSearchRef = useRef<HTMLDivElement>(null);
-
-  // Sync blur setting from session storage (where Filters.tsx saves it)
-  const [blurNSFW, setBlurNSFW] = useState(true);
-  useEffect(() => {
-    const checkFilters = () => {
-      const saved = sessionStorage.getItem('recommendations_filters');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed.remove_nsfw !== undefined) {
-            setBlurNSFW(parsed.remove_nsfw);
-          }
-        } catch (e) {}
-      }
-    };
-    checkFilters();
-    // Also listen for storage changes in other tabs or components
-    window.addEventListener('storage', checkFilters);
-    // Polling as a fallback for same-tab session storage updates
-    const interval = setInterval(checkFilters, 1000);
-    return () => {
-      window.removeEventListener('storage', checkFilters);
-      clearInterval(interval);
-    };
-  }, []);
-
-  // Persistence: Save state on change
+  // Effects for persistence and environment sync
   useEffect(() => {
     const state = { step, steamId, reviewHtml, games, insights, status };
     sessionStorage.setItem('personalization_state', JSON.stringify(state));
   }, [step, steamId, reviewHtml, games, insights, status]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (manualSearchRef.current && !manualSearchRef.current.contains(event.target as Node)) {
-        setShowManualResults(false);
+    if (steamId && step === 2 && games.length === 0) fetchVerificationData(steamId);
+  }, [step]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 500) {
+        setVisibleCount(prev => prev + 50);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const checkFilters = () => {
+      const saved = sessionStorage.getItem('recommendations_filters');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.remove_nsfw !== undefined) setBlurNSFW(parsed.remove_nsfw);
+        } catch (e) {}
+      }
+    };
+    checkFilters();
+    window.addEventListener('storage', checkFilters);
+    const interval = setInterval(checkFilters, 1000);
+    return () => { window.removeEventListener('storage', checkFilters); clearInterval(interval); };
   }, []);
 
   useEffect(() => {
@@ -254,9 +385,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
           const res = await fetch(`${API_BASE_URL}/user/status/${steamId}`);
           const data = await res.json();
           setStatus(data);
-          if (data.has_soft_labels) {
-            fetchVerificationData(steamId);
-          }
+          if (data.has_soft_labels) fetchVerificationData(steamId);
         } catch (err) {}
       }, 3000);
     }
@@ -268,211 +397,169 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
     if (cleanId.includes('steamcommunity.com')) {
       const profileMatch = cleanId.match(/profiles\/(\d+)/);
       const idMatch = cleanId.match(/id\/([^/]+)/);
-      if (profileMatch) {
-        cleanId = profileMatch[1];
-      } else if (idMatch) {
-        cleanId = idMatch[1];
-      }
+      if (profileMatch) cleanId = profileMatch[1];
+      else if (idMatch) cleanId = idMatch[1];
     }
-
+    
     setLoading(true);
     setError(null);
+
     try {
+      // Build 68: Check for existing data before starting a new fetch
+      const statusRes = await fetch(`${API_BASE_URL}/user/status/${cleanId}`);
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        setStatus(statusData);
+        if (statusData.has_profile) {
+          const insightRes = await fetch(`${API_BASE_URL}/user/insights/${cleanId}`);
+          if (insightRes.ok) {
+            const insightData = await insightRes.json();
+            setInsights(insightData);
+            setSteamId(cleanId);
+            setStep(3);
+            setLoading(false);
+            return;
+          }
+        }
+        if (statusData.has_soft_labels) {
+          setSteamId(cleanId);
+          await fetchVerificationData(cleanId);
+          setLoading(false);
+          return;
+        }
+      }
+
       const res = await fetch(`${API_BASE_URL}/user/fetch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ steam_id: cleanId, review_html: reviewHtml })
       });
       if (!res.ok) throw new Error("Failed to start acquisition");
-      
-      const data = await res.json();
-      const sid = data.resolved_as || cleanId;
-      setSteamId(sid); 
-      setStep(1.5); 
-    } catch (err: any) {
-      setError(err.message);
-      setLoading(false);
-    }
+      setSteamId(cleanId);
+      setStep(1.5);
+    } catch (err: any) { setError(err.message); } finally { setLoading(false); }
   };
 
   const fetchVerificationData = async (sid: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/user/verify/${sid}`);
+      if (!res.ok) return;
       const data = await res.json();
-      const sorted = [...data].sort((a, b) => b.predicted_rating - a.predicted_rating);
-      setGames(sorted);
-      setStep(2);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      setGames(data);
+      if (step === 1.5) setStep(2);
+    } catch (err) {}
   };
 
-  const handleManualAdd = async (gameName: string) => {
+  const handleManualAdd = async (name: string) => {
     try {
-      const meta = await getMetadata([gameName]);
+      const meta = await getMetadata([name]);
       if (meta && meta.length > 0) {
         const game = meta[0];
-        if (games.some(g => g.appid === game.appid)) {
-          alert("Game already in list!");
-          return;
-        }
-        
-        const newEntry: GameVerification = {
-          appid: game.appid,
-          name: game.name,
-          predicted_rating: 5,
-          actual_rating: 7,
-          ignore: false,
-          playtime_forever: 0,
-          is_manual: true
-        };
-        
+        if (games.some(g => g.appid === game.appid)) { alert("Game already in verification list!"); return; }
+        const newEntry = { appid: game.appid, name: game.name, predicted_rating: 5, actual_rating: 5, ignore: true, playtime_forever: 0, status: 'backlog', is_manual: true, is_nsfw: game.is_nsfw };
         setGames(prev => [newEntry, ...prev]);
-        setManualSearch('');
-        setShowManualResults(false);
-
-        await fetch(`${API_BASE_URL}/user/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify([{
-            steam_id: steamId,
-            appid: game.appid,
-            actual_rating: 7,
-            ignore: false
-          }])
-        });
+        await fetch(`${API_BASE_URL}/user/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ steam_id: steamId, appid: game.appid, actual_rating: 5, ignore: true, status: 'backlog' }]) });
       }
-    } catch (err) {
-      console.error("Failed to add manual game", err);
-    }
-  };
-
-  const handleManualSearch = async (val: string) => {
-    setManualSearch(val);
-    if (val.length > 1) {
-      const results = await searchGames(val);
-      setManualSearchResults(results);
-      setShowManualResults(true);
-    } else {
-      setManualSearchResults([]);
-      setShowManualResults(false);
-    }
+    } catch (err) {}
   };
 
   const handleSort = (key: keyof GameVerification) => {
     let direction: 'asc' | 'desc' = 'desc';
-    if (sortConfig.key === key && sortConfig.direction === 'desc') {
-      direction = 'asc';
-    }
+    if (sortConfig.key === key && sortConfig.direction === 'desc') direction = 'asc';
     setSortConfig({ key, direction });
-    
-    const sortedGames = [...games].sort((a, b) => {
-      const valA = a[key];
-      const valB = b[key];
+    setGames([...games].sort((a, b) => {
+      const valA = a[key], valB = b[key];
       if (typeof valA === 'string' && typeof valB === 'string') return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
       if (typeof valA === 'number' && typeof valB === 'number') return direction === 'asc' ? valA - valB : valB - valA;
       if (typeof valA === 'boolean' && typeof valB === 'boolean') return direction === 'asc' ? (valA === valB ? 0 : valA ? 1 : -1) : (valA === valB ? 0 : valB ? 1 : -1);
       return 0;
-    });
-    setGames(sortedGames);
+    }));
   };
 
-  const handleIgnoreChange = (appid: number, ignore: boolean) => {
-    setGames(prev => prev.map(g => g.appid === appid ? { ...g, ignore } : g));
-  };
+  const handleIgnoreChange = useCallback((appid: number, ignore: boolean) => {
+    setGames(prev => prev.map(g => {
+      if (g.appid === appid) {
+        let newStatus = g.status;
+        if (ignore) newStatus = 'ignored';
+        else {
+          if (g.actual_rating > 0) newStatus = 'rated';
+          else if (g.playtime_forever > 0) newStatus = 'played';
+          else newStatus = 'backlog';
+        }
+        return { ...g, ignore, status: newStatus };
+      }
+      return g;
+    }));
+  }, []);
 
-  const handleRatingChange = (appid: number, actual_rating: number) => {
-    setGames(prev => prev.map(g => g.appid === appid ? { ...g, actual_rating } : g));
-  };
+  const handleRatingChange = useCallback((appid: number, actual_rating: number) => {
+    setGames(prev => prev.map(g => g.appid === appid ? { ...g, actual_rating, status: 'rated' } : g));
+  }, []);
 
-  const handleDeleteManual = async (appid: number) => {
+  const handleDeleteManual = useCallback(async (appid: number) => {
     if (!window.confirm("Remove this manual entry?")) return;
     setGames(prev => prev.filter(g => g.appid !== appid));
-    
-    // Sync to server immediately so it's removed from the ground truth file
     try {
       await fetch(`${API_BASE_URL}/user/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([{
-          steam_id: steamId,
-          appid: appid,
-          actual_rating: 0,
-          ignore: true // Marking as ignore on the server effectively removes it from solver
-        }])
+        body: JSON.stringify([{ steam_id: steamId, appid: appid, actual_rating: 0, ignore: true }])
       });
-    } catch (err) {
-      console.error("Failed to sync deletion to server", err);
-    }
-  };
+    } catch (err) {}
+  }, [steamId]);
 
   const handleSaveAndSolve = async () => {
-    setLoading(true);
-    setSolverStatus('Uploading ratings...');
+    setLoading(true); setSolverStatus('Uploading ratings...');
     try {
-      const updates = games.map(g => ({ steam_id: steamId, appid: g.appid, actual_rating: g.actual_rating, ignore: g.ignore }));
+      const updates = games.map(g => ({ steam_id: steamId, appid: g.appid, actual_rating: g.actual_rating, ignore: g.ignore, status: g.status }));
       await fetch(`${API_BASE_URL}/user/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-      
-      setSolverStatus('Solving Taste DNA (Beta Calculation)...');
-      const sRes = await fetch(`${API_BASE_URL}/user/solve/${steamId}`, { method: 'POST' });
-      if (!sRes.ok) throw new Error("Solver failed");
-      
-      setSolverStatus('Generating Personalized Insights...');
-      const iRes = await fetch(`${API_BASE_URL}/user/insights/${steamId}`);
-      const iData = await iRes.json();
-      setInsights(iData);
+      setSolverStatus('Solving Taste DNA...');
+      const res = await fetch(`${API_BASE_URL}/user/solve/${steamId}`, { method: 'POST' });
+      if (!res.ok) throw new Error("Solver failed");
+      const insightRes = await fetch(`${API_BASE_URL}/user/insights/${steamId}`);
+      const data = await insightRes.json();
+      setInsights(data);
       setStep(3);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setSolverStatus('');
-    }
+    } catch (err: any) { alert(err.message); } finally { setLoading(false); setSolverStatus(''); }
   };
 
   const handleExport = () => {
-    if (!insights) return;
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(insights, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `user_${steamId}_taste_profile.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
+    const blob = new Blob([JSON.stringify(insights, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `user_${steamId}_taste_profile.json`;
+    a.click(); URL.revokeObjectURL(url);
   };
 
-  const manualGames = games.filter(g => g.is_manual);
-  const libraryGames = games.filter(g => !g.is_manual);
+  const manualGames = useMemo(() => games.filter(g => g.is_manual), [games]);
+  const libraryGames = useMemo(() => games.filter(g => !g.is_manual), [games]);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      <div className="flex items-center justify-center gap-4 mb-12">
+    <div className="max-w-6xl mx-auto space-y-12 pb-20">
+      <div className="flex justify-center mb-8">
         {[1, 2, 3].map((s) => {
-          const isCompleted = (s === 1 && status?.has_soft_labels) || (s === 2 && insights);
-          const isCurrent = step === s || (step === 1.5 && s === 1);
-          const canJump = isCompleted || s < step;
-
+          const isActive = step >= s; const isCurrent = Math.floor(step) === s;
           return (
             <React.Fragment key={s}>
               <button 
-                onClick={() => canJump && setStep(s)}
-                disabled={!canJump}
-                className={`flex items-center gap-2 transition-all ${isCurrent ? 'text-primary' : canJump ? 'text-muted-foreground hover:text-primary' : 'text-muted-foreground/40'}`}
+                onClick={() => step > s && setStep(s)}
+                className={`flex flex-col items-center gap-2 group transition-all ${step > s ? 'cursor-pointer' : 'cursor-default'}`}
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${isCurrent ? 'border-primary bg-primary/10' : canJump ? 'border-muted-foreground bg-secondary/50' : 'border-muted-foreground/20'}`}>
-                  {s === 1 ? <User size={16} /> : s === 2 ? <TableIcon size={16} /> : <LineChart size={16} />}
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${
+                  isCurrent ? 'bg-primary border-primary text-primary-foreground shadow-lg scale-110' :
+                  isActive ? 'bg-primary/20 border-primary text-primary' : 'bg-secondary border-border text-muted-foreground'
+                }`}>
+                  {s === 1 ? <Search size={20} /> : s === 2 ? <TableIcon size={20} /> : <ChartBar size={20} />}
                 </div>
-                <span className="text-sm font-bold uppercase tracking-wider hidden sm:inline">
-                  {s === 1 ? 'Acquire' : s === 2 ? 'Verify' : 'Insights'}
+                <span className={`text-[10px] font-bold uppercase tracking-widest ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  {s === 1 ? 'Acquire' : s === 2 ? 'Verify' : 'Solve'}
                 </span>
               </button>
-              {s < 3 && <div className={`w-12 h-0.5 ${step > s ? 'bg-primary' : 'bg-muted-foreground/30'}`} />}
+              {s < 3 && <div className={`w-12 h-0.5 mt-6 ${step > s ? 'bg-primary' : 'bg-muted-foreground/30'}`} />}
             </React.Fragment>
           );
         })}
@@ -493,7 +580,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                 <label className="text-sm font-medium text-muted-foreground flex items-center gap-2"><User size={14} />SteamID64 or Custom URL</label>
                 <div className="flex gap-2">
                   <input 
-                    type="text" placeholder="e.g., 76561198039155404 or your vanity name"
+                    type="text" placeholder="e.g., 76561198039155404"
                     className="flex-grow bg-secondary border-none rounded-xl px-4 py-3 text-lg outline-none focus:ring-2 focus:ring-primary/50"
                     value={steamId} onChange={(e) => setSteamId(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleFetch(); }}
@@ -511,7 +598,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <a href={`https://steamcommunity.com/id/${steamId}/recommended/`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline flex items-center gap-1">Find my reviews <ExternalLink size={10} /></a>
                 </div>
                 <textarea 
-                  placeholder="Paste the HTML from your Steam Reviews page to include hard labels (Up/Down votes)..."
+                  placeholder="Paste HTML from your Steam Reviews page..."
                   className="w-full bg-secondary border-none rounded-xl px-4 py-3 text-sm h-32 outline-none focus:ring-2 focus:ring-primary/50 font-mono"
                   value={reviewHtml} onChange={(e) => setReviewHtml(e.target.value)}
                 />
@@ -536,7 +623,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
             </div>
             <div className="space-y-2">
               <h2 className="text-2xl font-bold">Acquiring Data...</h2>
-              <p className="text-muted-foreground max-w-sm">We're fetching your library, parsing your reviews, and generating initial predictions. This usually takes 30-60 seconds.</p>
+              <p className="text-muted-foreground max-w-sm">We're fetching your library, parsing your reviews, and generating initial predictions.</p>
             </div>
           </motion.div>
         )}
@@ -549,45 +636,16 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <h2 className="text-2xl font-bold">Verify Your Ratings</h2>
                   <p className="text-sm text-muted-foreground italic">Correct the predicted ratings where needed. Add games manually if you want to broaden the training set.</p>
                 </div>
-                <div className="relative max-w-md" ref={manualSearchRef}>
-                  <div className="relative">
-                    <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                    <input 
-                      type="text" placeholder="Add a game manually (e.g. Elden Ring)"
-                      className="w-full bg-card border border-border rounded-lg pl-10 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50"
-                      value={manualSearch} onChange={(e) => handleManualSearch(e.target.value)}
-                      onFocus={() => manualSearch.length > 1 && setShowManualResults(true)}
-                    />
-                  </div>
-                  <AnimatePresence>
-                    {showManualResults && manualSearchResults.length > 0 && (
-                      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                        className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-2xl max-h-60 overflow-y-auto"
-                      >
-                        {manualSearchResults.map(res => (
-                          <button key={res} onClick={() => handleManualAdd(res)} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary transition-colors border-b border-border/50 last:border-0">
-                            {res}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                <VerificationManualAdd onAdd={handleManualAdd} />
               </div>
-              <div className="flex flex-col items-end gap-2">
-                <button 
-                  onClick={handleSaveAndSolve} disabled={loading}
-                  className="bg-primary text-primary-foreground px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:opacity-90 shadow-lg shadow-primary/20 disabled:opacity-50 shrink-0"
-                >
-                  {loading ? <RefreshCcw size={20} className="animate-spin" /> : <Save size={20} />}
-                  {loading ? 'Solving DNA...' : 'Solve My Taste DNA'}
+              <div className="flex flex-col items-end gap-3">
+                <button onClick={handleSaveAndSolve} disabled={loading || games.length < 10} className="bg-primary text-primary-foreground px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-primary/20 disabled:opacity-50 disabled:scale-100">
+                  {loading ? <RefreshCcw size={20} className="animate-spin" /> : <Sparkles size={20} />}
+                  Solve Taste DNA
                 </button>
-                {loading && solverStatus && (
-                  <motion.div 
-                    initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-                    className="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2"
-                  >
-                    <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
+                {loading && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                    <RefreshCcw size={12} className="animate-spin" />
                     {solverStatus}
                   </motion.div>
                 )}
@@ -596,25 +654,13 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
 
             {manualGames.length > 0 && (
               <VerificationTable 
-                data={manualGames} 
-                title="Manual Additions" 
-                showPlaytime={false} 
-                blurNSFW={blurNSFW}
-                sortConfig={sortConfig}
-                onSort={handleSort}
-                onRatingChange={handleRatingChange}
-                onIgnoreChange={handleIgnoreChange}
-                onDelete={handleDeleteManual}
+                data={manualGames} title="Manual Additions" showPlaytime={false} blurNSFW={blurNSFW} sortConfig={sortConfig} onSort={handleSort}
+                onRatingChange={handleRatingChange} onIgnoreChange={handleIgnoreChange} onDelete={handleDeleteManual} visibleCount={visibleCount}
               />
             )}
             <VerificationTable 
-              data={libraryGames} 
-              title="Library Games" 
-              blurNSFW={blurNSFW}
-              sortConfig={sortConfig}
-              onSort={handleSort}
-              onRatingChange={handleRatingChange}
-              onIgnoreChange={handleIgnoreChange}
+              data={libraryGames} title="Library Games" blurNSFW={blurNSFW} sortConfig={sortConfig} onSort={handleSort}
+              onRatingChange={handleRatingChange} onIgnoreChange={handleIgnoreChange} visibleCount={visibleCount}
             />
           </motion.div>
         )}
@@ -639,70 +685,56 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-              <div className="lg:col-span-1 space-y-8">
-                {/* Metadata Weights */}
-                <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative overflow-visible">
-                  <h3 className="text-lg font-bold flex items-center gap-2">
-                    <LineChart size={18} className="text-primary" />
-                    Metadata Weights
-                  </h3>
-                  <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="space-y-8">
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative">
+                  <h3 className="text-lg font-bold flex items-center gap-2"><LineChart size={18} className="text-primary" />Metadata Weights</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {Object.entries(insights.metadata || {}).map(([key, val]: [string, any]) => {
-                      const denominator = 1.0;
+                      const labels: any = { quality: 'Quality', age: 'Release Date', popularity: 'Popularity', length: 'Playtime', difficulty: 'Difficulty', price: 'Price', semantic: 'Theme Match', tag_match: 'Vibe Match' };
+                      const descriptions: any = { quality: 'Preference for high critic/user consensus.', age: 'Preference for newer vs. classic titles.', popularity: 'Preference for mainstream vs. niche gems.', length: 'Preference for short vs. long experiences.', difficulty: 'Preference for relaxed vs. hard games.', price: 'Sensitivity to game price.', semantic: 'Weight of the descriptive theme model.', tag_match: 'Weight of the categorical tag model.' };
                       return (
-                        <div 
-                          key={key} 
-                          className="space-y-1 group/weight cursor-help relative"
-                          onMouseEnter={() => setHoveredWeight(key)}
-                          onMouseLeave={() => setHoveredWeight(null)}
-                        >
-                          <div className="flex justify-between text-xs uppercase tracking-widest font-bold">
-                            <span className="group-hover/weight:text-primary transition-colors">{key.replace('_', ' ')}</span>
-                            <span className={(val || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>{(val || 0) >= 0 ? '+' : ''}{(val || 0).toFixed(4)}</span>
-                          </div>
-                          <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                            <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (Math.abs(val || 0) / denominator) * 100)}%` }} className={`h-full ${(val || 0) >= 0 ? 'bg-green-500' : 'bg-red-500'}`} />
-                          </div>
-                          
-                          {/* Hover Hints */}
-                          <AnimatePresence>
-                            {hoveredWeight === key && key === 'tag_match' && (
-                              <motion.div 
-                                initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
-                                className="absolute -top-8 left-0 z-[110] whitespace-nowrap bg-primary text-primary-foreground text-[10px] font-bold py-1 px-2 rounded shadow-lg"
-                              >
-                                see Key Tag Dimensions below
-                              </motion.div>
-                            )}
-                            {hoveredWeight === key && key === 'semantic' && (
-                              <motion.div 
-                                initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
-                                className="absolute -top-8 left-0 z-[110] whitespace-nowrap bg-primary text-primary-foreground text-[10px] font-bold py-1 px-2 rounded shadow-lg"
-                              >
-                                Similarity based on descriptions and reviews.
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
+                        <div key={key} className="p-4 bg-secondary/30 rounded-xl space-y-2 group cursor-help relative" onMouseEnter={() => setHoveredWeight(key)} onMouseLeave={() => setHoveredWeight(null)}>
+                          <div className="flex justify-between items-center"><span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{labels[key] || key}</span><span className={`text-sm font-mono font-bold ${(val as number) > 0 ? 'text-green-500' : (val as number) < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>{(val as number).toFixed(2)}</span></div>
+                          <div className="h-1.5 bg-secondary rounded-full overflow-hidden"><div className={`h-full transition-all duration-1000 ${(val as number) > 0 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, Math.abs((val as number) * 50))}%`, marginLeft: (val as number) > 0 ? '0' : 'auto' }} /></div>
+                          <AnimatePresence>{hoveredWeight === key && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute z-50 bottom-full left-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-[10px] rounded shadow-xl border border-border pointer-events-none">{descriptions[key]}</motion.div>}</AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
-                          {/* Explainability Chart Popup */}
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative">
+                  <h3 className="text-lg font-bold flex items-center gap-2"><Compass size={18} className="text-primary" />Vibe Dimensions</h3>
+                  <div className="space-y-4">
+                    {(insights.tag_dimensions?.top_dims || []).map((dim: any) => {
+                      const dimId = dim.index.toString();
+                      const verified = insights.tag_dimensions?.verified_tags?.[dimId];
+                      let displayDesc = verified?.dynamic_label || `Dimension ${dimId}`;
+                      let displayTopPos = verified?.positive || [];
+                      let displayTopNeg = verified?.negative || [];
+                      const val = dim.weight;
+                      if (val < 0) {
+                        if (displayDesc.includes(' vs. ')) displayDesc = displayDesc.split(' vs. ').reverse().join(' vs. ');
+                        [displayTopPos, displayTopNeg] = [displayTopNeg, displayTopPos];
+                      }
+                      const chartData = (insights.tag_dimensions?.correlations?.[dimId] || []).map((c: any) => ({ x: val < 0 ? -c.x : c.x, y: c.y, name: c.name }));
+                      return (
+                        <div key={dimId} className="space-y-2 relative group" onMouseEnter={() => setHoveredDimension(dimId)} onMouseLeave={() => setHoveredDimension(null)}>
+                          <div className="flex justify-between items-center"><span className="text-xs font-bold text-foreground truncate max-w-[80%]">{displayDesc}</span><span className="text-xs font-mono font-bold text-primary">{(Math.abs(val) * 100).toFixed(0)}%</span></div>
+                          <div className="h-2 bg-secondary rounded-full overflow-hidden"><div className="h-full bg-primary transition-all duration-1000" style={{ width: `${Math.min(100, Math.abs(val * 100))}%` }} /></div>
                           <AnimatePresence>
-                            {hoveredWeight === key && (insights.correlations?.[key] || (key === 'discovery' && insights.correlations?.['discovery'])) && (
-                              <motion.div 
-                                initial={{ opacity: 0, x: 20, scale: 0.9 }}
-                                animate={{ opacity: 1, x: 0, scale: 1 }}
-                                exit={{ opacity: 0, x: 20, scale: 0.9 }}
-                                className="absolute left-[calc(100%+1rem)] top-0 z-[100] w-72 md:w-96 pointer-events-none"
-                              >
-                                <div className="bg-card border border-primary/30 rounded-2xl shadow-2xl p-6 pb-10 backdrop-blur-xl">
-                                  <ExplainabilityChart 
-                                    data={insights.correlations[key]} 
-                                    title={key === 'age' ? 'Release Date' : key}
-                                    xLabel={key === 'age' ? 'Year' : key}
-                                    isLog={['popularity', 'length', 'price'].includes(key)}
-                                    type={key === 'discovery' ? 'bar' : 'scatter'}
-                                    showTrendline={key !== 'discovery'}
-                                  />
+                            {hoveredDimension === dimId && (
+                              <motion.div initial={{ opacity: 0, x: 20, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 20, scale: 0.9 }} className="absolute left-[calc(100%+1rem)] top-0 z-[110] w-[400px] md:w-[500px] pointer-events-none">
+                                <div className="bg-card border border-primary/30 rounded-2xl shadow-2xl p-6 pb-8 backdrop-blur-2xl space-y-6">
+                                  <div className="space-y-4">
+                                    <div className="text-xs font-bold uppercase tracking-widest text-primary border-b border-primary/10 pb-2">{displayDesc}</div>
+                                    <div className="space-y-3">
+                                      <div className="flex gap-2">{displayTopPos.map((tag: string) => <span key={tag} className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[9px] font-bold text-green-500 whitespace-nowrap">{tag}</span>)}</div>
+                                      <div className="flex gap-2">{displayTopNeg.map((tag: string) => <span key={tag} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] font-bold text-red-500 whitespace-nowrap">{tag}</span>)}</div>
+                                    </div>
+                                  </div>
+                                  <ExplainabilityChart data={chartData} title={displayDesc} xLabel="Dimension Loading" type="scatter" showTrendline={true} />
                                 </div>
                               </motion.div>
                             )}
@@ -713,105 +745,47 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   </div>
                 </div>
 
-                {/* Predictive Tag Dimensions */}
-                {insights.tag_dimensions?.top_dims?.length > 0 && (
-                  <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative overflow-visible">
-                    <h3 className="text-lg font-bold flex items-center gap-2">
-                      <Hash size={18} className="text-primary" />
-                      Key Tag Dimensions
-                    </h3>
-                    <div className="space-y-4">
-                      {insights.tag_dimensions.top_dims.map((dim: any) => {
-                        const dimId = dim.index.toString();
-                        const verified = insights.tag_dimensions.verified_tags?.[dimId];
-                        const val = dim.weight; // Original weight
-                        
-                        let displayDesc = verified?.dynamic_label || tagDimensions[dimId]?.description || `Dimension ${dimId}`;
-                        let displayTopPos = verified?.positive || tagDimensions[dimId]?.top_positive || [];
-                        let displayTopNeg = verified?.negative || tagDimensions[dimId]?.top_negative || [];
-                        let displayVal = val;
-                        let barColorClass = 'bg-green-500'; // Default to green
-
-                        // Reverse meaning if weight is negative
-                        if (val < 0) {
-                          displayVal = Math.abs(val);
-                          // Reverse the "A vs. B" label
-                          if (displayDesc.includes(' vs. ')) {
-                            const parts = displayDesc.split(' vs. ');
-                            displayDesc = `${parts[1]} vs. ${parts[0]}`;
-                          } else { // Fallback for simple labels
-                             displayDesc = `Inverse of ${displayDesc}`;
-                          }
-                          // Swap positive and negative tags
-                          [displayTopPos, displayTopNeg] = [displayTopNeg, displayTopPos];
-                          barColorClass = 'bg-green-500'; // Always green for "positive" interpretation
-                        }
-                        
-                        // Prepare chart data, reversing x-values if original weight was negative
-                        const chartData = val < 0 
-                          ? insights.tag_dimensions.correlations[dimId].map((point: any) => ({ ...point, x: point.x * -1 }))
-                          : insights.tag_dimensions.correlations[dimId];
-
-                        return (
-                          <div 
-                            key={dimId} 
-                            className="space-y-1 group/dim cursor-help"
-                            onMouseEnter={() => setHoveredDimension(dimId)}
-                            onMouseLeave={() => setHoveredDimension(null)}
-                          >
-                            <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold">
-                              <span className="group-hover/dim:text-primary transition-colors truncate max-w-[150px]">{displayDesc}</span>
-                              <span className="text-green-500">{displayVal >= 0 ? '+' : ''}{displayVal.toFixed(4)}</span>
-                            </div>
-                            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (displayVal / 0.5) * 100)}%` }} className={`h-full ${barColorClass}`} />
-                            </div>
-
-                            {/* Dimension Explanation Hover */}
-                            <AnimatePresence>
-                              {hoveredDimension === dimId && (
-                                <motion.div 
-                                  initial={{ opacity: 0, x: 20, scale: 0.9 }}
-                                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                                  exit={{ opacity: 0, x: 20, scale: 0.9 }}
-                                  className="absolute left-[calc(100%+1rem)] top-0 z-[110] w-[400px] md:w-[500px] pointer-events-none"
-                                >
-                                  <div className="bg-card border border-primary/30 rounded-2xl shadow-2xl p-6 pb-8 backdrop-blur-2xl space-y-6">
-                                    <div className="space-y-4">
-                                      <div className="text-xs font-bold uppercase tracking-widest text-primary border-b border-primary/10 pb-2">{displayDesc}</div>
-                                      
-                                      <div className="space-y-3">
-                                        <div className="flex gap-2">
-                                          {displayTopPos.map((tag: string) => (
-                                            <span key={tag} className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[9px] font-bold text-green-500 whitespace-nowrap">{tag}</span>
-                                          ))}
-                                        </div>
-                                        <div className="flex gap-2">
-                                          {displayTopNeg.map((tag: string) => (
-                                            <span key={tag} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] font-bold text-red-500 whitespace-nowrap">{tag}</span>
-                                          ))}
-                                        </div>
-                                      </div>
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative">
+                  <h3 className="text-lg font-bold flex items-center gap-2"><Sparkles size={18} className="text-primary" />Thematic Dimensions</h3>
+                  <div className="space-y-4">
+                    {(insights.semantic_dimensions?.top_dims || []).map((dim: any) => {
+                      const dimId = dim.index.toString();
+                      const labels = insights.semantic_dimensions?.labels?.[dimId];
+                      let displayDesc = labels?.dynamic_label || `Semantic Dim ${dimId}`;
+                      let displayTopPos = labels?.positive || [];
+                      let displayTopNeg = labels?.negative || [];
+                      const val = dim.weight;
+                      if (val < 0) {
+                        if (displayDesc.includes(' vs ')) displayDesc = displayDesc.split(' vs ').reverse().join(' vs ');
+                        [displayTopPos, displayTopNeg] = [displayTopNeg, displayTopPos];
+                      }
+                      const chartData = (insights.semantic_dimensions?.correlations?.[dimId] || []).map((c: any) => ({ x: val < 0 ? -c.x : c.x, y: c.y, name: c.name }));
+                      return (
+                        <div key={dimId} className="space-y-2 relative group" onMouseEnter={() => setHoveredSemanticDimension(dimId)} onMouseLeave={() => setHoveredSemanticDimension(null)}>
+                          <div className="flex justify-between items-center"><span className="text-xs font-bold text-foreground truncate max-w-[80%]">{displayDesc}</span><span className="text-xs font-mono font-bold text-primary">{(Math.abs(val) * 100).toFixed(0)}%</span></div>
+                          <div className="h-2 bg-secondary rounded-full overflow-hidden"><div className="h-full bg-primary transition-all duration-1000" style={{ width: `${Math.min(100, Math.abs(val * 100))}%` }} /></div>
+                          <AnimatePresence>
+                            {hoveredSemanticDimension === dimId && (
+                              <motion.div initial={{ opacity: 0, x: 20, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 20, scale: 0.9 }} className="absolute left-[calc(100%+1rem)] top-0 z-[110] w-[400px] md:w-[500px] pointer-events-none">
+                                <div className="bg-card border border-primary/30 rounded-2xl shadow-2xl p-6 pb-8 backdrop-blur-2xl space-y-6">
+                                  <div className="space-y-4">
+                                    <div className="text-xs font-bold uppercase tracking-widest text-primary border-b border-primary/10 pb-2">{displayDesc}</div>
+                                    <div className="space-y-3">
+                                      <div className="flex gap-2">{displayTopPos.map((tag: string) => <span key={tag} className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[9px] font-bold text-green-500 whitespace-nowrap">{tag}</span>)}</div>
+                                      <div className="flex gap-2">{displayTopNeg.map((tag: string) => <span key={tag} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] font-bold text-red-500 whitespace-nowrap">{tag}</span>)}</div>
                                     </div>
-                                    <ExplainabilityChart 
-                                      data={chartData} 
-                                      title={displayDesc} // Use the reversed description as the chart title
-                                      xLabel="Dimension Loading"
-                                      type="scatter"
-                                      showTrendline={true}
-                                    />
                                   </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        );
-                      })}
-                    </div>
+                                  <ExplainabilityChart data={chartData} title={displayDesc} xLabel="Dimension Loading" type="scatter" showTrendline={true} />
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
+                </div>
 
-                {/* Predictive Tags */}
                 <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative">
                   <h3 className="text-lg font-bold flex items-center gap-2"><Hash size={18} className="text-primary" />Predictive Tags</h3>
                   <div className="space-y-6">
@@ -819,42 +793,9 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                       <div className="text-[10px] font-bold uppercase tracking-widest text-green-500">Like...</div>
                       <div className="flex flex-wrap gap-2">
                         {(insights.associative_tags?.top || insights.top_tags || []).map((t: any) => (
-                          <div 
-                            key={t.tag} 
-                            className="relative group/tag"
-                            onMouseEnter={() => setHoveredTag(t.tag)}
-                            onMouseLeave={() => setHoveredTag(null)}
-                          >
-                            {termLinks[t.tag] ? (
-                              <a 
-                                href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer"
-                                className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500 hover:bg-green-500/20 transition-colors block"
-                              >
-                                {t.tag}
-                              </a>
-                            ) : (
-                              <div className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500">
-                                {t.tag}
-                              </div>
-                            )}
-
-                            {/* Violin Plot Hover */}
-                            <AnimatePresence>
-                              {hoveredTag === t.tag && t.ratings_with && (
-                                <motion.div 
-                                  initial={{ opacity: 0, x: 20, scale: 0.9 }}
-                                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                                  exit={{ opacity: 0, x: 20, scale: 0.9 }}
-                                  className="absolute left-[calc(100%+0.5rem)] top-0 z-[120] pointer-events-none"
-                                >
-                                  <ViolinPlot 
-                                    ratingsWith={t.ratings_with}
-                                    ratingsWithout={t.ratings_without}
-                                    tagName={t.tag}
-                                  />
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                          <div key={t.tag} className="relative group/tag" onMouseEnter={() => setHoveredTag(t.tag)} onMouseLeave={() => setHoveredTag(null)}>
+                            {termLinks[t.tag] ? <a href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer" className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500 hover:bg-green-500/20 transition-colors block">{t.tag}</a> : <div className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500">{t.tag}</div>}
+                            <AnimatePresence>{hoveredTag === t.tag && t.ratings_with && <motion.div initial={{ opacity: 0, x: 20, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 20, scale: 0.9 }} className="absolute left-[calc(100%+0.5rem)] top-0 z-[120] pointer-events-none"><ViolinPlot ratingsWith={t.ratings_with} ratingsWithout={t.ratings_without} tagName={t.tag} /></motion.div>}</AnimatePresence>
                           </div>
                         ))}
                       </div>
@@ -863,72 +804,10 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                       <div className="text-[10px] font-bold uppercase tracking-widest text-red-500">Dislike...</div>
                       <div className="flex flex-wrap gap-2">
                         {(insights.associative_tags?.bottom || insights.bottom_tags || []).map((t: any) => (
-                          <div 
-                            key={t.tag} 
-                            className="relative group/tag"
-                            onMouseEnter={() => setHoveredTag(t.tag)}
-                            onMouseLeave={() => setHoveredTag(null)}
-                          >
-                            {termLinks[t.tag] ? (
-                              <a 
-                                href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer"
-                                className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500 hover:bg-red-500/20 transition-colors block"
-                              >
-                                {t.tag}
-                              </a>
-                            ) : (
-                              <div className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500">
-                                {t.tag}
-                              </div>
-                            )}
-
-                            {/* Violin Plot Hover */}
-                            <AnimatePresence>
-                              {hoveredTag === t.tag && t.ratings_with && (
-                                <motion.div 
-                                  initial={{ opacity: 0, x: 20, scale: 0.9 }}
-                                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                                  exit={{ opacity: 0, x: 20, scale: 0.9 }}
-                                  className="absolute left-[calc(100%+0.5rem)] top-0 z-[120] pointer-events-none"
-                                >
-                                  <ViolinPlot 
-                                    ratingsWith={t.ratings_with}
-                                    ratingsWithout={t.ratings_without}
-                                    tagName={t.tag}
-                                  />
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                          <div key={t.tag} className="relative group/tag" onMouseEnter={() => setHoveredTag(t.tag)} onMouseLeave={() => setHoveredTag(null)}>
+                            {termLinks[t.tag] ? <a href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer" className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500 hover:bg-red-500/20 transition-colors block">{t.tag}</a> : <div className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] font-medium text-red-500">{t.tag}</div>}
+                            <AnimatePresence>{hoveredTag === t.tag && t.ratings_with && <motion.div initial={{ opacity: 0, x: 20, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 20, scale: 0.9 }} className="absolute left-[calc(100%+0.5rem)] top-0 z-[120] pointer-events-none"><ViolinPlot ratingsWith={t.ratings_with} ratingsWithout={t.ratings_without} tagName={t.tag} /></motion.div>}</AnimatePresence>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Taste Anchors */}
-                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
-                  <h3 className="text-lg font-bold flex items-center gap-2"><Compass size={18} className="text-primary" />Taste Anchors</h3>
-                  <div className="space-y-6">
-                    <div className="space-y-3">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-1"><Compass size={10} />North Stars</div>
-                      <div className="space-y-2">
-                        {insights.north_stars?.map((game: any) => (
-                          <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="block p-2 bg-secondary/30 rounded-lg border border-border/50 hover:border-primary/30 transition-colors">
-                            <div className="font-bold text-[10px] truncate">{game.name}</div>
-                            <div className="text-[8px] text-muted-foreground uppercase">Alignment: {game.alignment.toFixed(2)}</div>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1"><Anchor size={10} />The Abyss</div>
-                      <div className="space-y-2">
-                        {insights.abyssal_games?.map((game: any) => (
-                          <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="block p-2 bg-secondary/30 rounded-lg border border-border/50 hover:border-red-500/30 transition-colors opacity-60">
-                            <div className="font-bold text-[10px] truncate">{game.name}</div>
-                            <div className="text-[8px] text-muted-foreground uppercase">Alignment: {game.alignment.toFixed(2)}</div>
-                          </a>
                         ))}
                       </div>
                     </div>
@@ -936,20 +815,62 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                 </div>
               </div>
 
-              <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-8">
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative">
+                  <h3 className="text-lg font-bold flex items-center gap-2"><Anchor size={18} className="text-primary" />North Stars</h3>
+                  <p className="text-xs text-muted-foreground italic">Games that perfectly match your solved Vibe DNA (ignoring age/quality/price).</p>
+                  <div className="grid grid-cols-1 gap-4">
+                    {(insights.north_stars || []).map((game: any) => (
+                      <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="bg-secondary/30 border border-border/50 rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all group">
+                        <div className="w-24 h-12 rounded overflow-hidden shrink-0"><img src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/capsule_184x69.jpg`} alt={game.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" /></div>
+                        <div className="flex-grow min-w-0"><div className="font-bold text-sm truncate group-hover:text-primary transition-colors">{game.name}</div><div className="text-[10px] text-muted-foreground uppercase tracking-widest">Match Score: {game.alignment?.toFixed(2)}</div></div>
+                        <ExternalLink size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative">
+                  <h3 className="text-lg font-bold flex items-center gap-2"><Library size={18} className="text-primary" />Backlog Priority</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {(insights.backlog_recommendations || []).slice(0, 5).map((game: any) => (
+                      <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="bg-secondary/30 border border-border/50 rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all group">
+                        <div className="w-24 h-12 rounded overflow-hidden shrink-0"><img src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/capsule_184x69.jpg`} alt={game.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" /></div>
+                        <div className="flex-grow min-w-0"><div className="font-bold text-sm truncate group-hover:text-primary transition-colors">{game.name}</div><div className="text-[10px] text-primary font-bold uppercase tracking-widest">Pred: {game.predicted_rating?.toFixed(1)} / 10</div></div>
+                        <ExternalLink size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative">
+                  <h3 className="text-lg font-bold flex items-center gap-2"><Sparkles size={18} className="text-primary" />Discovery Gems</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {(insights.top_recommendations || []).slice(0, 5).map((game: any) => (
+                      <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="bg-secondary/30 border border-border/50 rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all group">
+                        <div className="w-24 h-12 rounded overflow-hidden shrink-0"><img src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/capsule_184x69.jpg`} alt={game.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" /></div>
+                        <div className="flex-grow min-w-0"><div className="font-bold text-sm truncate group-hover:text-primary transition-colors">{game.name}</div><div className="text-[10px] text-primary font-bold uppercase tracking-widest">Pred: {game.predicted_rating?.toFixed(1)} / 10</div></div>
+                        <ExternalLink size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* LOVE LIST */}
-                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">  
                   <h3 className="text-lg font-bold flex items-center gap-2 text-primary"><ThumbsUp size={18} />Games You'll Love</h3>
                   <div className="space-y-3">
-                    {insights.top_recommendations?.map((game: any, idx: number) => (
-                      <a 
+                    {insights.top_recommendations?.slice(0, 10).map((game: any, idx: number) => (      
+                      <a
                         key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-primary/30 transition-colors group"
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
-                        <img 
-                          src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
-                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`} 
+                        <img
+                          src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
+                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
                           onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
                         />
                         <div className="flex-grow min-w-0">
@@ -964,18 +885,18 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                 </div>
 
                 {/* HATE LIST */}
-                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">  
                   <h3 className="text-lg font-bold flex items-center gap-2 text-red-500"><ThumbsDown size={18} />Games You'll Hate</h3>
                   <div className="space-y-3">
-                    {insights.bottom_recommendations?.map((game: any, idx: number) => (
-                      <a 
+                    {insights.bottom_recommendations?.slice(0, 10).map((game: any, idx: number) => (   
+                      <a
                         key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-red-500/30 transition-colors group"
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-red-500/10 rounded-full text-[10px] font-bold text-red-500 shrink-0">{idx + 1}</div>
-                        <img 
-                          src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
-                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`} 
+                        <img
+                          src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
+                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
                           onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
                         />
                         <div className="flex-grow min-w-0">
@@ -989,81 +910,49 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   </div>
                 </div>
 
-                {/* BACKLOG LIST */}
-                {insights.backlog_recommendations?.length > 0 && (
-                  <div className="md:col-span-2 bg-card border border-primary/20 rounded-2xl p-6 space-y-6 shadow-lg">
-                    <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
-                      <Library size={22} />
-                      From Your Backlog
-                    </h3>
-                    <p className="text-xs text-muted-foreground italic -mt-4">Top-rated games already in your library that you haven't played yet.</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {insights.backlog_recommendations.slice(0, 10).map((game: any, idx: number) => (
-                        <a 
-                          key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-primary/30 transition-colors group"
-                        >
-                          <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
-                          <img 
-                            src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
-                            className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`} 
-                            onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
-                          />
-                          <div className="flex-grow min-w-0">
-                            <div className="font-bold text-[11px] truncate group-hover:text-primary transition-colors">{game.name}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-[10px] font-bold text-primary">{Math.round(game.predicted_rating)}</div>
-                          </div>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* TAG-SPECIFIC RECOMMENDATIONS */}
                 {insights.associative_tags?.top?.some((t: any) => t.top_games && t.top_games.length > 0) && (
                   <div className="md:col-span-2 space-y-8 mt-4">
                     <div className="flex items-center gap-2">
                       <Sparkles size={20} className="text-primary" />
-                      <h3 className="text-xl font-bold">Top Recommendations by Tag</h3>
+                      <h3 className="text-xl font-bold">Top Recommendations by Tag</h3>   
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {insights.associative_tags.top
-                        .filter((t: any) => t.top_games && t.top_games.length > 0)
+                        .filter((t: any) => t.top_games && t.top_games.length > 0)        
                         .map((t: any) => (
                           <div key={t.tag} className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm hover:shadow-md transition-shadow">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 {termLinks[t.tag] ? (
-                                  <a 
+                                  <a
                                     href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer"
                                     className="px-2.5 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-bold text-green-500 hover:bg-green-500/20 transition-colors uppercase tracking-wider"
                                   >
                                     {t.tag}
                                   </a>
                                 ) : (
-                                  <div className="px-2.5 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-bold text-green-500 uppercase tracking-wider">
+                                  <div className="px-2.5 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-bold text-green-500 uppercase tracking-wider"> 
                                     {t.tag}
                                   </div>
                                 )}
                               </div>
                               <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest bg-secondary/50 px-2 py-0.5 rounded">Tag Expert</span>
                             </div>
-                            
+
                             <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
                               {t.top_games.map((game: any) => (
-                                <a 
-                                  key={game.appid} 
-                                  href={`https://store.steampowered.com/app/${game.appid}`} 
-                                  target="_blank" 
+                                <a
+                                  key={game.appid}
+                                  href={`https://store.steampowered.com/app/${game.appid}`}
+                                  target="_blank"
                                   rel="noopener noreferrer"
                                   className="flex-shrink-0 w-32 group/tag-game"
                                 >
                                   <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/tag-game:border-primary/50 transition-colors">
-                                    <img 
+                                    <img
                                       src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
-                                      className={`w-full h-full object-cover group-hover/tag-game:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
+                                      className={`w-full h-full object-cover group-hover/tag-game:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}     
                                       onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
                                     />
                                   </div>
@@ -1084,36 +973,36 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <div className="md:col-span-2 space-y-8 mt-12">
                     <div className="flex items-center gap-2">
                       <ThumbsUp size={20} className="text-primary" />
-                      <h3 className="text-xl font-bold">Similar to Your Favorites</h3>
+                      <h3 className="text-xl font-bold">Similar to Your Favorites</h3>    
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {insights.favorite_game_recommendations.map((fav: any) => (
                         <div key={fav.seed_appid} className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm hover:shadow-md transition-shadow">
-                          <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center justify-between gap-4">       
                             <div className="flex items-center gap-2 min-w-0">
-                              <img 
+                              <img
                                 src={`https://cdn.akamai.steamstatic.com/steam/apps/${fav.seed_appid}/header.jpg`}
                                 className="w-10 h-5 object-cover rounded shadow-sm border border-border/50 shrink-0"
                                 onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
                               />
                               <div className="text-[10px] font-bold truncate text-muted-foreground uppercase tracking-wider">{fav.seed_name}</div>
                             </div>
-                            <span className="text-[8px] font-bold text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded whitespace-nowrap">Seed Source</span>
+                            <span className="text-[8px] font-bold text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded whitespace-nowrap">Seed Source</span>    
                           </div>
-                          
-                          <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+
+                          <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">  
                             {fav.top_games.map((game: any) => (
-                              <a 
-                                key={game.appid} 
+                              <a
+                                key={game.appid}
                                 href={`https://store.steampowered.com/app/${game.appid}`} 
-                                target="_blank" 
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex-shrink-0 w-32 group/fav-game"
                               >
-                                <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/fav-game:border-primary/50 transition-colors">
-                                  <img 
+                                <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/fav-game:border-primary/50 transition-colors"> 
+                                  <img
                                     src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
-                                    className={`w-full h-full object-cover group-hover/fav-game:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
+                                    className={`w-full h-full object-cover group-hover/fav-game:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}       
                                     onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/csv" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
                                   />
                                 </div>
