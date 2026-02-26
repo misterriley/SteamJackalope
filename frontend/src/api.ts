@@ -57,6 +57,16 @@ export const getChangelog = async (): Promise<string> => {
   return response.data.content;
 };
 
+export const getMethodology = async (): Promise<string> => {
+  const response = await api.get('/methodology');
+  return response.data.content;
+};
+
+export const getAbout = async (): Promise<string> => {
+  const response = await api.get('/about');
+  return response.data.content;
+};
+
 export const getList = async (category: string, discoveryPref: number = 0): Promise<ListResponse> => {
   const response = await api.get(`/lists/${category}`, {
     params: { discovery_pref: discoveryPref },

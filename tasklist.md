@@ -7,8 +7,9 @@
 ## Task List
 
 ### Recently Completed
+- [x] **Build 48: Topic Sync Fix**: Synchronized the thematic topic match signal between the Taste DNA page and the Recommender by ensuring `topic_vibe_vector` and `gamma_topic` are correctly mapped in the frontend. Added a "Topic Match" slider to the sidebar for manual control.
 - [x] **Build 55-68: Library Management Update**: Implemented categorical status filtering (Rated/Played/Backlog/Ignored/Wishlist) across engine and UI. Resolved severe UI lag using Lite Virtualization (Infinite Scroll), React memoization, and isolated search components. Standardized keyboard-driven data entry with auto-scroll across search dropdowns. Fixed multiple server and solver crashes related to the status migration.
-- [x] **Catalogue View (User Hub)**: Created a high-performance management page for categorized game identity. Features infinite scroll for 1000+ items, multi-column sorting, and real-time status syncing.
+- [x] **Catalogue View (User Hub)**: Created a high-performance management page for categorized game identity. Features infinite scroll for 1000+ items, multi-column sorting, and real-time status syncing.       
 - [x] **Build 49: Precision Update**: Implemented population-wide modality scaling ($1.0, 2.0, 26.5$) and Zero-Order Relevance Filtering ($p \le N-7$) for the Taste Solver. Synchronized all similarity signals across pipeline and recommender.
 - [x] **Build 48: High-Fidelity Thematic Search**: Integrated 250-topic BERTopic layer with JSD-based similarity and population Z-scoring. Added Topic Match signal to Taste DNA and backend.
 - [x] **Consensus Blending (Softmin)**: Integrated Softmin similarity blending (T=3.0) for multi-signal targets (DNA + Seeds + Prompts) to enforce a "consensus" requirement.
@@ -18,7 +19,7 @@
 - [x] **Perfect Parity**: Synchronized Analyzer's "Similar to Favorites" scoring with Recommender's manual mode, including personalized p+t quality and normalization fixes.
 - [x] **Robust Metadata Filtering**: Implemented text-based placeholder detection ("Coming Soon", "TBD") for unreleased game filtering to supplement build-time cutoffs.
 - [x] **Legacy Removal**: Excised unused structural semantic/tag artifacts to reclaim RAM and minimize Git footprint.
-- [x] **Mathematical Parity (Solver/API)**: Harmonized the scoring pipeline between the Python solver and FastAPI backend. Fixed the "82% Bug" by isolating the 5.0 neutral intercept from scaling division.
+- [x] **Mathematical Parity (Solver/API)**: Harmonized the scoring pipeline between the Python solver and FastAPI backend. Fixed the "82% Bug" by isolating the 5.0 neutral intercept from scaling division.       
 - [x] **Transparency Mode (Absolute Weights)**: Refactored the Taste DNA mode to use UI sliders as absolute weights rather than multipliers.
 - [x] **Delisted Game Filter**: Implemented a global filter to exclude games that are no longer available for purchase on Steam.
 

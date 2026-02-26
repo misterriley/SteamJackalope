@@ -71,6 +71,8 @@ export interface RecommendationRequest {
   tags: string[];
   vibe_vector?: number[];
   semantic_vibe_vector?: number[];
+  topic_vibe_vector?: number[];
+  gamma_topic?: number;
   metadata_weights?: Record<string, number>;
   intercept?: number;
   scaling_factor?: number;

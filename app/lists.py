@@ -217,7 +217,7 @@ def render_lists_page():
 
     with list_tabs[4]:
         st.subheader("Difficulty Analysis")
-        st.write("Difficulty is predicted using a model trained on GameFAQs ratings and Steam tags.")
+        st.write("Difficulty is predicted using a LASSO regression model trained on GameFAQs ratings using Steam tags and BERTopic gameplay topics.")
         
         try:
             logger.info("Fetching difficulty list")
@@ -225,7 +225,7 @@ def render_lists_page():
             logger.info(f"Difficulty list response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
-                diff_view = st.selectbox("Select View", ["Games", "Tags"])
+                diff_view = st.selectbox("Select View", ["Games", "Predictors (Tags + Topics)"])
                 
                 if diff_view == "Games":
                     col1, col2 = st.columns(2)
@@ -250,26 +250,26 @@ def render_lists_page():
                         else:
                             st.warning("No difficulty game data available")
                 
-                else:  # Tags view
-                    st.write("### Difficulty Predictors (Tags)")
-                    st.write("These tags are the strongest positive and negative predictors of game difficulty in our model.")
+                else:  # Predictors view
+                    st.write("### Difficulty Predictors")
+                    st.write("These features (Tags and Gameplay Topics) are the strongest positive and negative predictors of game difficulty in our model.")
                     
-                    tag_impacts = data.get('tag_impacts', [])
-                    logger.info(f"Difficulty tag impacts: {len(tag_impacts)} tags")
+                    impacts = data.get('tag_impacts', [])
+                    logger.info(f"Difficulty impacts: {len(impacts)} features")
                     
-                    impact_df = pd.DataFrame(tag_impacts)
+                    impact_df = pd.DataFrame(impacts)
                     if not impact_df.empty:
-                        impact_df.rename(columns={'tag': 'Tag', 'impact': 'Average Impact'}, inplace=True)
+                        impact_df.rename(columns={'tag': 'Feature', 'impact': 'Coefficient', 'type': 'Type'}, inplace=True)
                         c1, c2 = st.columns(2)
                         with c1:
                             st.write("#### Strongest Difficulty Increase")
-                            st.dataframe(impact_df.head(20), hide_index=True, use_container_width=True)
+                            st.dataframe(impact_df[['Feature', 'Type', 'Coefficient']].head(25), hide_index=True, use_container_width=True)
                         with c2:
                             st.write("#### Strongest Difficulty Decrease")
-                            st.dataframe(impact_df.tail(20).sort_values('Average Impact', ascending=True), hide_index=True, use_container_width=True)
+                            st.dataframe(impact_df[['Feature', 'Type', 'Coefficient']].tail(25).sort_values('Coefficient', ascending=True), hide_index=True, use_container_width=True)
                     else:
                         st.info("Difficulty prediction data not found on server.")
-                        logger.warning("No tag impacts returned from difficulty endpoint")
+                        logger.warning("No impact data returned from difficulty endpoint")
             else:
                 logger.error(f"Difficulty list fetch failed: {response.status_code}")
                 st.error("Failed to fetch difficulty list.")

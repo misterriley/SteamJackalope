@@ -2,6 +2,14 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [48] - 2026-02-25
+### Build 48
+### Version 0.0.1-pre-alpha.48
+
+- **Algorithm**: Synchronized the **Thematic Topic Match** signal between the Taste DNA page and the Recommender. The recommendation engine now correctly receives the `topic_vibe_vector` and its weight (`gamma_topic`) upon profile import, ensuring perfect ordinal parity with the solver's preview.
+- **UI/UX**: Added a **"Topic Match"** slider to the Preferences sidebar, allowing users to manually tune the impact of atmospheric and thematic topics on their recommendations.
+- **UI/UX**: Hardened the profile application and clear logic in `App.tsx` to handle all 3 similarity modalities (Tags, Semantics, Topics) and their respective vectors.
+
 ## [47] - 2026-02-25
 ### Build 47
 ### Version 0.0.1-pre-alpha.47

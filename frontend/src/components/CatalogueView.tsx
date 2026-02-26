@@ -32,6 +32,7 @@ interface CatalogueEntry {
   playtime_forever: number;
   is_manual?: boolean;
   is_nsfw?: boolean;
+  notes?: string;
 }
 
 const ROWS_PER_PAGE = 50;
@@ -85,6 +86,7 @@ const CatalogueRow = React.memo(({ entry, blurNSFW, onStatusChange, onRatingChan
               <span className="text-[10px] text-primary/70 font-bold bg-primary/5 px-1.5 rounded">{(entry.playtime_forever / 60).toFixed(1)}h</span>
             )}
             {entry.is_manual && <span className="text-[8px] font-bold uppercase tracking-tighter bg-secondary px-1 rounded text-muted-foreground">Manual</span>}
+            {entry.notes && <span className="text-[8px] font-bold uppercase tracking-tighter bg-blue-500/10 text-blue-400 px-1 rounded border border-blue-500/20">{entry.notes}</span>}
           </div>
         </div>
       </td>
@@ -383,7 +385,12 @@ const CatalogueView: React.FC = () => {
     setIsSaving(true);
     try {
       const updates = entries.map(e => ({ 
-        steam_id: steamId, appid: e.appid, actual_rating: e.actual_rating, ignore: e.ignore, status: e.status
+        steam_id: steamId, 
+        appid: e.appid, 
+        actual_rating: e.actual_rating, 
+        ignore: e.ignore, 
+        status: e.status,
+        notes: e.notes
       }));
       const res = await fetch(`${API_BASE_URL}/user/verify`, {
         method: 'POST',

@@ -42,6 +42,7 @@ TAG_NORMS_FILE = os.getenv("STEAM_TAG_NORMS_FILE", os.path.join(PRODUCTION_DATA_
 QUALITY_GRID_FILE = os.getenv("STEAM_QUALITY_GRID_FILE", os.path.join(PRODUCTION_DATA_DIR, "quality_scores_grid.npy"))
 METADATA_FILE = os.getenv("STEAM_METADATA_FILE", os.path.join(PRODUCTION_DATA_DIR, "metadata.parquet"))
 DIFFICULTY_PREDICTIONS_FILE = os.getenv("STEAM_DIFFICULTY_PREDICTIONS_FILE", os.path.join(PRODUCTION_DATA_DIR, "difficulty_predictions.csv"))
+DIFFICULTY_COEFFICIENTS_FILE = os.getenv("STEAM_DIFFICULTY_COEFFICIENTS_FILE", os.path.join(PRODUCTION_DATA_DIR, "difficulty_coefficients.json"))
 SIMILARITY_LISTS_FILE = os.getenv("STEAM_SIMILARITY_LISTS_FILE", os.path.join(PRODUCTION_DATA_DIR, "similarity_lists.json"))
 TAG_NAMES_FILE = os.getenv("STEAM_TAG_NAMES_FILE", os.path.join(PRODUCTION_DATA_DIR, "tag_names.json"))
 TAG_PRIOR_COUNTS_FILE = os.getenv("STEAM_TAG_PRIOR_COUNTS_FILE", os.path.join(PRODUCTION_DATA_DIR, "tag_prior_counts.npy"))

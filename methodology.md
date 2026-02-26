@@ -74,22 +74,18 @@ To effectively rank games by length, we analyze the distribution of playtimes th
 
 - **Display:** The exponential of this regularized value, minus 1 and converted to hours, is displayed as the estimation of length. 
 
-## 7. Difficulty Prediction
-Steam games do not natively have a "Difficulty" rating. To solve this, we built a predictive model using external data fitted to Steam game tags. 
+## 7. Difficulty Prediction (Build 68)
+Steam games do not natively have a "Difficulty" rating. To solve this, we built a predictive model using external data from GameFAQs (~2,900 matched titles) mapped to Steam game features.
 
-- **Source Data:** We use an external dataset of ~3,200 games with explicit difficulty ratings that are in the Steam ecosystem.
+- **Model:** We train a **LASSO Regression** model (L1 Regularization) to predict difficulty using a combination of **Steam Tags** and **BERTopic Gameplay Topics**.
 
-- **Model:** We train a linear regression model to predict this difficulty score using Steam tags as features.
+- **Robust Feature Transformation (Rank-INT):** To ensure robust generalization and prevent "niche bias" (where features rare in the training set but common in the general population, such as specific Sudoku topics, cause extreme over-prediction), the model utilizes **Rank-Based Inverse Normal Transformation (Rank-INT)** on all input features. Features are ranked across the **full 155,000 game population** and mapped to a normal distribution. This caps the influence of extreme outliers and prevents the linear model from over-extrapolating in high-density feature regions.
 
-    - **Transformation:** Tag proportions and difficulty scores are transformed using [**Rank-Based Inverse Normal Transformation (Rank-INT)**](https://github.com/alexjamesing/RankBasedInverseNormal) to handle the sparse and non-normal distribution of tag data.
+- **Tag Preprocessing (5 Iteration EM):** We use **5 Iterations** of our Expectation-Maximization (EM) imputation algorithm to recover "censored" tags. These counts are transformed using the **Centered Log-Ratio (CLR)** transform and shrunken via **Bayesian Regularization** ($K \approx 72.5$). 
 
-    - **Feature Selection:** We used [**Forward/Backward Iterative Feature Selection**](https://www.geeksforgeeks.org/machine-learning/feature-selection-techniques-in-machine-learning/) with [**Bayesian Information Criterion (BIC)**](https://en.wikipedia.org/wiki/Bayesian_information_criterion) to identify significantly predictive tags in the external data. Some of the significant predictors are obvious tags like ["Difficult"](https://store.steampowered.com/tags/en/Difficult), ["Precision Platformer"](https://store.steampowered.com/tags/en/Precision%20Platformer), and ["Souls-like"](https://store.steampowered.com/tags/en/Souls-like). There are also less obvious ones like ["Visual Novel"](https://store.steampowered.com/category/visual_novel) and ["Short"](https://store.steampowered.com/tags/en/Short), which predict easy games.  
+- **Predictors:** The model identifies "Difficult", "Chess", and "Intentionally Awkward Controls" as top difficulty predictors. High-challenge gameplay topics like Topic 37 (Precision Platforming) are strongly weighted, while Topic 118 (Zen/Relaxing) is a top ease predictor.
 
-- **Estimation** We apply this model to all steam games. The result is a difficulty prediction value from 0 to 10, where 0 indicates a very easy game and 10 indicates a very difficult one. The mean difficulty estimate for all Steam games is around 5.5, and our prediction for the most difficult game on Steam is [Tametsi](https://store.steampowered.com/app/709920/Tametsi/). Play it if you hate yourself.
-
-- **Z-Scoring:** For the final difficulty rating, the predicted difficulty estimate is converted to a z-score relative to the distribution of all games that have tags. This allows users to weight games by their estimated challenge level on the same scale as other features, such as popularity or length.
-
-- **Display:** The predicted 0-10 difficulty score is displayed directly on the game cards, providing a quick estimate of the expected challenge.
+- **Estimation & Display:** The model is applied to all ~155,000 games. Results are clamped between **0.0 and 10.0**, with a global mean of approximately **5.0**. These estimates are converted to **Global Z-scores** for the recommendation engine, ensuring parity with other metadata signals.
 
 ## 8. Content Sensitivity (NSFW Blur)
 To maintain a safe and professional discovery experience, Steam Jackalope employs an **"NSFW Blur" Architecture**. 

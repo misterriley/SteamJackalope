@@ -502,6 +502,7 @@ class UserVerifyUpdate(BaseModel):
     actual_rating: float
     ignore: bool
     status: Optional[str] = None
+    notes: Optional[str] = None
 
 class RecommendationRequest(BaseModel):
     alpha: float = 0.5
@@ -668,6 +669,24 @@ def get_changelog():
             return {"content": f.read()}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Changelog file not found")
+
+@app.get("/methodology")
+def get_methodology():
+    """Returns the content of methodology.md."""
+    try:
+        with open("methodology.md", "r", encoding="utf-8") as f:
+            return {"content": f.read()}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Methodology file not found")
+
+@app.get("/about")
+def get_about():
+    """Returns the content of about.md."""
+    try:
+        with open("about.md", "r", encoding="utf-8") as f:
+            return {"content": f.read()}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="About file not found")
 
 # --- Personalization Pipeline Endpoints ---
 
@@ -880,6 +899,8 @@ def get_catalogue_data(steam_id: str):
             df_gt['actual_rating'] = np.nan
         if 'ignore' not in df_gt.columns:
             df_gt['ignore'] = False
+        if 'notes' not in df_gt.columns:
+            df_gt['notes'] = ""
 
         # Identify manual additions
         manual_appids = df_gt[~df_gt['appid'].isin(df_sl['appid'])]['appid'].tolist()
@@ -901,14 +922,16 @@ def get_catalogue_data(steam_id: str):
                     'actual_rating': gt_row['actual_rating'],
                     'ignore': bool(gt_row['ignore']),
                     'status': status,
+                    'notes': str(gt_row.get('notes', "")),
                     'is_manual': True,
                     'is_nsfw': bool(row.get('is_nsfw', False))
                 })
         
         # Merge library games
-        df = df_sl.merge(df_gt[['appid', 'actual_rating', 'ignore', 'status']], on='appid', how='left')
+        df = df_sl.merge(df_gt[['appid', 'actual_rating', 'ignore', 'status', 'notes']], on='appid', how='left')
         df['actual_rating'] = df['actual_rating'].fillna(df['predicted_rating'])
         df['ignore'] = df['ignore'].fillna(False)
+        df['notes'] = df['notes'].fillna("")
         df['is_manual'] = False
         
         # Define default status if missing
@@ -947,7 +970,7 @@ def update_verification_data(updates: List[UserVerifyUpdate]):
     if os.path.exists(gt_path):
         df = pd.read_csv(gt_path)
     else:
-        df = pd.DataFrame(columns=['appid', 'actual_rating', 'ignore', 'status'])
+        df = pd.DataFrame(columns=['appid', 'actual_rating', 'ignore', 'status', 'notes'])
         
     for up in updates:
         # Update or add
@@ -957,12 +980,15 @@ def update_verification_data(updates: List[UserVerifyUpdate]):
             df.loc[mask, 'ignore'] = up.ignore
             if up.status:
                 df.loc[mask, 'status'] = up.status
+            if up.notes is not None:
+                df.loc[mask, 'notes'] = up.notes
         else:
             new_row = pd.DataFrame([{
                 'appid': up.appid, 
                 'actual_rating': up.actual_rating, 
                 'ignore': up.ignore,
-                'status': up.status
+                'status': up.status,
+                'notes': up.notes or ""
             }])
             df = pd.concat([df, new_row], ignore_index=True)
             
@@ -1132,32 +1158,51 @@ def get_list(category: str, discovery_pref: float = 0.0):
         
         logger.info(f"Difficulty range: hardest={hardest.iloc[0]['difficulty_predicted'] if not hardest.empty else 'N/A'}, easiest={easiest.iloc[0]['difficulty_predicted'] if not easiest.empty else 'N/A'}")
         
-        # Tag predictors
-        tag_impacts = []
-        pred_file = DIFFICULTY_PREDICTIONS_FILE
-        logger.info(f"Looking for difficulty predictions at: {pred_file}")
-        if os.path.exists(pred_file):
-            logger.info(f"Found predictions file. Loading...")
-            try:
-                pred_df = pd.read_csv(pred_file)
-                contrib_cols = [c for c in pred_df.columns if c.startswith('contrib_')]
-                logger.info(f"Found {len(contrib_cols)} contribution columns")
-                if contrib_cols:
-                    for col in contrib_cols:
-                        tag_name = col.replace('contrib_', '').replace('_', ' ').title()
-                        impact = pred_df[pred_df[col] != 0][col].mean()
-                        if not np.isnan(impact):
-                            tag_impacts.append({'tag': tag_name, 'impact': float(impact)})
-            except Exception as e:
-                logger.error(f"Error reading difficulty predictions: {e}")
-        else:
-            logger.warning(f"Difficulty predictions file NOT FOUND at {pred_file}")
+        from common.constants import DIFFICULTY_COEFFICIENTS_FILE, TOPIC_DESCRIPTIONS_FILE
         
-        logger.info(f"Returning {len(tag_impacts)} tag impacts")
+        # Difficulty predictors (Tags + Topics)
+        feature_impacts = []
+        logger.info(f"Looking for difficulty coefficients at: {DIFFICULTY_COEFFICIENTS_FILE}")
+        
+        if os.path.exists(DIFFICULTY_COEFFICIENTS_FILE):
+            try:
+                with open(DIFFICULTY_COEFFICIENTS_FILE, "r") as f:
+                    coeffs = json.load(f)
+                
+                # Load topic labels if they exist
+                topic_labels = {}
+                if os.path.exists(TOPIC_DESCRIPTIONS_FILE):
+                    with open(TOPIC_DESCRIPTIONS_FILE, "r") as f:
+                        topic_labels = json.load(f)
+
+                for item in coeffs:
+                    feature = item['feature']
+                    impact = item['coefficient']
+                    
+                    if feature.startswith('topic_'):
+                        topic_id = feature.replace('topic_', '')
+                        label = topic_labels.get(topic_id, "Unknown Topic")
+                        feature_impacts.append({
+                            'tag': f"Topic {topic_id}: {label}", 
+                            'impact': float(impact),
+                            'type': 'topic'
+                        })
+                    else:
+                        feature_impacts.append({
+                            'tag': feature, 
+                            'impact': float(impact),
+                            'type': 'tag'
+                        })
+            except Exception as e:
+                logger.error(f"Error reading difficulty coefficients: {e}")
+        else:
+            logger.warning(f"Difficulty coefficients file NOT FOUND at {DIFFICULTY_COEFFICIENTS_FILE}")
+        
+        logger.info(f"Returning {len(feature_impacts)} feature impacts")
         result = ensure_python_types({
             "top": hardest[['appid', 'name', 'difficulty_predicted']].to_dict(orient='records'),
             "bottom": easiest[['appid', 'name', 'difficulty_predicted']].to_dict(orient='records'),
-            "tag_impacts": sorted(tag_impacts, key=lambda x: x['impact'], reverse=True)
+            "tag_impacts": sorted(feature_impacts, key=lambda x: x['impact'], reverse=True)
         })
         data_manager.lists_cache[cache_key] = result
         return result

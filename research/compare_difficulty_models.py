@@ -3,55 +3,26 @@ import numpy as np
 import os
 import re
 import ast
-import json
-import scipy.sparse as sp
 from tqdm import tqdm
 from bs4 import BeautifulSoup
-from sklearn.linear_model import LassoCV
+from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV
 from sklearn.preprocessing import StandardScaler
-from scipy.stats import rankdata, norm
-import pyarrow.parquet as pq
-import pyarrow as pa
+from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.model_selection import train_test_split
+import json
+import scipy.sparse as sp
 
 # Add parent directory to sys.path
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from common.constants import (
-    METADATA_FILE, 
-    TOPIC_DISTRIBUTIONS_FILE, 
-    DIFFICULTY_PREDICTIONS_FILE,
-    TAG_EM_ITERATIONS,
-    ROOT_DIR
-)
 from pipeline.generate_tag_vectors import iterative_em_imputation, optimize_k_stochastic, apply_tag_transform
 
-def rank_int(data, c=3.0/8.0):
-    """
-    Rank-based Inverse Normal Transformation.
-    Maps data to a normal distribution.
-    """
-    # data: (n_samples, n_features)
-    n = data.shape[0]
-    # We apply per column
-    transformed = np.zeros_like(data)
-    for i in range(data.shape[1]):
-        col = data[:, i]
-        # Handle constant columns
-        if np.all(col == col[0]):
-            transformed[:, i] = 0
-            continue
-        # Get ranks (handle ties by averaging)
-        ranks = rankdata(col, method='average')
-        # Map to 0-1
-        prob = (ranks - c) / (n - 2*c + 1)
-        # Map to normal
-        transformed[:, i] = norm.ppf(prob)
-    return transformed
+# Reuse normalization logic from original pipeline
+ROMAN_MAP = {'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10}
+WORD_MAP = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10}
 
 def normalize_title(title):
     if not isinstance(title, str): return ""
-    ROMAN_MAP = {'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10}
-    WORD_MAP = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10}
     title = title.lower()
     title = re.sub(r"\b(edition|enhanced|goty|game of the year|complete|anniversary|remastered|remake|collection|bundle|definitive|director's cut|hd)\b", '', title)
     for roman, arabic in ROMAN_MAP.items():
@@ -84,14 +55,13 @@ def parse_gamefaqs_directory(directory):
     df = pd.DataFrame(all_data)
     df['difficulty'] = pd.to_numeric(df['difficulty'], errors='coerce')
     df = df.dropna(subset=['difficulty'])
-    df['difficulty'] = (df['difficulty'] - 1.0) * 2.5 # Scale 1-5 to 0-10
+    df['difficulty'] = (df['difficulty'] - 1.0) * 2.5
     return df.groupby('gf_title')['difficulty'].mean().reset_index()
 
 def main():
-    print("--- Difficulty Model Generation (Build 68 - Rank-INT) ---")
-    games_csv = os.path.join(ROOT_DIR, "data", "pipeline_games_clean.csv")
-    gf_dir = os.path.join(ROOT_DIR, "data", "GameFAQs")
-    
+    print("Loading Data...")
+    games_csv = "data/pipeline_games_clean.csv"
+    gf_dir = "data/GameFAQs"
     steam_df = pd.read_csv(games_csv, low_memory=False)
     gf_df = parse_gamefaqs_directory(gf_dir)
     
@@ -108,8 +78,8 @@ def main():
     train_targets_df = pd.DataFrame(matched_data).drop_duplicates('appid')
     print("Matched " + str(len(train_targets_df)) + " unique games for training.")
 
-    # 2. Feature Extraction (Tags)
-    print("Generating Shrunken + CLR Tag Data (" + str(TAG_EM_ITERATIONS) + " EM Iterations)...")
+    # --- Feature Extraction ---
+    print("Generating Shrunken + CLR Tag Data (5 EM Iterations)...")
     all_game_tags = []
     global_tags = set()
     for tag_str in tqdm(steam_df['tags'], desc="Parsing tags"):
@@ -135,83 +105,67 @@ def main():
     sparse_counts = sp.csr_matrix((data, (row_ind, col_ind)), shape=(len(steam_df), len(unique_tags)), dtype=np.float32)
     original_total_votes = np.array(sparse_counts.sum(axis=1)).flatten()
 
-    augmented_counts, G_final = iterative_em_imputation(sparse_counts, max_iter=TAG_EM_ITERATIONS)
+    augmented_counts, G_final = iterative_em_imputation(sparse_counts, max_iter=5)
     K = optimize_k_stochastic(augmented_counts, sparse_counts, G_final)
     X_tags, _ = apply_tag_transform(augmented_counts, G_final, original_total_votes, K, transform_type='clr')
 
-    # 3. Topic Data
     print("Loading Topics...")
-    X_topics = np.load(TOPIC_DISTRIBUTIONS_FILE)
+    X_topics = np.load("data/production/topic_distributions.npy")
     
-    # 4. Prepare Training Data
-    X_all_raw = np.hstack([X_tags, X_topics])
+    X_all = np.hstack([X_tags, X_topics])
     feature_names = unique_tags + ["topic_" + str(i) for i in range(X_topics.shape[1])]
 
-    # --- Rank-INT Transformation ---
-    # We Rank-INT the FULL dataset to ensure everyone is on the same normal scale.
-    # This prevents extrapolation errors for extreme values.
-    print("Applying Rank-INT to all features...")
-    X_all = rank_int(X_all_raw)
-    
+    # Prepare Dataset
     appid_to_row = {aid: i for i, aid in enumerate(steam_df['appid'])}
     train_indices = [appid_to_row[aid] for aid in train_targets_df['appid'] if aid in appid_to_row]
-    y_train = train_targets_df[train_targets_df['appid'].isin(appid_to_row)]['difficulty'].values
+    y = train_targets_df[train_targets_df['appid'].isin(appid_to_row)]['difficulty'].values
+    X = X_all[train_indices]
     
-    # Target Rank-INT? 
-    # Usually we don't Rank-INT the target if we want to preserve the 0-10 scale.
-    # But we can standard scale it.
-    X_train = X_all[train_indices]
+    X_train_raw, X_test_raw, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    # 5. Train Final Model (L1)
-    print("Training Final L1 Model (Rank-INT features)...")
-    model = LassoCV(cv=20, random_state=42, n_jobs=-1, max_iter=10000)
-    model.fit(X_train, y_train)
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train_raw)
+    X_test = scaler.transform(X_test_raw)
     
-    # 6. Predict for ALL Games
-    print("Generating predictions for all games...")
-    predictions = model.predict(X_all)
-    
-    # Clamp 0-10
-    predictions = np.clip(predictions, 0, 10)
-    
-    # 7. Save Artifacts
-    pred_df = pd.DataFrame({
-        'appid': steam_df['appid'],
-        'difficulty_predicted': predictions
-    })
-    pred_df.to_csv(DIFFICULTY_PREDICTIONS_FILE, index=False)
-    
-    coef_df = pd.DataFrame({
-        'feature': feature_names,
-        'coefficient': model.coef_
-    })
-    coef_df = coef_df[coef_df['coefficient'] != 0].sort_values('coefficient', ascending=False)
-    
-    COEF_FILE = os.path.join(os.path.dirname(DIFFICULTY_PREDICTIONS_FILE), "difficulty_coefficients.json")
-    with open(COEF_FILE, 'w') as f:
-        json.dump(coef_df.to_dict(orient='records'), f, indent=4)
+    results = {}
 
-    # 8. Update Metadata Parquet
-    print("Updating metadata.parquet...")
-    metadata = pd.read_parquet(METADATA_FILE)
-    if 'difficulty_predicted' in metadata.columns:
-        metadata.drop(columns=['difficulty_predicted'], inplace=True)
-    if 'difficulty_z' in metadata.columns:
-        metadata.drop(columns=['difficulty_z'], inplace=True)
+    print("\nTraining Lasso (L1)...")
+    lasso = LassoCV(cv=20, random_state=42, n_jobs=-1, max_iter=5000)
+    lasso.fit(X_train, y_train)
+    results['Lasso (L1)'] = lasso
+
+    print("Training Ridge (L2)...")
+    ridge = RidgeCV(cv=20)
+    ridge.fit(X_train, y_train)
+    results['Ridge (L2)'] = ridge
+
+    print("Training Elastic Net...")
+    enet = ElasticNetCV(cv=20, l1_ratio=[.1, .5, .7, .9, .95, .99, 1], random_state=42, n_jobs=-1, max_iter=5000)
+    enet.fit(X_train, y_train)
+    results['Elastic Net'] = enet
+
+    print("\n" + "="*80)
+    print("Model                | Train R2   | Test R2    | Test RMSE  | Non-Zero Coefs")
+    print("-" * 80)
+    
+    for name, model in results.items():
+        train_pred = model.predict(X_train)
+        test_pred = model.predict(X_test)
         
-    metadata = metadata.merge(pred_df, on='appid', how='left')
-    metadata['difficulty_predicted'] = metadata['difficulty_predicted'].fillna(5.0)
+        tr_r2 = r2_score(y_train, train_pred)
+        te_r2 = r2_score(y_test, test_pred)
+        te_rmse = np.sqrt(mean_squared_error(y_test, test_pred))
+        non_zero = np.sum(model.coef_ != 0)
+        
+        print(name.ljust(20) + " | " + 
+              format(tr_r2, ".4f").ljust(10) + " | " + 
+              format(te_r2, ".4f").ljust(10) + " | " + 
+              format(te_rmse, ".4f").ljust(10) + " | " + 
+              str(non_zero))
     
-    diff_scores = metadata['difficulty_predicted'].values
-    mean_diff = np.mean(diff_scores)
-    std_diff = np.std(diff_scores)
-    metadata['difficulty_z'] = (metadata['difficulty_predicted'] - mean_diff) / (std_diff + 1e-9)
-    
-    table = pa.Table.from_pandas(metadata)
-    pq.write_table(table, METADATA_FILE)
-    
-    print("Difficulty Stats: Mean=" + str(mean_diff) + ", Std=" + str(std_diff))
-    print("Success!")
+    print("="*80)
+    print("Elastic Net Optimal L1 Ratio: " + str(enet.l1_ratio_))
+    print("Elastic Net Optimal Alpha:    " + str(enet.alpha_))
 
 if __name__ == "__main__":
     main()

@@ -216,6 +216,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
         ...prev,
         alpha: typeof meta.semantic === 'number' ? meta.semantic : 0.5,
         beta: typeof meta.tag_match === 'number' ? meta.tag_match : 0.5,
+        gamma_topic: typeof meta.topic_match === 'number' ? meta.topic_match : 0.5,
         quality_pref: typeof meta.quality === 'number' ? meta.quality : 1.0,
         age_pref: typeof meta.age === 'number' ? meta.age : 0.0,
         pop_pref: typeof meta.popularity === 'number' ? meta.popularity : 0.0,
@@ -247,6 +248,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       setFilters({
         alpha: 0.5,
         beta: 0.5,
+        gamma_topic: 0.5,
         quality_pref: 1.0,
         age_pref: 0.0,
         pop_pref: 0.0,
@@ -275,12 +277,13 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
 
   const handleRandomizeSliders = () => {
     const rand = () => parseFloat((Math.random() * 2 - 1).toFixed(2)); // -1.00 to 1.00
-    const randCore = () => parseFloat(Math.random().toFixed(2)); // 0.00 to 1.00 for alpha/beta
+    const randCore = () => parseFloat(Math.random().toFixed(2)); // 0.00 to 1.00 for alpha/beta/gamma
     
     setFilters(prev => ({
       ...prev,
       alpha: randCore(),
       beta: randCore(),
+      gamma_topic: randCore(),
       quality_pref: rand(),
       age_pref: rand(),
       pop_pref: rand(),
@@ -312,6 +315,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     const meta = profile.metadata || {};
     const vibeVector = (profile.vibe_vector || []).map((v: any) => v || 0);
     const semVibeVector = (profile.semantic_vibe_vector || []).map((v: any) => v || 0);
+    const topicVibeVector = (profile.topic_vibe_vector || []).map((v: any) => v || 0);
     
     console.log("RecommendationsView: Manual Profile Upload", profile);
 
@@ -326,9 +330,11 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       price_pref: typeof meta.price === 'number' ? meta.price : 0.0,
       alpha: typeof meta.semantic === 'number' ? meta.semantic : 1.0,
       beta: typeof meta.tag_match === 'number' ? meta.tag_match : 1.0,
+      gamma_topic: typeof meta.topic_match === 'number' ? meta.topic_match : 0.5,
       
       vibe_vector: vibeVector,
       semantic_vibe_vector: semVibeVector,
+      topic_vibe_vector: topicVibeVector,
       metadata_weights: meta,
       intercept: typeof profile.intercept === 'number' ? profile.intercept : 5.0,
       scaling_factor: typeof profile.scaling_factor === 'number' ? profile.scaling_factor : 1.0,

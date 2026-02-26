@@ -47,7 +47,18 @@ function App() {
     if (saved) {
       try {
         const filters = JSON.parse(saved);
-        const { vibe_vector, intercept, metadata_weights, library_appids, rated_appids, ignored_appids, ...rest } = filters;
+        const { 
+          vibe_vector, 
+          semantic_vibe_vector, 
+          topic_vibe_vector,
+          gamma_topic,
+          intercept, 
+          metadata_weights, 
+          library_appids, 
+          rated_appids, 
+          ignored_appids, 
+          ...rest 
+        } = filters;
         sessionStorage.setItem('recommendations_filters', JSON.stringify({
           ...rest,
           profile_filter: 'none',
@@ -102,6 +113,7 @@ function App() {
       const meta = profile.metadata || {};
       const vibeVector = (profile.vibe_vector || []).map((v: any) => v || 0);
       const semVibeVector = (profile.semantic_vibe_vector || []).map((v: any) => v || 0);
+      const topicVibeVector = (profile.topic_vibe_vector || []).map((v: any) => v || 0);
 
       console.log("!!! APP: Metadata Keys !!!", Object.keys(meta));
       console.log("!!! APP: Metadata Values !!!", meta);
@@ -131,10 +143,12 @@ function App() {
         price_pref: meta.price ?? 0.0,
         alpha: meta.semantic ?? 1.0,
         beta: meta.tag_match ?? 1.0,
+        gamma_topic: meta.topic_match ?? profile.gamma_topic ?? 0.5,
         
         // State
         vibe_vector: vibeVector,
         semantic_vibe_vector: semVibeVector,
+        topic_vibe_vector: topicVibeVector,
         metadata_weights: meta,
         intercept: profile.intercept ?? 5.0, 
         scaling_factor: profile.scaling_factor ?? 1.0,

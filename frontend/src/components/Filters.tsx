@@ -244,6 +244,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
                   ...filters,
                   alpha: 0.5,
                   beta: 0.5,
+                  gamma_topic: 0.5,
                   quality_pref: 1.0,
                   age_pref: 0.0,
                   pop_pref: 0.0,
@@ -259,6 +260,7 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
                   remove_delisted: true,
                   vibe_vector: undefined, 
                   semantic_vibe_vector: undefined,
+                  topic_vibe_vector: undefined,
                   metadata_weights: undefined, 
                   library_appids: [], 
                   rated_appids: [], 
@@ -289,6 +291,14 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
             onChange={(v: number) => handleChange('beta', v)}
             onReset={() => handleChange('beta', 0.5)}
             tooltip="Boosts Match % for games with tags matching your profile or seed games."
+          />
+          <Slider 
+            label="Topic Match" 
+            value={filters.gamma_topic || 0} 
+            min={0} max={1} step={0.05} 
+            onChange={(v: number) => handleChange('gamma_topic', v)}
+            onReset={() => handleChange('gamma_topic', 0.5)}
+            tooltip="Boosts Match % for games whose thematic topics align with your profile."
           />
           <Slider 
             label="Quality" 
