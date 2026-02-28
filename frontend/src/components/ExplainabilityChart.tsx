@@ -1,6 +1,5 @@
 import React from 'react';
-import { ScatterChart, Scatter, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Label, Line } from 'recharts';
-import { motion } from 'framer-motion';
+import { ScatterChart, Scatter, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Label } from 'recharts';
 
 interface DataPoint {
   x: number;
@@ -147,8 +146,8 @@ const ExplainabilityChart: React.FC<ExplainabilityChartProps> = ({ data, title, 
               <Tooltip 
                 cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
                 contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', fontSize: '10px' }}
-                formatter={(val: number) => [val.toFixed(4), 'R²']}
-                labelFormatter={(label: number) => `Discovery: ${label.toFixed(1)}`}
+                formatter={(val: any) => [parseFloat(val || 0).toFixed(4), 'R²']}
+                labelFormatter={(label: any) => `Discovery: ${parseFloat(label || 0).toFixed(1)}`}
               />
               <Bar 
                 dataKey="y" 
@@ -214,7 +213,6 @@ const ExplainabilityChart: React.FC<ExplainabilityChartProps> = ({ data, title, 
                   line={{ stroke: '#ffffff', strokeWidth: 1.5, opacity: 0.4 }} 
                   shape={() => null} 
                   tooltipType="none"
-                  enableBackground={false}
                 />
               )}
             </ScatterChart>

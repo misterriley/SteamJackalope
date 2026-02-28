@@ -1,4 +1,5 @@
 import numpy as np
+import re
 from common.constants import EPSILON, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX, SOFTMIN_TEMPERATURE
 
 def to_z(x, ignore_zeros=False):
@@ -32,14 +33,18 @@ def calculate_linear_scores(
     z_clamp_max=3.0,
     dna_scaling_factor=1.0,
     intercept=5.0,
-    tag_sim=None
+    tag_sim=None,
+    # New Consensus Inputs
+    seed_tag_sim=None,
+    seed_sem_sim=None,
+    seed_topic_sim=None,
+    prompt_tag_sim=None,
+    prompt_sem_sim=None,
+    prompt_topic_sim=None
 ):
     """
-    Unified linear scoring function for Taste DNA parity.
+    Unified linear scoring function for Taste DNA parity with Consensus Support.
     This is the single source of truth for both the Solver preview and Backend recommender.
-    
-    All input weights (in 'weights' and 'w_semantic') should be in the TARGET scale
-    (e.g., UI scale where 5.0 is neutral and 3.0 is a typical max weight).
     """
     # 1. Apply Clamping to Metadata
     q = np.clip(z_quality, z_clamp_min, z_clamp_max)
@@ -49,19 +54,58 @@ def calculate_linear_scores(
     diff = np.clip(z_difficulty, z_clamp_min, z_clamp_max)
     pr = np.clip(z_price, z_clamp_min, z_clamp_max)
     
-    # 2. Tag Scoring: dot(U / (||U|| + lambda) * Scale, beta_unit)
+    # 2. DNA Components (Linear Aggregate)
+    # The Taste DNA profile is a linear sum of your aggregate preferences.
     if tag_sim is None:
         beta_tag_arr = np.asarray(beta_tag, dtype=np.float32)
-        dot_products = np.dot(tag_vectors.astype(np.float32), beta_tag_arr)
-        denom = tag_norms.astype(np.float32).reshape(-1) + dot_product_lambda
-        tag_sim = (dot_products / denom) * tag_scaling_factor
+        if beta_tag_arr.size > 0:
+            dot_products = np.dot(tag_vectors.astype(np.float32), beta_tag_arr)
+            denom = tag_norms.astype(np.float32).reshape(-1) + dot_product_lambda
+            tag_sim = (dot_products / denom) * tag_scaling_factor
+        else:
+            tag_sim = np.zeros(len(q), dtype=np.float32)
     
-    # 3. Semantic & Topic Components
-    sem_contrib = np.nan_to_num(z_semantic * w_semantic) if z_semantic is not None else 0.0
-    topic_contrib = np.nan_to_num(z_topic * w_topic) if z_topic is not None else 0.0
+    dna_tag_contrib = (np.nan_to_num(tag_sim) * weights.get('tag_match', 0.0))
+    dna_sem_contrib = np.nan_to_num(z_semantic * w_semantic) if z_semantic is not None else 0.0
+    dna_top_contrib = np.nan_to_num(z_topic * w_topic) if z_topic is not None else 0.0
 
-    # 4. Summation: sum(weight_i * feature_i) + intercept
-    # Apply nan_to_num to all components to prevent score collapse
+    # 3. Consensus Components (Exemplar Seeds & Prompts)
+    # These use 3-mode consensus (Hard Softmin) to prevent keyword hijacking.
+    # We use T=0.05 to enforce an "AND" relationship.
+    # We only apply consensus if the modalities are active (> 0).
+    
+    seed_contrib = 0.0
+    if seed_tag_sim is not None:
+        # Build consensus signals
+        signals = []
+        # If weight is 0, the mode is effectively disabled (it can't veto)
+        if weights.get('tag_match', 0.0) > 1e-9: signals.append(seed_tag_sim)
+        if w_semantic > 1e-9 and seed_sem_sim is not None: signals.append(seed_sem_sim)
+        if w_topic > 1e-9 and seed_topic_sim is not None: signals.append(seed_topic_sim)
+        
+        if signals:
+            consensus_sim = softmin_blend(signals, temperature=0.05)
+            # Apply the average of the active thematic weights as a master multiplier
+            active_weights = [weights.get('tag_match', 1.0)]
+            if w_semantic > 1e-9: active_weights.append(w_semantic)
+            if w_topic > 1e-9: active_weights.append(w_topic)
+            seed_contrib = consensus_sim * np.mean(active_weights)
+
+    prompt_contrib = 0.0
+    if prompt_sem_sim is not None:
+        signals = []
+        if weights.get('tag_match', 0.0) > 1e-9 and prompt_tag_sim is not None: signals.append(prompt_tag_sim)
+        if w_semantic > 1e-9: signals.append(prompt_sem_sim)
+        if w_topic > 1e-9 and prompt_topic_sim is not None: signals.append(prompt_topic_sim)
+        
+        if signals:
+            consensus_sim = softmin_blend(signals, temperature=0.05)
+            active_weights = [w_semantic]
+            if weights.get('tag_match', 0.0) > 1e-9: active_weights.append(weights.get('tag_match', 1.0))
+            if w_topic > 1e-9: active_weights.append(w_topic)
+            prompt_contrib = consensus_sim * np.mean(active_weights)
+
+    # 4. Final Summation
     scores = (
         np.nan_to_num(q) * weights.get('quality', 0.0) +
         np.nan_to_num(d) * weights.get('age', 0.0) +
@@ -69,12 +113,13 @@ def calculate_linear_scores(
         np.nan_to_num(l) * weights.get('length', 0.0) +
         np.nan_to_num(diff) * weights.get('difficulty', 0.0) +
         np.nan_to_num(pr) * weights.get('price', 0.0) +
-        (np.nan_to_num(tag_sim) * weights.get('tag_match', 0.0)) +
-        sem_contrib +
-        topic_contrib
+        dna_tag_contrib +
+        dna_sem_contrib +
+        dna_top_contrib +
+        seed_contrib +
+        prompt_contrib
     )
-    # Divide by scaling factor to map back to original 0-10 scale
-    # Only scale the deviations from the intercept.
+    
     return (scores / dna_scaling_factor) + intercept
 
 def calculate_hybrid_score(
@@ -212,6 +257,160 @@ def softmin_blend(signals: list, temperature: float = SOFTMIN_TEMPERATURE):
     
     # Blended similarity: sum(s_i * w_i)
     return np.sum(stack * weights, axis=0)
+
+def calculate_jackalope_kernel(
+    tag_vectors, tag_norms, seed_tag_vec, seed_tag_norm,
+    sem_vectors, sem_norms, seed_sem_vec, seed_sem_norm,
+    topic_distributions, seed_topic_dist,
+    topic_means, topic_stds,
+    tag_scaling_factor, dot_product_lambda,
+    sem_scaling_factor, sem_lambda,
+    topic_scaling_factor=0.1,
+    # Veto/Rescue Metadata
+    seed_anchors=None,
+    candidate_anchor_masks=None, # dict: anchor_name -> boolean mask
+    active_narrative_seed=None,
+    is_cinematic_seed=False,
+    seed_has_heavy_action=False,
+    action_tags=None,
+    mystery_tags=None,
+    is_mystery_seed=False,
+    rpg_action_tags=None,
+    rpg_crpg_tags=None,
+    is_action_rpg_seed=False,
+    is_crpg_seed=False,
+    loop_tags=None,
+    is_loop_seed=False,
+    is_horror_seed=False,
+    full_tags_series=None, # pd.Series of stringified tags for regex rescues
+    # PRE-CALCULATED MASKS (Optimization)
+    precalculated_masks=None, # dict: key -> boolean mask
+    return_components=False
+):
+    """
+    The Jackalope Kernel: A multi-modal 'Mechanical Identity' measure.
+    Combines Tags, Semantics, and Topics with structural vetoes.
+    """
+    # 1. Component Similarities
+    # Tags
+    tag_sims = (np.dot(tag_vectors.astype(np.float32), seed_tag_vec.astype(np.float32)) / 
+                ((tag_norms + dot_product_lambda) * (seed_tag_norm + dot_product_lambda))) * tag_scaling_factor
+    
+    # Semantics (Double Normalized)
+    sem_sims_raw = (np.dot(sem_vectors.astype(np.float32), seed_sem_vec.astype(np.float32)) / 
+                    (sem_norms + sem_lambda)) * sem_scaling_factor
+    sem_sims = sem_sims_raw / (seed_sem_norm + sem_lambda)
+    
+    # Topics (ReLU-Standardized Cosine)
+    fz = (seed_topic_dist.astype(np.float32) - topic_means) / (topic_stds + 1e-9)
+    fz[fz < 2.5] = 0
+    fn = np.linalg.norm(fz) + 1e-9
+    fz_unit = fz / fn
+    
+    # Batch process topics if large
+    topic_sims = np.zeros(len(tag_norms), dtype=np.float32)
+    batch_size = 100000 
+    for i in range(0, len(tag_norms), batch_size):
+        end = min(i + batch_size, len(tag_norms))
+        bz = (topic_distributions[i:end].astype(np.float32) - topic_means) / (topic_stds + 1e-9)
+        bz[bz < 2.5] = 0
+        bn = np.linalg.norm(bz, axis=1, keepdims=True) + 1e-9
+        topic_sims[i:end] = np.dot(bz / bn, fz_unit)
+        
+    # Rescue peaks (relaxed)
+    rescue_mask = (np.maximum(tag_sims, 0) + np.maximum(sem_sims, 0)) > 0.05
+    if np.any(rescue_mask):
+        fz_low = (seed_topic_dist.astype(np.float32) - topic_means) / (topic_stds + 1e-9)
+        fz_low[fz_low < 1.5] = 0
+        fn_low = np.linalg.norm(fz_low) + 1e-9
+        fz_low_unit = fz_low / fn_low
+        
+        rescue_indices = np.where(rescue_mask)[0]
+        for i in range(0, len(rescue_indices), batch_size):
+            batch_indices = rescue_indices[i:i+batch_size]
+            bz = (topic_distributions[batch_indices].astype(np.float32) - topic_means) / (topic_stds + 1e-9)
+            bz[bz < 1.5] = 0
+            bn = np.linalg.norm(bz, axis=1, keepdims=True) + 1e-9
+            topic_sims[batch_indices] = np.maximum(topic_sims[batch_indices], np.dot(bz / bn, fz_low_unit))
+
+    # 2. Hard Softmin Consensus
+    consensus_sim = softmin_blend([tag_sims, sem_sims, topic_sims * topic_scaling_factor], temperature=0.01)
+    
+    # 3. Hierarchical Blend
+    kernel = (tag_sims * 0.25 + sem_sims * 0.25 + consensus_sim * 0.5)
+    
+    # 4. Rescues
+    if precalculated_masks:
+        if active_narrative_seed and len(active_narrative_seed) >= 2:
+            match_counts = np.zeros(len(kernel), dtype=int)
+            for t in active_narrative_seed:
+                mask_key = f"tag_{t}"
+                if mask_key in precalculated_masks:
+                    match_counts += precalculated_masks[mask_key].astype(int)
+            kernel += np.where(match_counts >= 3, 0.03, 0.0)
+            consensus_sim = np.maximum(consensus_sim, np.where(match_counts >= 4, 0.01, 0.0))
+            
+        if is_cinematic_seed:
+            cinematic_match = precalculated_masks.get("cinematic_resonance", np.zeros(len(kernel), dtype=bool))
+            kernel += np.where(cinematic_match & (kernel > 0.02), 0.05, 0.0)
+            
+        if is_crpg_seed:
+            i_mask = precalculated_masks.get("tag_Isometric", np.zeros(len(kernel), dtype=bool))
+            c_mask = precalculated_masks.get("tag_CRPG", np.zeros(len(kernel), dtype=bool))
+            kernel += np.where(i_mask & c_mask, 0.05, 0.0)
+
+    # 5. Vetoes
+    if candidate_anchor_masks:
+        if seed_anchors:
+            for a in seed_anchors:
+                if a in candidate_anchor_masks:
+                    kernel[~candidate_anchor_masks[a]] *= 0.001
+                    
+        if precalculated_masks:
+            if not seed_has_heavy_action:
+                early_action_mask = precalculated_masks.get("early_action", np.zeros(len(kernel), dtype=bool))
+                kernel[early_action_mask] *= 0.01
+                
+            if is_mystery_seed:
+                mystery_mask = precalculated_masks.get("mystery_any", np.zeros(len(kernel), dtype=bool))
+                soul_rescue = precalculated_masks.get("soul_rescue", np.zeros(len(kernel), dtype=bool))
+                kernel[~mystery_mask & ~soul_rescue] *= 0.01
+                
+            if is_action_rpg_seed:
+                crpg_m = candidate_anchor_masks.get("CRPG", precalculated_masks.get("tag_CRPG", np.zeros(len(kernel), dtype=bool)))
+                act_m = candidate_anchor_masks.get("Action RPG", precalculated_masks.get("tag_Action RPG", np.zeros(len(kernel), dtype=bool)))
+                kernel[crpg_m & ~act_m] *= 0.05
+            if is_crpg_seed:
+                act_m = candidate_anchor_masks.get("Action RPG", precalculated_masks.get("tag_Action RPG", np.zeros(len(kernel), dtype=bool)))
+                crpg_m = candidate_anchor_masks.get("CRPG", precalculated_masks.get("tag_CRPG", np.zeros(len(kernel), dtype=bool)))
+                kernel[act_m & ~crpg_m] *= 0.05
+
+            if not is_loop_seed:
+                loop_mask = precalculated_masks.get("loop_any", np.zeros(len(kernel), dtype=bool))
+                kernel[loop_mask] *= 0.01
+                
+            if not is_horror_seed:
+                horror_mask = precalculated_masks.get("horror_any", np.zeros(len(kernel), dtype=bool))
+                nar_mask = precalculated_masks.get("story_rich_or_choices", np.zeros(len(kernel), dtype=bool))
+                kernel[horror_mask & ~nar_mask] *= 0.1
+
+    # 6. Consensus Floor Veto
+    if active_narrative_seed and len(active_narrative_seed) >= 2:
+        kernel[consensus_sim < 0.001] = 0.0
+    else:
+        kernel[consensus_sim < 0.005] = 0.0
+        
+    final_kernel = np.maximum(kernel, 0.0)
+    
+    if return_components:
+        return final_kernel, {
+            'vibe': tag_sims,
+            'theme': sem_sims,
+            'cluster': topic_sims,
+            'combined': consensus_sim
+        }
+        
+    return final_kernel
 
 def fast_jsd_similarity(p, Q_matrix, mean=None, std=None):
     """

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { GameMetadata, RecommendationRequest } from '../types';
 import { recommend, getGenres, getTags, getTermLinks, getRandomGame, getRandomTrendingGame, getMetadata } from '../api';
 import GameCard from './GameCard';
@@ -8,6 +8,8 @@ import GenreSelector from './GenreSelector';
 import TagSelector from './TagSelector';
 import { Search, RotateCcw, AlertCircle, Dices, Sparkles, TrendingUp, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { GameStatus } from './ContextMenu';
+
 
 const DEFAULT_GENRES = [
   "Action", "Adventure", "Casual", "Indie", "Massively Multiplayer", "RPG", "Simulation", 
@@ -306,6 +308,19 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     }
   };
 
+  const handleStatusUpdate = useCallback((appid: number, status: GameStatus) => {
+    // If the new status would mean the game is filtered out, remove it locally
+    const isExcluded = (
+      (filters.profile_filter === 'all' && (status === 'played' || status === 'rated' || status === 'backlog')) ||
+      (filters.profile_filter === 'rated' && status === 'rated') ||
+      (status === 'ignored') // Ignored is always excluded from results
+    );
+
+    if (isExcluded) {
+      setRecommendations(prev => prev.filter(g => g.appid !== appid));
+    }
+  }, [filters.profile_filter]);
+
   const handleProfileUpload = (profile: any) => {
     if (!profile || !profile.metadata || !profile.vibe_vector) {
       alert("Invalid taste profile format.");
@@ -565,6 +580,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
                       game={game} 
                       hideNSFW={filters.remove_nsfw} 
                       termLinks={termLinks}
+                      onStatusUpdate={handleStatusUpdate}
                     />
                   </motion.div>
                 ))}

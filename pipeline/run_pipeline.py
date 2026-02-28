@@ -134,11 +134,6 @@ def main():
         
     run_script(os.path.join(SCRIPT_DIR, "generate_tag_vectors.py"), tag_script_args)
 
-    # 1.5 Generate Difficulty Model
-    difficulty_preds_path = config.get("difficulty_preds_file", DIFFICULTY_PREDICTIONS_FILE)
-    gamefaqs_dir = config.get("gamefaqs_dir", "data/GameFAQs")
-    run_script(os.path.join(SCRIPT_DIR, "generate_difficulty_model.py"), ["--games", args.games, "--gamefaqs", gamefaqs_dir, "--output", difficulty_preds_path])
-
     # 2. Generate Semantic Vectors
     # This takes both games and reviews.
     embeddings_desc_path = config.get("embeddings_desc_file", "embeddings_desc.npy")
@@ -165,6 +160,11 @@ def main():
     # 2.6 Generate Topic Standardization Stats
     # Required for the Taste Solver to equalize thematic feature variance
     run_script(os.path.join(SCRIPT_DIR, "generate_topic_stats.py"), [clean_games_path])
+
+    # 1.5 Generate Difficulty Model (Now after Topics)
+    difficulty_preds_path = config.get("difficulty_preds_file", DIFFICULTY_PREDICTIONS_FILE)
+    gamefaqs_dir = config.get("gamefaqs_dir", "data/GameFAQs")
+    run_script(os.path.join(SCRIPT_DIR, "generate_difficulty_model.py"), ["--games", args.games, "--gamefaqs", gamefaqs_dir, "--output", difficulty_preds_path])
 
     # 2.7 Calculate Modality Multipliers
     # Calibrates relative weighting of Tags, Semantics, and Topics based on population variance

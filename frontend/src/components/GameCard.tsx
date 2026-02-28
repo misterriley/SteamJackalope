@@ -1,18 +1,43 @@
 import React, { useState } from 'react';
 import type { GameMetadata } from '../types';
 import { Star, Clock, Trophy, ExternalLink, Bug, AlertTriangle, Sparkles } from 'lucide-react';
+import { useContextMenu } from '../context/ContextMenuContext';
+import { useUser } from '../context/UserContext';
+import type { GameStatus } from './ContextMenu';
 
 interface GameCardProps {
   game: GameMetadata;
   hideNSFW?: boolean;
   isSeed?: boolean;
   termLinks?: Record<string, string>;
+  onStatusUpdate?: (appid: number, status: GameStatus, rating?: number) => void;
 }
 
-const GameCard: React.FC<GameCardProps> = ({ game, hideNSFW = true, isSeed = false, termLinks = {} }) => {
+const GameCard: React.FC<GameCardProps> = ({ 
+  game, 
+  hideNSFW = true, 
+  isSeed = false, 
+  termLinks = {},
+  onStatusUpdate 
+}) => {
   const [imgError, setImgError] = useState(false);
+  const { showContextMenu } = useContextMenu();
+  const { steamId } = useUser();
   const steamUrl = `https://store.steampowered.com/app/${game.appid}/`;
-  const headerUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`;
+  
+  // Use header_image from metadata if available, otherwise fall back to standard CDN path
+  const headerUrl = game.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`;
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    showContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      appid: game.appid,
+      steamId: steamId || "", // Allow empty for "Not Logged In" state
+      onUpdate: onStatusUpdate
+    });
+  };
 
   const isNSFW = !!game.is_nsfw;
   const shouldBlur = isNSFW && hideNSFW;
@@ -142,6 +167,7 @@ const GameCard: React.FC<GameCardProps> = ({ game, hideNSFW = true, isSeed = fal
   return (
     <div 
       onClick={handleCardClick}
+      onContextMenu={handleContextMenu}
       className={`bg-card rounded-lg overflow-hidden shadow-lg border border-border hover:border-primary/50 transition-all group flex flex-col h-full cursor-pointer active:scale-[0.98] ${isNSFW ? 'border-orange-500/20' : ''} ${isSeed ? 'ring-2 ring-primary/30 border-primary/40' : ''}`}
     >
       {/* Image Container */}
@@ -151,7 +177,10 @@ const GameCard: React.FC<GameCardProps> = ({ game, hideNSFW = true, isSeed = fal
             src={headerUrl} 
             alt={game.name} 
             className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${shouldBlur ? 'blur-2xl scale-110' : ''}`}
-            onError={() => setImgError(true)}
+            onError={() => {
+              console.error(`[ERROR] Failed to load image for ${game.name} (${game.appid}). URL: ${headerUrl}`);
+              setImgError(true);
+            }}
           />
         ) : (
           <div className={`w-full h-full flex flex-col items-center justify-center p-4 text-center bg-secondary/80 ${shouldBlur ? 'blur-xl' : ''}`}>
@@ -165,6 +194,20 @@ const GameCard: React.FC<GameCardProps> = ({ game, hideNSFW = true, isSeed = fal
         <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-primary border border-primary/30 z-10">
           {game.release_year}
         </div>
+
+        {/* Free Badge */}
+        {(game.is_free || (game.price && (game.price.toLowerCase().includes("free") || game.price === ""))) && (
+          <div className="absolute top-0 left-0 px-2 py-1 bg-green-500 text-[10px] font-black text-white rounded-br-lg shadow-2xl uppercase tracking-wider z-20">
+            Free
+          </div>
+        )}
+
+        {/* Library Badge */}
+        {game.is_in_library && (
+          <div className={`absolute ${game.is_free ? 'top-6' : 'top-0'} left-0 px-2 py-1 bg-blue-600 text-[10px] font-black text-white rounded-br-lg shadow-2xl uppercase tracking-wider z-20`}>
+            In Library
+          </div>
+        )}
 
         {/* Price Label */}
         {game.price && (

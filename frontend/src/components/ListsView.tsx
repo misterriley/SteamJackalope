@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { GameMetadata, ListResponse } from '../types';
 import { getList, getTermLinks } from '../api';
 import { Trophy, TrendingUp, Clock, History, Swords, Info, Tags, ExternalLink } from 'lucide-react';
+import { useContextMenu } from '../context/ContextMenuContext';
+import { useUser } from '../context/UserContext';
 
 const ListsView: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('quality');
@@ -9,6 +11,32 @@ const ListsView: React.FC = () => {
   const [data, setData] = useState<ListResponse | null>(null);
   const [termLinks, setTermLinks] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const { showContextMenu } = useContextMenu();
+  const { steamId: globalSteamId } = useUser();
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, appid: number) => {
+    e.preventDefault();
+    showContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      appid: appid,
+      steamId: globalSteamId || "",
+      onUpdate: (aid, status) => {
+        if (status === 'ignored' || status === 'played' || status === 'rated') {
+          // In lists, we can just remove locally if we want, but usually lists stay static
+          // unless they are filtered by profile.
+          setData((prev: any) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              top: prev.top.filter((g: any) => g.appid !== aid),
+              bottom: prev.bottom.filter((g: any) => g.appid !== aid)
+            };
+          });
+        }
+      }
+    });
+  }, [globalSteamId, showContextMenu]);
 
   const categories = [
     { id: 'quality', label: 'Rating', icon: <Trophy size={18} />, description: 'Games ranked by Bayesian quality scores.' },
@@ -156,7 +184,12 @@ const ListsView: React.FC = () => {
                         </h3>
                         <div className="grid grid-cols-1 gap-4">
                           {data.top.slice(0, 10).map((game) => (
-                            <ListGameItem key={game.appid} game={game as GameMetadata} category={activeCategory} />
+                            <ListGameItem 
+                              key={game.appid} 
+                              game={game as GameMetadata} 
+                              category={activeCategory} 
+                              onContextMenu={handleContextMenu}
+                            />
                           ))}
                         </div>
                       </div>
@@ -175,7 +208,12 @@ const ListsView: React.FC = () => {
                         </h3>
                         <div className="grid grid-cols-1 gap-4">
                           {data.bottom.slice(0, 10).map((game) => (
-                            <ListGameItem key={game.appid} game={game as GameMetadata} category={activeCategory} />
+                            <ListGameItem 
+                              key={game.appid} 
+                              game={game as GameMetadata} 
+                              category={activeCategory} 
+                              onContextMenu={handleContextMenu}
+                            />
                           ))}
                         </div>
                       </div>          </div>
@@ -214,9 +252,17 @@ const TagImpactItem = ({ tag, impact, termLinks }: { tag: string, impact: number
   return content;
 };
 
-const ListGameItem = ({ game, category }: { game: GameMetadata, category: string }) => {
+const ListGameItem = ({ 
+  game, 
+  category, 
+  onContextMenu 
+}: { 
+  game: GameMetadata, 
+  category: string, 
+  onContextMenu: (e: React.MouseEvent, appid: number) => void 
+}) => {
   const [imgError, setImgError] = useState(false);
-  const iconUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/capsule_184x69.jpg`;
+  const iconUrl = game.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/capsule_184x69.jpg`;
   
   const getStat = () => {
     switch(category) {
@@ -240,9 +286,10 @@ const ListGameItem = ({ game, category }: { game: GameMetadata, category: string
       href={`https://store.steampowered.com/app/${game.appid}`}
       target="_blank"
       rel="noopener noreferrer"
+      onContextMenu={(e) => onContextMenu(e, game.appid)}
       className="bg-card border border-border rounded-lg p-3 flex items-center gap-4 hover:border-primary/50 transition-all group no-underline"
     >
-      <div className="w-24 h-12 shrink-0 overflow-hidden rounded bg-secondary flex items-center justify-center">
+      <div className="w-24 h-12 shrink-0 overflow-hidden rounded bg-secondary flex items-center justify-center relative">
         {!imgError ? (
           <img 
             src={iconUrl} 
@@ -254,6 +301,11 @@ const ListGameItem = ({ game, category }: { game: GameMetadata, category: string
           <span className="text-[8px] font-bold text-muted-foreground/40 text-center uppercase leading-tight px-1 line-clamp-2">
             {game.name}
           </span>
+        )}
+        {(game.is_free || (game.price && (game.price.toLowerCase().includes("free") || game.price === ""))) && (
+          <div className="absolute top-0 left-0 px-1 py-0.5 bg-green-500 text-[6px] font-black text-white rounded-br-md shadow-lg uppercase tracking-tighter z-10">
+            Free
+          </div>
         )}
       </div>
       <div className="flex-grow min-w-0">

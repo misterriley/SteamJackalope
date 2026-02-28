@@ -30,7 +30,8 @@ class TestPipelineIntegration(unittest.TestCase):
             "tag_names_file": "test_tag_names.json",
             "w_tag_file": "test_w_tag.npy",
             "quality_grid_file": "test_quality_scores_grid.npy",
-            "regularization_json": "test_regularization_constants.json"
+            "regularization_json": "test_regularization_constants.json",
+            "difficulty_preds_file": "test_difficulty_predictions.csv"
         }
         with open(self.test_config, "w") as f:
             json.dump(test_config_data, f)
@@ -82,7 +83,8 @@ class TestPipelineIntegration(unittest.TestCase):
             "test_tag_names.json",
             "test_w_tag.npy",
             "test_quality_scores_grid.npy",
-            "test_regularization_constants.json"
+            "test_regularization_constants.json",
+            "test_difficulty_predictions.csv"
         ]
         for f in files_to_remove:
             if os.path.exists(f):

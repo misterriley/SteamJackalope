@@ -9,8 +9,10 @@ import AboutView from './components/AboutView';
 import MethodologyView from './components/MethodologyView';
 import ChangelogView from './components/ChangelogView';
 import SplashView from './components/SplashView';
+import { useUser } from './context/UserContext';
 
 function App() {
+  const { setSteamId: globalSetSteamId } = useUser();
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     try {
       return (sessionStorage.getItem('activeTab') as TabType) || 'splash';
@@ -167,6 +169,9 @@ function App() {
       sessionStorage.setItem('recommendations_filters', JSON.stringify(newFilters));
       
       // 5. Update global state and switch tab
+      if (profile.steam_id) {
+        globalSetSteamId(profile.steam_id);
+      }
       setAppliedProfile(profile);
       setActiveTab('recommend');
       console.log("!!! APP: State Updated and Tab Switched !!!");

@@ -7,6 +7,10 @@
 ## Task List
 
 ### Recently Completed
+- [DONE] **Optimize for Generalization (CV R^2)**: Successfully identified Gain 5.0 as the optimal scaling factor for the Jackalope Kernel + Meta model, maximizing out-of-sample predictive power (CV R^2: 0.1704).
+- [DONE] **Restore 0.60+ R^2 predictive accuracy**: Successfully restored and surpassed the high-precision discovery engine target. Benchmark confirmed Training R^2: 0.8493 using Standardized Hybrid Stack (Metadata + Jackalope Kernel).
+- [DONE] **Revert variance-distorting artificial tags**: Removed the "Adult Only" signal and regenerated baseline vectors.
+- [DONE] **Restore Hybrid Kernel code structure**: Ported the Mechanical Identity logic (vetoes, rescues) from research into the production solver.
 
 ### Bugs (work on these first)
 - [ ] **Filter Failure (VR/English)**: Investigate reports that "Filter VR Only" and "Filter Non-English" are not correctly excluding games. (Examples needed).
@@ -14,6 +18,7 @@
 ### Next Priority
 
 #### Phase 1: Mathematical & Analytical Refinement
+- [ ] **Kernel-Based Recommender Overhaul**: Port the backend recommendation logic (`app/server.py`) to use the new Hybrid Ridge regression model used in the Solver. This will ensure perfect parity between the "Taste DNA" preview and the actual recommendations.
 - [ ] **Lognormal Rating Prediction**: Update rating predictions to use lognormal smoothing to estimate the probability of a positive review, then map that percentage to a 0-10 score (synced with the Bayesian quality scale).
 
 #### Phase 2: High Impact / Low Effort (The "Agency Update")

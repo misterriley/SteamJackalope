@@ -85,4 +85,16 @@ export const recommend = async (request: RecommendationRequest): Promise<GameMet
   return response.data;
 };
 
+export const updateUserVerify = async (steamId: string, appid: number, rating: number, ignore: boolean, status: string, notes: string = "") => {
+  const response = await api.post('/user/verify', [{
+    steam_id: steamId,
+    appid: appid,
+    actual_rating: rating,
+    ignore: ignore,
+    status: status,
+    notes: notes
+  }]);
+  return response.data;
+};
+
 export default api;

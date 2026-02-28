@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   Search, 
-  Table as TableIcon, 
   ChevronDown,
   Trash2,
   Plus,
@@ -14,11 +13,12 @@ import {
   Star,
   EyeOff,
   Heart,
-  ArrowUp,
-  RotateCcw
+  ArrowUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { searchGames, getMetadata, API_BASE_URL } from '../api';
+import { useContextMenu } from '../context/ContextMenuContext';
+import { useUser } from '../context/UserContext';
 
 type GameStatus = 'backlog' | 'played' | 'rated' | 'ignored' | 'wishlist';
 
@@ -30,8 +30,11 @@ interface CatalogueEntry {
   ignore: boolean;
   status: GameStatus;
   playtime_forever: number;
+  header_image?: string;
   is_manual?: boolean;
   is_nsfw?: boolean;
+  is_free?: boolean;
+  price?: string;
   notes?: string;
 }
 
@@ -55,19 +58,30 @@ interface CatalogueRowProps {
   onStatusChange: (appid: number, status: GameStatus) => void;
   onRatingChange: (appid: number, rating: number) => void;
   onDelete: (appid: number) => void;
+  onContextMenu: (e: React.MouseEvent, appid: number) => void;
 }
 
-const CatalogueRow = React.memo(({ entry, blurNSFW, onStatusChange, onRatingChange, onDelete }: CatalogueRowProps) => {
+const CatalogueRow = React.memo(({ entry, blurNSFW, onStatusChange, onRatingChange, onDelete, onContextMenu }: CatalogueRowProps) => {
+  const isRated = entry.status === 'rated';
+  
   return (
-    <tr className={`hover:bg-secondary/30 transition-colors ${entry.status === 'ignored' ? 'opacity-40' : ''}`}>
+    <tr 
+      onContextMenu={(e) => onContextMenu(e, entry.appid)}
+      className={`hover:bg-secondary/30 transition-colors ${entry.status === 'ignored' ? 'opacity-40' : ''}`}
+    >
       <td className="px-6 py-3">
-        <a href={`https://store.steampowered.com/app/${entry.appid}`} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80 transition-opacity">
+        <a href={`https://store.steampowered.com/app/${entry.appid}`} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80 transition-opacity relative">
           <img 
-            src={`https://cdn.akamai.steamstatic.com/steam/apps/${entry.appid}/header.jpg`} 
+            src={entry.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${entry.appid}/header.jpg`} 
             alt={entry.name} 
             className={`w-16 h-8 object-cover rounded shadow-sm border border-border/50 ${entry.is_nsfw && blurNSFW ? 'blur-sm scale-110' : ''}`}
             onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
           />
+          {(entry.is_free || (entry.price && (entry.price.toLowerCase().includes("free") || entry.price === ""))) && (
+            <div className="absolute top-0 left-0 px-1 py-0.5 bg-green-500 text-[6px] font-black text-white rounded-br-md shadow-lg uppercase tracking-tighter z-10">
+              Free
+            </div>
+          )}
         </a>
       </td>
       <td className="px-6 py-3">
@@ -97,8 +111,8 @@ const CatalogueRow = React.memo(({ entry, blurNSFW, onStatusChange, onRatingChan
               key={s}
               onClick={() => onStatusChange(entry.appid, s)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
-                entry.status === s 
-                  ? 'bg-primary text-primary-foreground shadow-md scale-105' 
+                entry.status === s
+                  ? 'bg-primary text-primary-foreground shadow-md scale-105'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
               }`}
               title={s.charAt(0).toUpperCase() + s.slice(1)}
@@ -110,15 +124,18 @@ const CatalogueRow = React.memo(({ entry, blurNSFW, onStatusChange, onRatingChan
         </div>
       </td>
       <td className="px-6 py-3 min-w-[160px]">
-        <div className={`flex items-center gap-3 transition-opacity ${entry.status === 'ignored' ? 'opacity-20 pointer-events-none' : ''}`}>
-          <input 
-            type="range" min="0" max="10" step="1" className="w-full accent-primary h-1 cursor-pointer"
+        <div className={`flex items-center gap-3 transition-all ${!isRated ? 'opacity-20 pointer-events-none grayscale' : ''}`}>
+          <input
+            type="range" min="0" max="10" step="1" 
+            disabled={!isRated}
+            className="w-full accent-primary h-1 cursor-pointer disabled:cursor-not-allowed"
             value={entry.actual_rating}
             onChange={(e) => onRatingChange(entry.appid, parseInt(e.target.value))}
           />
           <span className="w-4 text-xs font-bold text-primary text-center">{Math.round(entry.actual_rating)}</span>
         </div>
       </td>
+
       <td className="px-6 py-3 text-center">
         <div className="flex items-center justify-center gap-2">
           <a href={`https://store.steampowered.com/app/${entry.appid}`} target="_blank" rel="noopener noreferrer" className="p-2 text-muted-foreground hover:text-primary transition-colors">
@@ -149,7 +166,7 @@ const ManualAddControl = ({ onAdd }: ManualAddControlProps) => {
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<any>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -254,103 +271,144 @@ const CatalogueView: React.FC = () => {
     return '';
   });
 
-  const [loading, setLoading] = useState(false);
-  const [entries, setEntries] = useState<CatalogueEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
-  const [isSaving, setIsSaving] = useState(false);
-  const [blurNSFW, setBlurNSFW] = useState(true);
-  const [sortConfig, setSortConfig] = useState<{ key: keyof CatalogueEntry; direction: 'asc' | 'desc' }>({
-    key: 'status',
-    direction: 'asc'
-  });
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 400);
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 500) {
-        setVisibleCount(prev => prev + ROWS_PER_PAGE);
+    const [loading, setLoading] = useState(false);
+    const [entries, setEntries] = useState<CatalogueEntry[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showScrollTop, setShowScrollTop] = useState(false);
+    const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
+    const [isSaving, setIsSaving] = useState(false);
+    const [blurNSFW, setBlurNSFW] = useState(true);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof CatalogueEntry; direction: 'asc' | 'desc' }>({
+      key: 'status',
+      direction: 'asc'
+    });
+  
+    const STATUS_PRIORITY: Record<GameStatus, number> = {
+      'backlog': 0,
+      'wishlist': 1,
+      'rated': 2,
+      'played': 3,
+      'ignored': 4
+    };
+  
+    const { showContextMenu } = useContextMenu();
+    const { steamId: globalSteamId, setSteamId: globalSetSteamId } = useUser();
+  
+    const handleStatusChange = useCallback((appid: number, status: GameStatus) => {
+      setEntries(prev => prev.map(entry => {
+        if (entry.appid === appid) {
+          let ignore = entry.ignore;
+          if (status === 'ignored') ignore = true;
+          else if (status === 'rated' || status === 'played' || status === 'backlog' || status === 'wishlist') ignore = false;
+          return { ...entry, status, ignore };
+        }
+        return entry;
+      }));
+    }, []);
+  
+    const handleRatingChange = useCallback((appid: number, rating: number) => {
+      setEntries(prev => prev.map(entry => {
+        if (entry.appid === appid) {
+          return { ...entry, actual_rating: rating, status: 'rated' as GameStatus, ignore: false };
+        }
+        return entry;
+      }));
+    }, []);
+  
+    const handleContextMenu = useCallback((e: React.MouseEvent, appid: number) => {
+      e.preventDefault();
+      showContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        appid: appid,
+        steamId: globalSteamId || "",
+        onUpdate: (aid, status, rating) => {
+          if (status === 'rated' && rating !== undefined) {
+            handleRatingChange(aid, rating);
+          } else {
+            handleStatusChange(aid, status as GameStatus);
+          }
+        }
+      });
+    }, [globalSteamId, showContextMenu, handleStatusChange, handleRatingChange]);
+  
+    useEffect(() => {
+      if (steamId && steamId.length >= 17 && steamId !== globalSteamId) {
+        globalSetSteamId(steamId);
+      }
+    }, [steamId, globalSteamId, globalSetSteamId]);
+  
+    useEffect(() => {
+      const handleScroll = () => {
+        setShowScrollTop(window.scrollY > 400);
+        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 500) {
+          setVisibleCount(prev => prev + ROWS_PER_PAGE);
+        }
+      };
+      window.addEventListener('scroll', handleScroll);
+      return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+  
+    useEffect(() => {
+      if (steamId) fetchCatalogue();
+    }, [steamId]);
+  
+    useEffect(() => {
+      const savedFilters = sessionStorage.getItem('recommendations_filters');
+      if (savedFilters) {
+        try {
+          const parsed = JSON.parse(savedFilters);
+          if (parsed.remove_nsfw !== undefined) setBlurNSFW(parsed.remove_nsfw);
+        } catch (e) {}
+      }
+    }, []);
+  
+    const fetchCatalogue = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/user/catalogue/${steamId}`);
+        if (!res.ok) throw new Error("Failed to fetch catalogue.");
+        const data: CatalogueEntry[] = await res.json();
+        
+        // Initial sort by priority
+        const sorted = data.sort((a, b) => {
+          if (a.status === b.status) return a.name.localeCompare(b.name);
+          return (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99);
+        });
+        setEntries(sorted);
+      } catch (err: any) {
+        console.error(err.message);
+      } finally {
+        setLoading(false);
       }
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  useEffect(() => {
-    if (steamId) fetchCatalogue();
-  }, [steamId]);
-
-  useEffect(() => {
-    const savedFilters = sessionStorage.getItem('recommendations_filters');
-    if (savedFilters) {
-      try {
-        const parsed = JSON.parse(savedFilters);
-        if (parsed.remove_nsfw !== undefined) setBlurNSFW(parsed.remove_nsfw);
-      } catch (e) {}
-    }
-  }, []);
-
-  const fetchCatalogue = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}/user/catalogue/${steamId}`);
-      if (!res.ok) throw new Error("Failed to fetch catalogue.");
-      const data: CatalogueEntry[] = await res.json();
-      const sorted = data.sort((a, b) => {
-        if (a.status === b.status) return a.name.localeCompare(b.name);
-        return a.status.localeCompare(b.status);
+  
+    const handleSort = (key: keyof CatalogueEntry) => {
+      let direction: 'asc' | 'desc' = 'asc';
+      if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+      setSortConfig({ key, direction });
+  
+      const sorted = [...entries].sort((a, b) => {
+        let valA = a[key];
+        let valB = b[key];
+  
+        // Handle status priority sorting
+        if (key === 'status') {
+          const pA = STATUS_PRIORITY[valA as GameStatus] ?? 99;
+          const pB = STATUS_PRIORITY[valB as GameStatus] ?? 99;
+          if (pA === pB) return a.name.localeCompare(b.name);
+          return direction === 'asc' ? pA - pB : pB - pA;
+        }
+  
+        if (valA === valB) return a.name.localeCompare(b.name);
+        if (typeof valA === 'string' && typeof valB === 'string') return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        if (typeof valA === 'number' && typeof valB === 'number') return direction === 'asc' ? valA - valB : valB - valA;
+        if (typeof valA === 'boolean' && typeof valB === 'boolean') return direction === 'asc' ? (valA === valB ? 0 : valA ? 1 : -1) : (valA === valB ? 0 : valB ? 1 : -1);
+        return 0;
       });
       setEntries(sorted);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStatusChange = useCallback((appid: number, status: GameStatus) => {
-    setEntries(prev => prev.map(entry => {
-      if (entry.appid === appid) {
-        let ignore = entry.ignore;
-        if (status === 'ignored') ignore = true;
-        else if (status === 'rated' || status === 'played') ignore = false;
-        else ignore = true; 
-        return { ...entry, status, ignore };
-      }
-      return entry;
-    }));
-  }, []);
-
-  const handleRatingChange = useCallback((appid: number, rating: number) => {
-    setEntries(prev => prev.map(entry => {
-      if (entry.appid === appid) {
-        return { ...entry, actual_rating: rating, status: 'rated' as GameStatus, ignore: false };
-      }
-      return entry;
-    }));
-  }, []);
-
-  const handleSort = (key: keyof CatalogueEntry) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
-    setSortConfig({ key, direction });
-    
-    const sorted = [...entries].sort((a, b) => {
-      const valA = a[key];
-      const valB = b[key];
-      if (valA === valB) return a.name.localeCompare(b.name);
-      if (typeof valA === 'string' && typeof valB === 'string') return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-      if (typeof valA === 'number' && typeof valB === 'number') return direction === 'asc' ? valA - valB : valB - valA;
-      if (typeof valA === 'boolean' && typeof valB === 'boolean') return direction === 'asc' ? (valA === valB ? 0 : valA ? 1 : -1) : (valA === valB ? 0 : valB ? 1 : -1);
-      return 0;
-    });
-    setEntries(sorted);
-  };
-
-  const handleManualAdd = async (gameName: string) => {
+    };
+    const handleManualAdd = async (gameName: string) => {
     try {
       const meta = await getMetadata([gameName]);
       if (meta && meta.length > 0) {
@@ -506,6 +564,7 @@ const CatalogueView: React.FC = () => {
                   onStatusChange={handleStatusChange}
                   onRatingChange={handleRatingChange}
                   onDelete={handleDeleteEntry}
+                  onContextMenu={handleContextMenu}
                 />
               ))}
             </tbody>

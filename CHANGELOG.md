@@ -2,6 +2,18 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [49] - 2026-02-26
+### Build 49
+### Version 0.0.1-pre-alpha.49
+
+- **Algorithm**: Integrated the **12 Gamer Motivation Archetypes** (Destruction, Excitement, Competition, Community, Challenge, Strategy, Completion, Power, Fantasy, Story, Discovery, Design) into the Taste DNA engine. 
+- **Algorithm**: Implemented a **Hybrid Motivation Scoring** model that combines Tag, Semantic, and Topic modalities to calculate user alignment with psychological archetypes.
+- **Algorithm**: Added **Motivation-Based Recommendations**: The system now identifies the top 1% of games loading onto each motivation's basis vector and ranks the top 3 using the user's personalized Taste DNA weights.
+- **UI/UX**: Added **Psychological Motivation Bars** to the Taste DNA Insights page, providing a high-level view of the user's gamer personality.
+- **UI/UX**: Implemented **Motivation Tooltips** that reveal the defining mechanics (synthetic tags) and modality breakdowns for each archetype.
+- **UI/UX**: Added a new **"Top Recommendations by Motivation"** section at the bottom of the Insights page, similar to the existing tag-based recommendations.
+- **Data**: Created `data/production/motivations_library.json` as a permanent artifact containing the basis vectors for the 12 archetypes.
+
 ## [48] - 2026-02-25
 ### Build 48
 ### Version 0.0.1-pre-alpha.48

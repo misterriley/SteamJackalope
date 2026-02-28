@@ -3,6 +3,7 @@ export interface GameMetadata {
   name: string;
   release_date: string;
   short_description: string;
+  header_image?: string;
   release_year: number;
   estimated_playtime: number;
   difficulty_predicted: number;
@@ -11,6 +12,8 @@ export interface GameMetadata {
   genres: string;
   tags: string;
   price?: string;
+  is_free?: boolean;
+  is_in_library?: boolean;
   is_nsfw?: boolean;
   is_delisted?: boolean;
   raw_pop?: number;

@@ -225,6 +225,10 @@ def render_game_card(game, show_debug=False, alpha=0.0, beta=0.0, prompt="", sel
     with st.expander(f"**{game['name']}**{score_display}"):
         c1, c2 = st.columns([1, 2])
         with c1:
+            # Display game image
+            header_url = game.get('header_image') or f"https://cdn.akamai.steamstatic.com/steam/apps/{game['appid']}/header.jpg"
+            st.image(header_url, use_container_width=True)
+
             st.write(f"{APPID_LABEL} {game['appid']}")
             st.write(f"{VIEW_ON_STEAM_LINK}(https://store.steampowered.com/app/{game['appid']})")
             
