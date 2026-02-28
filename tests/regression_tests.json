@@ -1,0 +1,159 @@
+{
+  "negative_examples": [
+    {
+      "context": "Motivation: Discovery",
+      "target": "Orgasm Lab Simulator 💦🍌",
+      "reason": "Irrelevant/Low-Quality NSFW surfacing in discovery motivation",
+      "status": "PASS",
+      "fix": "Reputation Floor (min_reviews=100) implemented"
+    },
+    {
+      "context": "Motivation: Story",
+      "target": "Not Sure About That",
+      "reason": "Trivia game incorrectly identified as Story-rich",
+      "status": "PASS",
+      "fix": "Consensus Gate (Softmin >= 0.02) and Reputation Floor implemented"
+    },
+    {
+      "context": "Motivation: Completion",
+      "target": "Slender Threads",
+      "reason": "Horror adventure not fitting completionist mechanical profile",
+      "status": "PASS",
+      "fix": "Consensus Gate (Softmin >= 0.02) implemented"
+    },
+    {
+      "context": "Seed: Antichamber",
+      "target": "Super reaKtor",
+      "reason": "Fast-paced action/bullet-hell matching a surreal minimalist puzzle game",
+      "status": "PASS",
+      "fix": "Consensus Gate (Softmin >= 0.02) implemented"
+    },
+    {
+      "context": "Seed: Antichamber",
+      "target": "Super Dungeon Boy",
+      "reason": "Platformer matching a first-person puzzle game",
+      "status": "PASS",
+      "fix": "Consensus Gate (Softmin >= 0.02) implemented"
+    },
+    {
+      "context": "Seed: Antichamber",
+      "target": "Protect Your Fool",
+      "reason": "Minimalist action/clicker matching a complex first-person puzzle game",
+      "status": "PASS",
+      "fix": "Consensus Gate (Softmin >= 0.02) implemented"
+    },
+    {
+      "context": "Seed: 1663220",
+      "target": "2989950",
+      "reason": "Horror/Atmospheric game matching a cozy narrative beverage sim",
+      "status": "PASS",
+      "fix": "Ghost Match Protection (Tag/Sem variance veto) and Consensus Floor"
+    },
+    {
+      "context": "Seed: 292030",
+      "target": "1237320",
+      "reason": "Fast-paced platformer matching a story-rich RPG (Mechanical conflict)",
+      "status": "PASS",
+      "fix": "Consensus Floor and Genre Veto"
+    },
+    {
+      "context": "Seed: 1794680",
+      "target": "2878710",
+      "reason": "Platformer matching an Action Roguelike (Theme-only match 'Vampire')",
+      "status": "PASS",
+      "fix": "Hard Anchor Veto (Roguelike vs Platformer)"
+    },
+    {
+      "context": "Seed: 1687950",
+      "target": "1342620",
+      "reason": "Western Interactive Fiction matching a JRPG (Genre drift / Tone mismatch)",
+      "status": "PASS",
+      "fix": "Topic Consensus Floor"
+    },
+    {
+      "context": "Seed: 264710",
+      "target": "2289390",
+      "reason": "Strategy/Tower Defense matching a First-Person Survival (Theme-only match 'Underwater')",
+      "status": "PASS",
+      "fix": "Hard Anchor Veto (Strategy vs Survival)"
+    },
+    {
+      "context": "Seed: 324160",
+      "target": "1089980",
+      "reason": "Comedy Stick-figure Point & Click matching a traditional Anime VN",
+      "status": "PASS",
+      "fix": "Topic Consensus Floor"
+    },
+    {
+      "context": "Seed: 49520",
+      "target": "1446780",
+      "reason": "Third-Person Hunter matching an FPS Looter-Shooter (Perspective clash)",
+      "status": "PASS",
+      "fix": "Perspective and Shooter Anchors"
+    },
+    {
+      "context": "Seed: 524220",
+      "target": "1996390",
+      "reason": "Turn-Based Tactics matching a high-action Hack and Slash (Mechanical conflict)",
+      "status": "PASS",
+      "fix": "Mechanical Conflict Veto (Strategy vs Action)"
+    }
+  ],
+  "positive_examples": [
+    {
+      "context": "Motivation: Destruction",
+      "target": "Teardown",
+      "reason": "Perfect thematic mechanical match for destruction archetype",
+      "status": "PASS"
+    },
+    {
+      "context": "Seed: 1663220",
+      "target": "447530",
+      "reason": "Strong mechanical and narrative consensus (Beverage sims/Cozy Vibes)",
+      "status": "PASS",
+      "fix": "Multi-modal consensus alignment"
+    },
+    {
+      "context": "Seed: 292030",
+      "target": "489830",
+      "reason": "Strong RPG/Open World consensus (Witcher 3 -> Skyrim)",
+      "status": "PASS",
+      "fix": "Multi-modal consensus alignment"
+    },
+    {
+      "context": "Seed: 1794680",
+      "target": "2066020",
+      "reason": "Strong mechanical consensus (Survivor-like genre)",
+      "status": "PASS",
+      "fix": "Multi-modal alignment"
+    },
+    {
+      "context": "Seed: 1687950",
+      "target": "1277510",
+      "reason": "Strong Anime/RPG/Strategic consensus",
+      "status": "PASS",
+      "fix": "Multi-modal alignment"
+    },
+    {
+      "context": "Seed: 324160",
+      "target": "1388880",
+      "reason": "Strong Visual Novel/Anime/Romance consensus",
+      "status": "PASS",
+      "fix": "Multi-modal alignment"
+    },
+    {
+      "context": "Seed: 49520",
+      "target": "3156770",
+      "reason": "Strong FPS/RPG/Shooter consensus (Borderlands 2 -> Witchfire)",
+      "status": "PASS",
+      "fix": "Multi-modal alignment"
+    },
+    {
+      "context": "Seed: 524220",
+      "target": "1368030",
+      "reason": "Strong Action RPG/Anime consensus (NieR -> ANNO: Mutationem)",
+      "status": "PASS",
+      "fix": "Multi-modal alignment"
+    }
+  ]
+}

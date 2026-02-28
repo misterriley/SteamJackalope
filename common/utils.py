@@ -361,10 +361,175 @@ def calculate_jackalope_kernel(
 
     # 5. Vetoes
     if candidate_anchor_masks:
+        # AUTOMATIC HORROR DETECTION (Strict Tag-based)
+        HORROR_MARKERS = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
+        seed_is_horror = False
+        if seed_anchors and any(t in HORROR_MARKERS for t in seed_anchors):
+            seed_is_horror = True
+        elif active_narrative_seed and any(t in HORROR_MARKERS for t in active_narrative_seed):
+            seed_is_horror = True
+
+        # STYLISTIC RESCUE CALCULATION (Master Bypass)
+        # Rescue if Topic similarity is high (> 0.15)
+        # or if both games are Narrative-heavy (at least 2 markers).
+        is_narrative_rescue = (active_narrative_seed is not None and len(active_narrative_seed) >= 2)
+        rescue_mask = (topic_sims > 0.15) | is_narrative_rescue
+        
+        # Anti-Horror Clash Protection (Strict)
+        # If target has ANY horror markers and seed has NONE, block the rescue.
+        target_horror_count = np.zeros(len(kernel), dtype=int)
+        for marker in HORROR_MARKERS:
+            if marker in candidate_anchor_masks:
+                target_horror_count += candidate_anchor_masks[marker].astype(int)
+        
+        is_horror_clash = (target_horror_count >= 1) & ~seed_is_horror
+        rescue_mask = rescue_mask & ~is_horror_clash # Absolute block for clashes
+        
+        # NEW: Mechanical Conflict Protection
+        # If seed is RPG/Roguelike but target is Platformer (or vice versa), block the rescue.
+        PLATFORMER_VARIANTS = {"Platformer", "2D Platformer", "3D Platformer", "Precision Platformer", "Puzzle Platformer"}
+        
+        is_platformer_target = np.zeros(len(kernel), dtype=bool)
+        for pv in PLATFORMER_VARIANTS:
+            if pv in candidate_anchor_masks:
+                is_platformer_target |= candidate_anchor_masks[pv]
+        
+        is_rpg_seed = "RPG" in seed_anchors
+        is_platformer_seed = any(pv in seed_anchors for pv in PLATFORMER_VARIANTS)
+        
+        # Broad Roguelike Detection
+        ROGUE_MARKERS = {"Roguelike", "Roguelite", "Action Roguelike", "Bullet Hell"}
+        is_rogue_seed = any(t in ROGUE_MARKERS for t in seed_anchors) if seed_anchors else False
+        
+        # Conflict check: block stylistic rescue for mechanical mismatches
+        is_rpg_target = (("RPG" in candidate_anchor_masks and candidate_anchor_masks["RPG"]) | \
+                         ("Roguelike" in candidate_anchor_masks and candidate_anchor_masks["Roguelike"]) | \
+                         ("Roguelite" in candidate_anchor_masks and candidate_anchor_masks["Roguelite"]) | \
+                         ("Action Roguelike" in candidate_anchor_masks and candidate_anchor_masks["Action Roguelike"]))
+        
+        # Exception: Allow RPG seeds to match Platformer targets if the target IS also an RPG (Action RPG Platformers)
+        is_invalid_platformer_overlap = is_platformer_target & ~is_rpg_target
+        
+        is_mechanical_clash = (is_rpg_seed & is_invalid_platformer_overlap) | \
+                              (is_rogue_seed & is_platformer_target) | \
+                              (is_platformer_seed & is_rpg_target)
+        
+        # Strategy vs. Non-Strategy Action/Survival conflict
+        is_strategy_target = candidate_anchor_masks.get("Strategy", np.zeros(len(kernel), dtype=bool))
+        is_strategy_seed = "Strategy" in seed_anchors if seed_anchors else False
+        is_survival_seed = "Survival" in seed_anchors if seed_anchors else False
+        
+        if not is_strategy_seed and (is_rpg_seed or is_rogue_seed or is_platformer_seed or is_survival_seed):
+            # Exception: RPG/JRPG seeds matching Strategy targets that are ALSO RPGs (Tactical RPGs)
+            is_rpg_target = candidate_anchor_masks.get("RPG", np.zeros(len(kernel), dtype=bool)) | \
+                            candidate_anchor_masks.get("JRPG", np.zeros(len(kernel), dtype=bool))
+            is_valid_rpg_overlap = (is_rpg_seed or "JRPG" in seed_anchors) & is_rpg_target
+            
+            is_mechanical_clash |= (is_strategy_target & ~is_valid_rpg_overlap)
+        
+        # MANDATORY BLOCK: Precision Platformers are too mechanically unique to transcend.
+        is_precision_target = candidate_anchor_masks.get("Precision Platformer", np.zeros(len(kernel), dtype=bool))
+        if not is_platformer_seed:
+            is_mechanical_clash |= is_precision_target
+            
+        rescue_mask = rescue_mask & ~is_mechanical_clash # Absolute block for clashes
+
+        # Build Veto Mask
+        global_veto_mask = np.zeros(len(kernel), dtype=bool)
+        HARD_ANCHORS = {
+            "Platformer", "Puzzle", "Strategy", "RPG", "Roguelike", "Souls-like", "Metroidvania", 
+            "JRPG", "Survival", "Visual Novel", "FPS", "Third Person", "Shooter",
+            "Turn-Based Combat", "Turn-Based Strategy", "Turn-Based Tactics",
+            "Hack and Slash", "Spectacle fighter"
+        }
+        
         if seed_anchors:
-            for a in seed_anchors:
+            # PERSPECTIVE RULE: FPS/Third Person are only HARD if the seed is a Shooter.
+            is_shooter_seed = "Shooter" in seed_anchors or "Looter Shooter" in seed_anchors
+            PERSPECTIVE_GENRES = {"FPS", "Third Person"}
+            
+            # MECHANICAL GROUPINGS
+            TURN_BASED_GROUP = {"Turn-Based Combat", "Turn-Based Strategy", "Turn-Based Tactics"}
+            ACTION_COMBAT_GROUP = {"Hack and Slash", "Spectacle fighter"}
+            
+            # ACTION vs TURN-BASED detection for clashes
+            is_turn_based_seed = any(a in TURN_BASED_GROUP for a in seed_anchors)
+            is_action_realtime_seed = any(a in (ACTION_COMBAT_GROUP | {"FPS", "Shooter"}) for a in seed_anchors)
+            
+            # Perspective/Shooter conflict detection
+            is_fps_seed = "FPS" in seed_anchors or "First-Person" in seed_anchors
+            is_tps_seed = "Third Person" in seed_anchors or "TPS" in seed_anchors
+            
+            is_fps_target = candidate_anchor_masks.get("FPS", np.zeros(len(kernel), dtype=bool)) | \
+                            candidate_anchor_masks.get("First-Person", np.zeros(len(kernel), dtype=bool))
+            is_tps_target = candidate_anchor_masks.get("Third Person", np.zeros(len(kernel), dtype=bool)) | \
+                            candidate_anchor_masks.get("TPS", np.zeros(len(kernel), dtype=bool))
+            is_shooter_target = candidate_anchor_masks.get("Shooter", np.zeros(len(kernel), dtype=bool)) | \
+                                candidate_anchor_masks.get("Looter Shooter", np.zeros(len(kernel), dtype=bool))
+
+            perspective_clash = np.zeros(len(kernel), dtype=bool)
+            if is_shooter_seed:
+                perspective_clash = (is_fps_seed & is_tps_target) | (is_tps_seed & is_fps_target)
+            
+            shooter_clash = (is_shooter_seed & ~is_shooter_target)
+            
+            is_turn_based_target = np.zeros(len(kernel), dtype=bool)
+            for a in TURN_BASED_GROUP:
                 if a in candidate_anchor_masks:
-                    kernel[~candidate_anchor_masks[a]] *= 0.001
+                    is_turn_based_target |= candidate_anchor_masks[a]
+            
+            action_clash = (is_action_realtime_seed & is_turn_based_target) | (is_turn_based_seed & ~is_turn_based_target & is_action_realtime_seed)
+            is_mechanical_clash |= perspective_clash | shooter_clash | action_clash
+
+            # Anime stylistic lock
+            is_anime_seed = "Anime" in seed_anchors
+            is_anime_target = candidate_anchor_masks.get("Anime", np.zeros(len(kernel), dtype=bool))
+            if is_anime_seed:
+                rescue_mask = rescue_mask & is_anime_target.astype(bool)
+
+            def calculate_anchor_veto(anchors, masks):
+                veto = np.zeros(len(kernel), dtype=bool)
+                for a in anchors:
+                    if a in masks:
+                        if a in PERSPECTIVE_GENRES and not is_shooter_seed:
+                            continue
+                        if a == "JRPG":
+                            has_rpg_target = masks.get("RPG", np.zeros(len(kernel), dtype=bool))
+                            has_anime_target = masks.get("Anime", np.zeros(len(kernel), dtype=bool))
+                            rescue_jrpg = (has_rpg_target.astype(bool) & has_anime_target.astype(bool))
+                            veto |= (~masks[a].astype(bool) & ~rescue_jrpg)
+                        elif a in TURN_BASED_GROUP:
+                            target_has_any_tb = np.zeros(len(kernel), dtype=bool)
+                            for tb in TURN_BASED_GROUP:
+                                if tb in masks:
+                                    target_has_any_tb |= masks[tb]
+                            veto |= ~target_has_any_tb
+                        elif a in ACTION_COMBAT_GROUP:
+                            target_has_any_ac = np.zeros(len(kernel), dtype=bool)
+                            for ac in ACTION_COMBAT_GROUP:
+                                if ac in masks:
+                                    target_has_any_ac |= masks[ac]
+                            veto |= ~target_has_any_ac
+                        else:
+                            veto |= ~masks[a].astype(bool)
+                return veto
+
+            # Layer 1: Rescuable Vetoes
+            global_veto_mask = calculate_anchor_veto(seed_anchors, candidate_anchor_masks)
+            global_veto_mask &= ~rescue_mask.astype(bool)
+            
+            # Layer 2: Mandatory Vetoes (Clashes and Hard Genres)
+            global_veto_mask |= is_mechanical_clash.astype(bool)
+            seed_hard_anchors = [a for a in seed_anchors if a in HARD_ANCHORS]
+            global_veto_mask |= calculate_anchor_veto(seed_hard_anchors, candidate_anchor_masks)
+        
+        # NEW: Low Consensus Floor
+        # If Topic similarity is weak and they aren't rescued, they shouldn't be matched.
+        is_low_consensus = ((topic_sims < 0.15) & ~rescue_mask.astype(bool)).astype(bool)
+        global_veto_mask |= is_low_consensus
+        
+        # Apply the multiplier once
+        kernel[global_veto_mask] *= 0.001
                     
         if precalculated_masks:
             if not seed_has_heavy_action:
@@ -399,6 +564,15 @@ def calculate_jackalope_kernel(
         kernel[consensus_sim < 0.001] = 0.0
     else:
         kernel[consensus_sim < 0.005] = 0.0
+    
+    # NEW: Hard Veto for extreme component mismatch (The 'Ghost Match' Protection)
+    # If one modality is massive but the other is weak, it's keyword/topic noise.
+    # 1. Absolute Floor: Semantic must be at least 0.05 if Tag is high.
+    kernel[(tag_sims > 0.5) & (sem_sims < 0.05)] = 0.0
+    # 2. Relative Veto: If Tag sim is > 10x Semantic sim, it's a 'Ghost Match'
+    kernel[(tag_sims > 0.2) & (tag_sims > (sem_sims * 10.0))] = 0.0
+    # 3. Inverse Check
+    kernel[(sem_sims > 0.5) & (tag_sims < 0.05)] = 0.0
         
     final_kernel = np.maximum(kernel, 0.0)
     
