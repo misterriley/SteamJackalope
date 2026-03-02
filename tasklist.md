@@ -7,6 +7,10 @@
 ## Task List
 
 ### Recently Completed
+- [DONE] **Jackalope Kernel Production Port**: Integrated the high-fidelity Mechanical Identity Group (MIG) kernel into `app/server.py`. Added support for 32 granular skill silos, Title Hijacking protection, and "Adult Only" banner-based siloing.
+- [DONE] **Difficulty Similarity Signal**: Implemented `difficulty_sim` as a secondary similarity weight in the API, allowing users to match seeds based on their predicted mechanical challenge.
+- [DONE] **Roguelike/Metroidvania MIG Refinement**: Added a dedicated `ROGUELIKE` group and updated `METROIDVANIA` to correctly handle `Roguevania` hybrids like *Dead Cells*.
+- [DONE] **Hybrid Mechanical Bridges**: Refined the MIG system to support 16+ hybrid tags (e.g., *Puzzle Platformer*, *Survival Horror*, *Looter Shooter*) across multiple skill silos, ensuring high-fidelity matching for cross-genre titles.
 - [DONE] **Optimize for Generalization (CV R^2)**: Successfully identified Gain 5.0 as the optimal scaling factor for the Jackalope Kernel + Meta model, maximizing out-of-sample predictive power (CV R^2: 0.1704).
 - [DONE] **Restore 0.60+ R^2 predictive accuracy**: Successfully restored and surpassed the high-precision discovery engine target. Benchmark confirmed Training R^2: 0.8493 using Standardized Hybrid Stack (Metadata + Jackalope Kernel).
 - [DONE] **Revert variance-distorting artificial tags**: Removed the "Adult Only" signal and regenerated baseline vectors.
@@ -18,6 +22,11 @@
 ### Next Priority
 
 #### Phase 1: Mathematical & Analytical Refinement
+- [ ] **Differentiable Temperature-Dependent Kernel**: Refactor hard veto logic into a soft-constraint framework using a temperature parameter $\tau$. Replace Boolean masks with continuous "Conflict Potentials" $C \in [0, 1]$ and a sigmoid-based penalty function $P(C, \tau)$.
+    - **Measurable Outcome**: 
+        1. Achieve 100% parity with the current 18-point Similarity Regression Suite as $\tau \to 0$.
+        2. Demonstrate controllable "Similarity Flattening" as $\tau \to \infty$.
+        3. Export a differentiable `grad_kernel` for automated $R^2$ optimization.
 - [ ] **Kernel-Based Recommender Overhaul**: Port the backend recommendation logic (`app/server.py`) to use the new Hybrid Ridge regression model used in the Solver. This will ensure perfect parity between the "Taste DNA" preview and the actual recommendations.
 - [ ] **Lognormal Rating Prediction**: Update rating predictions to use lognormal smoothing to estimate the probability of a positive review, then map that percentage to a 0-10 score (synced with the Bayesian quality scale).
 

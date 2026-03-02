@@ -43,6 +43,8 @@ export interface GameMetadata {
   w_difficulty?: number;
   z_price?: number;
   w_price?: number;
+  z_tone?: number;
+  w_tone?: number;
 
   // Fields for lists
   quality_score?: number;
@@ -60,6 +62,9 @@ export interface RecommendationRequest {
   disc_pref: number;
   length_pref: number;
   difficulty_pref: number;
+  difficulty_sim_weight?: number;
+  tone_sim_weight?: number;
+  temperature?: number;
   price_pref: number;
   remove_vr: boolean;
   english_only: boolean;

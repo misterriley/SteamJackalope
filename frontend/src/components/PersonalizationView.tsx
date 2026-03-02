@@ -691,12 +691,31 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <h3 className="text-lg font-bold flex items-center gap-2"><LineChart size={18} className="text-primary" />Metadata Weights</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {Object.entries(insights.metadata || {}).map(([key, val]: [string, any]) => {
-                      const labels: any = { quality: 'Quality', age: 'Release Date', popularity: 'Popularity', length: 'Playtime', difficulty: 'Difficulty', price: 'Price', semantic: 'Theme Match', tag_match: 'Vibe Match' };
-                      const descriptions: any = { quality: 'Preference for high critic/user consensus.', age: 'Preference for newer vs. classic titles.', popularity: 'Preference for mainstream vs. niche gems.', length: 'Preference for short vs. long experiences.', difficulty: 'Preference for relaxed vs. hard games.', price: 'Sensitivity to game price.', semantic: 'Weight of the descriptive theme model.', tag_match: 'Weight of the categorical tag model.' };
+                      const labels: any = { quality: 'Quality', age: 'Release Date', popularity: 'Popularity', length: 'Playtime', difficulty: 'Difficulty', price: 'Price', tone: 'Tonal Spirit', semantic: 'Theme Match', tag_match: 'Vibe Match' };
+                      const descriptions: any = { quality: 'Preference for high critic/user consensus.', age: 'Preference for newer vs. classic titles.', popularity: 'Preference for mainstream vs. niche gems.', length: 'Preference for short vs. long experiences.', difficulty: 'Preference for relaxed vs. hard games.', price: 'Sensitivity to game price.', tone: 'Preference for Bizarre/Absurd (Positive) vs. Serious/Grounded (Negative) spirit.', semantic: 'Weight of the descriptive theme model.', tag_match: 'Weight of the categorical tag model.' };
                       return (
                         <div key={key} className="p-4 bg-secondary/30 rounded-xl space-y-2 group cursor-help relative" onMouseEnter={() => setHoveredWeight(key)} onMouseLeave={() => setHoveredWeight(null)}>
                           <div className="flex justify-between items-center"><span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{labels[key] || key}</span><span className={`text-sm font-mono font-bold ${(val as number) > 0 ? 'text-green-500' : (val as number) < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>{(val as number).toFixed(2)}</span></div>
-                          <div className="h-1.5 bg-secondary rounded-full overflow-hidden"><div className={`h-full transition-all duration-1000 ${(val as number) > 0 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, Math.abs((val as number) * 50))}%`, marginLeft: (val as number) > 0 ? '0' : 'auto' }} /></div>
+                          {key === 'tone' ? (
+                            <div className="space-y-1">
+                              <div className="h-1.5 bg-secondary rounded-full overflow-hidden relative">
+                                <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-border z-10" />
+                                <div 
+                                  className={`h-full transition-all duration-1000 ${(val as number) > 0 ? 'bg-purple-500' : 'bg-blue-500'}`} 
+                                  style={{ 
+                                    width: `${Math.min(50, Math.abs((val as number) * 50))}%`, 
+                                    marginLeft: (val as number) > 0 ? '50%' : `${50 - Math.min(50, Math.abs((val as number) * 50))}%` 
+                                  }} 
+                                />
+                              </div>
+                              <div className="flex justify-between text-[8px] font-bold uppercase tracking-tighter text-muted-foreground/50">
+                                <span>Grounded</span>
+                                <span>Bizarre</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="h-1.5 bg-secondary rounded-full overflow-hidden"><div className={`h-full transition-all duration-1000 ${(val as number) > 0 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, Math.abs((val as number) * 50))}%`, marginLeft: (val as number) > 0 ? '0' : 'auto' }} /></div>
+                          )}
                           <AnimatePresence>{hoveredWeight === key && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute z-50 bottom-full left-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-[10px] rounded shadow-xl border border-border pointer-events-none">{descriptions[key]}</motion.div>}</AnimatePresence>
                         </div>
                       );

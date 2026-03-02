@@ -358,7 +358,35 @@ const Filters: React.FC<FiltersProps> = ({ filters, onChange, onProfileUpload, o
             min={-1} max={1} step={0.05} 
             onChange={(v: number) => handleChange('difficulty_pref', v)}
             onReset={() => handleChange('difficulty_pref', 0.0)}
-            tooltip="Points per SD of Predicted Difficulty."
+            tooltip="Preference for Predicted Difficulty (Left = Easy/Relaxing, Right = Hard/Souls-like)."
+          />
+        </div>
+
+        <div className="pt-2 border-t border-border/50">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Similarity (Seed Match)</h3>
+          <Slider 
+            label="Match Seed Difficulty" 
+            value={filters.difficulty_sim_weight || 0} 
+            min={0} max={1} step={0.05} 
+            onChange={(v: number) => handleChange('difficulty_sim_weight', v)}
+            onReset={() => handleChange('difficulty_sim_weight', 0.0)}
+            tooltip="Boosts Match % for games that share the SAME difficulty level as your seed game."
+          />
+          <Slider 
+            label="Match Seed Tone" 
+            value={filters.tone_sim_weight || 0} 
+            min={0} max={1} step={0.05} 
+            onChange={(v: number) => handleChange('tone_sim_weight', v)}
+            onReset={() => handleChange('tone_sim_weight', 0.0)}
+            tooltip="Boosts Match % for games that share the same 'spirit' (Serious vs. Bizarre) as your seed game."
+          />
+          <Slider 
+            label="Discovery" 
+            value={filters.temperature || 0.01} 
+            min={0.001} max={0.5} step={0.005} 
+            onChange={(v: number) => handleChange('temperature', v)}
+            onReset={() => handleChange('temperature', 0.01)}
+            tooltip="Discovery vs Discipline. Higher = allows mechanical clashes for soulful thematic matches."
           />
         </div>
 

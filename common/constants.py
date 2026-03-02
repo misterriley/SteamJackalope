@@ -38,6 +38,7 @@ EMBEDDINGS_DESC_FILE = os.getenv("STEAM_EMBEDDINGS_DESC_FILE", os.path.join(PROD
 EMBEDDINGS_DESC_RAW_FILE = os.getenv("STEAM_EMBEDDINGS_DESC_RAW_FILE", os.path.join(PRODUCTION_DATA_DIR, "embeddings_desc_raw.npy"))
 EMBEDDINGS_DESC_NORMS_FILE = os.getenv("STEAM_EMBEDDINGS_DESC_NORMS_FILE", os.path.join(PRODUCTION_DATA_DIR, "embeddings_desc_norms.npy"))
 TAG_VECTORS_FILE = os.getenv("STEAM_TAG_VECTORS_FILE", os.path.join(PRODUCTION_DATA_DIR, "steam_tag_vectors.npy"))
+DIFFUSED_VERB_PROFILES_FILE = os.getenv("STEAM_DIFFUSED_VERB_PROFILES_FILE", os.path.join(PRODUCTION_DATA_DIR, "diffused_verb_profiles.npy"))
 TAG_NORMS_FILE = os.getenv("STEAM_TAG_NORMS_FILE", os.path.join(PRODUCTION_DATA_DIR, "tag_vectors_norms.npy"))
 QUALITY_GRID_FILE = os.getenv("STEAM_QUALITY_GRID_FILE", os.path.join(PRODUCTION_DATA_DIR, "quality_scores_grid.npy"))
 METADATA_FILE = os.getenv("STEAM_METADATA_FILE", os.path.join(PRODUCTION_DATA_DIR, "metadata.parquet"))

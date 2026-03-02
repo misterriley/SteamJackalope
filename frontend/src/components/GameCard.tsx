@@ -131,6 +131,7 @@ const GameCard: React.FC<GameCardProps> = ({
       { label: 'Pr', z: game.z_price, w: game.w_price, color: 'text-emerald-400' },
       { label: 'Len', z: game.z_length, w: game.w_length, color: 'text-cyan-400' },
       { label: 'Diff', z: game.z_difficulty, w: game.w_difficulty, color: 'text-orange-400' },
+      { label: 'Tone', z: game.z_tone, w: game.w_tone, color: 'text-purple-400' },
     ];
 
     return (

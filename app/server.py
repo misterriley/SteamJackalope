@@ -47,6 +47,7 @@ from common.constants import (
     W_DESC_FILE,
     MEAN_DESC_FILE,
     TAG_VECTORS_FILE,
+    DIFFUSED_VERB_PROFILES_FILE,
     TAG_NORMS_FILE,
     METADATA_FILE,
     TRENDING_APPIDS_FILE,
@@ -73,6 +74,7 @@ from common.constants import (
     DIFFICULTY_PREDICTIONS_FILE,
     DNA_UI_SCALING_FACTOR,
     ROOT_DIR,
+    PRODUCTION_DATA_DIR,
     TAG_GLOBAL_SCALING_FACTOR,
     SEMANTIC_GLOBAL_SCALING_FACTOR,
     SOFTMIN_TEMPERATURE,
@@ -83,7 +85,7 @@ from common.constants import (
     TOPIC_GLOBAL_SCALING_FACTOR,
     TOPIC_DOT_PRODUCT_LAMBDA
 )
-from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores, calculate_personalized_quality, softmin_blend, fast_jsd_similarity
+from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores, calculate_personalized_quality, softmin_blend, fast_jsd_similarity, calculate_jackalope_kernel
 
 app = FastAPI()
 
@@ -103,9 +105,12 @@ class DataManager:
         self.embeddings_desc_norm = None
         self.metadata = None
         self.tag_vectors = None
+        self.verb_profiles = None
         self.quality_grid = None
         self.tag_vectors_norms = None
         self.topic_distributions = None
+        self.topic_means = None
+        self.topic_stds = None
         self.topic_model = None
         self.w_desc = None
         self.mean_desc = None
@@ -202,6 +207,10 @@ class DataManager:
         self.tag_vectors = np.load(TAG_VECTORS_FILE, mmap_mode='r')
         logger.info(f"Tag vectors: shape={self.tag_vectors.shape}, dtype={self.tag_vectors.dtype}")
         
+        logger.info(f"Loading verb_profiles from {DIFFUSED_VERB_PROFILES_FILE}")
+        self.verb_profiles = np.load(DIFFUSED_VERB_PROFILES_FILE, mmap_mode='r')
+        logger.info(f"Verb profiles: shape={self.verb_profiles.shape}, dtype={self.verb_profiles.dtype}")
+        
         logger.info(f"Loading quality_grid from {QUALITY_GRID_FILE}")
         self.quality_grid = np.load(QUALITY_GRID_FILE, mmap_mode='r')
         logger.info(f"Quality grid: shape={self.quality_grid.shape}, dtype={self.quality_grid.dtype}")
@@ -213,6 +222,26 @@ class DataManager:
             logger.info(f"Topic distributions: shape={self.topic_distributions.shape}")
         else:
             logger.warning(f"Topic distributions file NOT FOUND at {TOPIC_DISTRIBUTIONS_FILE}")
+
+        # Load Topic Means and Stds
+        means_path = os.path.join(PRODUCTION_DATA_DIR, "topic_means.npy")
+        stds_path = os.path.join(PRODUCTION_DATA_DIR, "topic_stds.npy")
+        if os.path.exists(means_path) and os.path.exists(stds_path):
+            logger.info(f"Loading topic means/stds from {PRODUCTION_DATA_DIR}")
+            self.topic_means = np.load(means_path).astype(np.float32)
+            self.topic_stds = np.load(stds_path).astype(np.float32)
+        else:
+            logger.warning("Topic means/stds NOT FOUND. Falling back to zeros/ones.")
+            
+        # Load Tone Z-scores
+        tone_path = os.path.join(PRODUCTION_DATA_DIR, "tone_z.npy")
+        if os.path.exists(tone_path):
+            logger.info(f"Loading tone_z from {tone_path}")
+            self.tone_z = np.load(tone_path, mmap_mode='r')
+        else:
+            logger.warning("Tone Z-scores file NOT FOUND. Will attempt to pull from metadata.")
+            self.tone_z = None
+            # We'll initialize these later if needed during recommend, but safer to warn now.
             
         if os.path.exists(TOPIC_MODEL_FILE):
             logger.info(f"Loading topic_model from {TOPIC_MODEL_FILE}")
@@ -222,6 +251,7 @@ class DataManager:
             logger.info("Topic model loaded successfully")
         else:
             logger.warning(f"Topic model file NOT FOUND at {TOPIC_MODEL_FILE}")
+
 
         # 3. Load Metadata
         logger.info(f"Loading metadata from {METADATA_FILE}")
@@ -235,7 +265,7 @@ class DataManager:
         needed_cols = [
             'appid', 'name', 'release_date', 'parsed_date', 'positive', 'negative', 
             'genres', 'tags', 'categories', 'supported_languages',
-            'mature_content', 'price', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z',
+            'mature_content', 'price', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z', 'tone_z',
             'estimated_playtime', 'difficulty_predicted',
             'is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_delisted', 'is_hollow'
         ]
@@ -460,6 +490,30 @@ class DataManager:
         else:
             logger.warning(f"Tag dimension descriptions file NOT FOUND at {desc_path}")
 
+        # Pre-calculate anchor masks for MIGs and Narrative tags
+        logger.info("Pre-calculating anchor masks...")
+        from common.utils import MIGS, NARRATIVE_TAGS, HORROR_MARKERS, HARD_ANCHORS
+        self.anchor_masks = {}
+        
+        # Collect all tags needed for masks
+        all_anchor_tags = set()
+        for tags in MIGS.values(): all_anchor_tags.update(tags)
+        all_anchor_tags.update(NARRATIVE_TAGS)
+        all_anchor_tags.update(HORROR_MARKERS)
+        all_anchor_tags.update(HARD_ANCHORS)
+        all_anchor_tags.add("Isometric")
+        all_anchor_tags.add("CRPG")
+        
+        tag_series = self.metadata['tags'].fillna('').astype(str)
+        for tag in all_anchor_tags:
+            pattern = rf"'{re.escape(tag)}':"
+            self.anchor_masks[tag] = tag_series.str.contains(pattern, regex=True).values
+        
+        # Also pre-calculate title keyword masks for hijacking detection
+        self.title_keyword_masks = {} # Will be populated per-request
+        
+        logger.info(f"Pre-calculated {len(self.anchor_masks)} anchor masks")
+
         # 5. Load SentenceTransformer model
         logger.info("Loading SentenceTransformer model...")
         from sentence_transformers import SentenceTransformer
@@ -514,6 +568,8 @@ class RecommendationRequest(BaseModel):
     disc_pref: float = 0.0
     length_pref: float = 0.0
     difficulty_pref: float = 0.0
+    difficulty_sim_weight: float = 0.0 # Weight for matching seed difficulty
+    tone_sim_weight: float = 0.0 # New: Weight for matching seed tone (Serious-Bizarre)
     price_pref: float = 0.0
     remove_vr: bool = True
     english_only: bool = False
@@ -1321,129 +1377,158 @@ def recommend(request: RecommendationRequest):
         logger.warning("All games were filtered out!")
         return []
 
-    # 2. Semantic Component
+    # 2. Jackalope Kernel (High-Fidelity Seed Similarity)
+    jackalope_sims = None
+    jackalope_components = None
+    if seed_indices.size > 0:
+        logger.info("Calculating Jackalope Kernel for seeds...")
+        
+        # Prepare Seed Vectors
+        seed_verb_profile = np.mean(data_manager.verb_profiles[seed_indices], axis=0)
+        seed_sem_vec = np.mean(data_manager.embeddings_desc_norm[seed_indices], axis=0)
+        seed_sem_norm = np.linalg.norm(seed_sem_vec)
+        seed_sem_vec /= (seed_sem_norm + EPSILON)
+        
+        seed_topic_dist = np.mean(data_manager.topic_distributions[seed_indices], axis=0)
+        seed_topic_dist /= (np.sum(seed_topic_dist) + EPSILON)
+        
+        # Prepare Metadata
+        seed_tags_list = []
+        for idx in seed_indices:
+            tags_str = metadata.iloc[idx]['tags']
+            seed_tags_list.extend(re.findall(r"'([^']+)':", tags_str))
+        seed_tags_set = set(seed_tags_list)
+
+        from common.utils import MIGS, NARRATIVE_TAGS, HARD_ANCHORS
+        seed_migs = {group for group, tags in MIGS.items() if any(t in seed_tags_set for t in tags)}
+        seed_tags = seed_tags_set & HARD_ANCHORS
+        active_narrative_seed = [t for t in NARRATIVE_TAGS if t in seed_tags_set]
+
+        # Title Hijack Detection (Indie Parodies)
+        title_hijack_mask = np.zeros(len(metadata), dtype=bool)
+        for seed_name in request.seed_games:
+            keywords = [k for k in re.split(r'[^a-zA-Z0-9]', seed_name.lower()) if len(k) > 3]
+            if keywords:
+                pattern = '|'.join(keywords)
+                title_match = metadata['normalized_name'].str.contains(pattern, regex=True).values
+                title_hijack_mask |= title_match
+
+        jackalope_sims, jackalope_components = calculate_jackalope_kernel(
+            verb_profiles=data_manager.verb_profiles,
+            seed_verb_profile=seed_verb_profile,
+            sem_vectors=data_manager.embeddings_desc_norm,
+            sem_norms=data_manager.embeddings_desc_norms,
+            seed_sem_vec=seed_sem_vec,
+            seed_sem_norm=seed_sem_norm,
+            topic_distributions=data_manager.topic_distributions,
+            seed_topic_dist=seed_topic_dist,
+            topic_means=data_manager.topic_means,
+            topic_stds=data_manager.topic_stds,
+            tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
+            dot_product_lambda=DOT_PRODUCT_LAMBDA,
+            sem_scaling_factor=SEMANTIC_GLOBAL_SCALING_FACTOR,
+            sem_lambda=SEMANTIC_DOT_PRODUCT_LAMBDA,
+            mature_content_flags=metadata['mature_content'].values > 0,
+            seed_mature_content=bool(np.any(metadata.iloc[seed_indices]['mature_content'] > 0)),
+            seed_migs=seed_migs,
+            seed_tags=seed_tags,
+            candidate_anchor_masks=data_manager.anchor_masks,
+            active_narrative_seed=active_narrative_seed,
+            precalculated_masks={"title_hijack": title_hijack_mask},
+            difficulty_z=metadata['difficulty_z'].values,
+            seed_difficulty_z=np.mean(metadata.iloc[seed_indices]['difficulty_z']),
+            tone_z=metadata['tone_z'].values if 'tone_z' in metadata.columns else None,
+            seed_tone_z=np.mean(metadata.iloc[seed_indices]['tone_z']) if 'tone_z' in metadata.columns else None,
+            return_components=True
+        )
+    # 3. Component Blending (Prompt + DNA + Jackalope)
     all_semantic_sims = np.zeros(len(metadata))
-    all_topic_sims = np.zeros(len(metadata)) # New Topic signal
+    all_tag_sims = np.zeros(len(metadata))
+    all_topic_sims = np.zeros(len(metadata))
+    all_diff_sims = np.zeros(len(metadata))
+    all_tone_sims = np.zeros(len(metadata))
 
     try:
-        # --- TOPIC SIGNAL CALCULATION ---
-        from common.constants import TOPIC_SIMILARITY_MEAN, TOPIC_SIMILARITY_STD
-        if data_manager.topic_distributions is not None:
-            topic_signals = []
+        # --- TOPIC SIGNAL ---
+        topic_signals = []
+        if jackalope_components: topic_signals.append(jackalope_components['cluster'])
+        
+        if request.prompt:
+            from common.constants import TOPIC_SIMILARITY_MEAN, TOPIC_SIMILARITY_STD
+            clean_prompt = request.prompt.lower()
+            prompt_vec = data_manager.model.encode([clean_prompt])[0].astype(np.float32)
+            topic_embeddings = data_manager.topic_model.topic_embeddings_[1:]
+            topic_sims_raw = np.dot(topic_embeddings, prompt_vec)
+            topic_sims_raw = topic_sims_raw - np.max(topic_sims_raw)
+            exp_sim = np.exp(topic_sims_raw / 0.05)
+            prompt_topic_p = exp_sim / np.sum(exp_sim)
+            prompt_topic_sims = fast_jsd_similarity(prompt_topic_p, data_manager.topic_distributions, mean=TOPIC_SIMILARITY_MEAN, std=TOPIC_SIMILARITY_STD)
+            topic_signals.append(prompt_topic_sims)
             
-            # A. Prompt Topic Distribution
-            if request.prompt:
-                clean_prompt = request.prompt.lower()
-                prompt_vec = data_manager.model.encode([clean_prompt])[0].astype(np.float32)
-                
-                # Map prompt to topic space
-                topic_embeddings = data_manager.topic_model.topic_embeddings_[1:] # Aligned
-                topic_sims_raw = np.dot(topic_embeddings, prompt_vec) # Cosine on unit vecs
-                
-                # Softmax with standardized T=0.05
-                topic_sims_raw = topic_sims_raw - np.max(topic_sims_raw)
-                exp_sim = np.exp(topic_sims_raw / 0.05)
-                prompt_topic_p = exp_sim / np.sum(exp_sim)
-                
-                # JSD Similarity (Z-scored)
-                prompt_topic_sims = fast_jsd_similarity(
-                    prompt_topic_p, 
-                    data_manager.topic_distributions,
-                    mean=TOPIC_SIMILARITY_MEAN,
-                    std=TOPIC_SIMILARITY_STD
-                )
-                topic_signals.append(prompt_topic_sims)
+        if request.topic_vibe_vector:
+            topic_vibe_unit = np.array(request.topic_vibe_vector, dtype=np.float32)
+            dna_topic_sims = np.dot(data_manager.topic_distributions.astype(np.float32) * TOPIC_GLOBAL_SCALING_FACTOR, topic_vibe_unit)
+            topic_signals.append(dna_topic_sims)
             
-            # B. DNA Topic Vector
-            if request.topic_vibe_vector:
-                topic_vibe_unit = np.array(request.topic_vibe_vector, dtype=np.float32)
-                # Use dot product for DNA mode (parity with solver)
-                # Population stats are not applied here because the solver already 
-                # operates on the scaled thematic space.
-                dna_topic_sims = np.dot(data_manager.topic_distributions.astype(np.float32) * TOPIC_GLOBAL_SCALING_FACTOR, topic_vibe_unit)
-                topic_signals.append(dna_topic_sims)
-            
-            # Blend Topic Signals (if multiple)
-            if topic_signals:
-                # Signals are already on the correct global variance scale (Tags/Semantics parity)
-                # Topic JSD is Z-scored, and DNA Topic sims are scaled by TOPIC_GLOBAL_SCALING_FACTOR in dot product.
-                all_topic_sims = softmin_blend(topic_signals, temperature=SOFTMIN_TEMPERATURE)
+        if topic_signals:
+            all_topic_sims = softmin_blend(topic_signals, temperature=SOFTMIN_TEMPERATURE)
 
-        # --- SEMANTIC SIGNAL CALCULATION ---
-        if request.prompt or seed_appids or request.semantic_vibe_vector:
+        # --- SEMANTIC SIGNAL ---
+        sem_signals = []
+        if jackalope_components: sem_signals.append(jackalope_components['theme'])
+        
+        if request.prompt:
             def norm_vec(v):
                 mag = np.linalg.norm(v)
                 return v / (mag if mag > EPSILON else 1.0)
-
-            dna_sem_sims = None
-            if request.semantic_vibe_vector:
-                sem_vibe = np.array(request.semantic_vibe_vector, dtype=np.float32)
-                dot_products = np.dot(data_manager.embeddings_desc_norm, sem_vibe)
-                denom = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
-                dna_sem_sims = (dot_products / denom) * SEMANTIC_GLOBAL_SCALING_FACTOR
-
-            prompt_sims = None
-            if request.prompt:
-                clean_prompt = request.prompt.lower()
-                prompt_vec = data_manager.model.encode([clean_prompt])[0]
-                p_desc = np.dot(prompt_vec, data_manager.w_desc) if data_manager.w_desc is not None else prompt_vec
-                p_desc_norm = norm_vec(p_desc)
-                prompt_desc_sims = np.dot(data_manager.embeddings_desc_norm, p_desc_norm)
-                if data_manager.embeddings_desc_norms is not None:
-                    denom_desc = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
-                    prompt_desc_sims = (prompt_desc_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
-                prompt_sims = prompt_desc_sims
-
-            seed_sims = None
-            if seed_indices.size > 0:
-                avg_seed_desc = np.mean(data_manager.embeddings_desc_norm[seed_indices], axis=0)
-                sd_norm = norm_vec(avg_seed_desc)
-                seed_desc_sims = np.dot(data_manager.embeddings_desc_norm, sd_norm)
-                if data_manager.embeddings_desc_norms is not None:
-                    denom_desc = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
-                    seed_desc_sims = (seed_desc_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
-                seed_sims = seed_desc_sims
-
-            # Combine all available semantic signals using Softmin for consensus
-            sims_to_blend = []
-            if dna_sem_sims is not None: sims_to_blend.append(dna_sem_sims)
-            if prompt_sims is not None: sims_to_blend.append(prompt_sims)
-            if seed_sims is not None: sims_to_blend.append(seed_sims)
-
-            if sims_to_blend:
-                all_semantic_sims = softmin_blend(sims_to_blend, temperature=SOFTMIN_TEMPERATURE)
-                all_semantic_sims[data_manager.metadata['is_hollow'].values] = 0.0
-    except Exception as e:
-        logger.exception(f"Semantic similarity calculation failed: {e}")
-
-    # 3. Tag Component (Hybrid Beta Calculation)
-    all_tag_sims = np.zeros(len(metadata))
-    if seed_indices.size > 0 or request.vibe_vector:
-        tag_sims_to_blend = []
-        
-        if seed_indices.size > 0:
-            tag_seed_vectors = data_manager.tag_vectors[seed_indices].astype(np.float32)
-            seed_norms = data_manager.tag_vectors_norms[seed_indices].astype(np.float32)
-            penalized_seeds = tag_seed_vectors / (seed_norms[:, None] + DOT_PRODUCT_LAMBDA)
-            beta_seed_unit = np.mean(penalized_seeds, axis=0)
+            clean_prompt = request.prompt.lower()
+            prompt_vec = data_manager.model.encode([clean_prompt])[0]
+            p_desc = np.dot(prompt_vec, data_manager.w_desc) if data_manager.w_desc is not None else prompt_vec
+            p_desc_norm = norm_vec(p_desc)
+            prompt_desc_sims = np.dot(data_manager.embeddings_desc_norm, p_desc_norm)
+            if data_manager.embeddings_desc_norms is not None:
+                denom_desc = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
+                prompt_desc_sims = (prompt_desc_sims / denom_desc) * SEMANTIC_GLOBAL_SCALING_FACTOR
+            sem_signals.append(prompt_desc_sims)
             
-            dot_products_seed = np.dot(data_manager.tag_vectors, beta_seed_unit)
-            denom = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
-            seed_tag_sims = (dot_products_seed / denom) * TAG_GLOBAL_SCALING_FACTOR
-            tag_sims_to_blend.append(seed_tag_sims)
+        if request.semantic_vibe_vector:
+            sem_vibe = np.array(request.semantic_vibe_vector, dtype=np.float32)
+            dot_products = np.dot(data_manager.embeddings_desc_norm, sem_vibe)
+            denom = data_manager.embeddings_desc_norms + SEMANTIC_DOT_PRODUCT_LAMBDA
+            dna_sem_sims = (dot_products / denom) * SEMANTIC_GLOBAL_SCALING_FACTOR
+            sem_signals.append(dna_sem_sims)
 
+        if sem_signals:
+            all_semantic_sims = softmin_blend(sem_signals, temperature=SOFTMIN_TEMPERATURE)
+            all_semantic_sims[data_manager.metadata['is_hollow'].values] = 0.0
+
+        # --- TAG SIGNAL ---
+        tag_signals = []
+        if jackalope_components: tag_signals.append(jackalope_components['vibe'])
+        
         if request.vibe_vector:
             beta_dna_unit = np.array(request.vibe_vector, dtype=np.float32)
             dot_products_dna = np.dot(data_manager.tag_vectors, beta_dna_unit)
             denom = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
             dna_tag_sims = (dot_products_dna / denom) * TAG_GLOBAL_SCALING_FACTOR
-            tag_sims_to_blend.append(dna_tag_sims)
+            tag_signals.append(dna_tag_sims)
+            
+        if tag_signals:
+            all_tag_sims = softmin_blend(tag_signals, temperature=SOFTMIN_TEMPERATURE)
 
-        if tag_sims_to_blend:
-            all_tag_sims = softmin_blend(tag_sims_to_blend, temperature=SOFTMIN_TEMPERATURE)
+        # --- SIMILARITY DIMENSIONS ---
+        if jackalope_components:
+            all_diff_sims = jackalope_components['difficulty']
+            all_tone_sims = jackalope_components['tone']
+
+    except Exception as e:
+        logger.exception(f"Signal blending failed: {e}")
 
     semantic_sims = all_semantic_sims[keep_indices]
     tag_sims = all_tag_sims[keep_indices]
+    topic_sims = all_topic_sims[keep_indices]
+    diff_sims = all_diff_sims[keep_indices]
+    tone_sims = all_tone_sims[keep_indices]
 
     # 4. Rating Component (Grid lookup)
     num_grid_rows = data_manager.quality_grid.shape[0]
@@ -1471,7 +1556,6 @@ def recommend(request: RecommendationRequest):
     # 5. Final Scoring
     if is_linear_mode:
         logger.info("Using Linear Mode (Taste DNA)")
-        # Sliders are now ABSOLUTE weights, exactly as shown in the UI
         w_tag = request.beta
         w_semantic = request.alpha
 
@@ -1483,30 +1567,10 @@ def recommend(request: RecommendationRequest):
             'difficulty': request.difficulty_pref,
             'price': request.price_pref,
             'tag_match': w_tag,
-            'topic_match': request.gamma_topic # Add topic match to linear weights
+            'topic_match': request.gamma_topic
         }
 
-        beta_dna_unit = np.array(request.vibe_vector, dtype=np.float32)
-        dot_products_dna = np.dot(data_manager.tag_vectors, beta_dna_unit)
-        denom_dna = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
-        dna_tag_sims = (dot_products_dna / denom_dna) * TAG_GLOBAL_SCALING_FACTOR
-        
-        tag_sims_to_blend = [dna_tag_sims]
-
-        if seed_indices.size > 0:
-            tag_seed_vectors = data_manager.tag_vectors[seed_indices].astype(np.float32)
-            seed_norms = data_manager.tag_vectors_norms[seed_indices].astype(np.float32)
-            penalized_seeds = tag_seed_vectors / (seed_norms[:, None] + DOT_PRODUCT_LAMBDA)
-            beta_seed_unit = np.mean(penalized_seeds, axis=0)
-            
-            dot_products_seed = np.dot(data_manager.tag_vectors, beta_seed_unit)
-            denom_seed = data_manager.tag_vectors_norms + DOT_PRODUCT_LAMBDA
-            seed_tag_sims = (dot_products_seed / denom_seed) * TAG_GLOBAL_SCALING_FACTOR
-            tag_sims_to_blend.append(seed_tag_sims)
-
-        # Blend tag signals using Softmin for consensus
-        blended_tag_sims = softmin_blend(tag_sims_to_blend, temperature=SOFTMIN_TEMPERATURE)
-
+        # For DNA mode, we use the blended tag_sims calculated above
         final_scores_all = calculate_linear_scores(
             z_quality=q_grid_working,
             z_date=metadata['date_z'].values,
@@ -1516,7 +1580,7 @@ def recommend(request: RecommendationRequest):
             z_price=metadata['price_z'].values,
             tag_vectors=data_manager.tag_vectors,
             tag_norms=data_manager.tag_vectors_norms,
-            beta_tag=beta_dna_unit, # Still pass this for non-precalculated cases if any
+            beta_tag=np.array(request.vibe_vector, dtype=np.float32),
             weights=effective_weights,
             tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
             dot_product_lambda=DOT_PRODUCT_LAMBDA,
@@ -1528,9 +1592,17 @@ def recommend(request: RecommendationRequest):
             z_clamp_max=Z_SCORE_CLAMP_MAX,
             dna_scaling_factor=request.scaling_factor or 1.0,
             intercept=5.0,
-            tag_sim=blended_tag_sims
+            tag_sim=all_tag_sims
         )
         final_scores = final_scores_all[keep_indices]
+        
+        # Add Dimension Similarities to linear scores if requested
+        if seed_indices.size > 0:
+            if request.difficulty_sim_weight > 0:
+                final_scores += diff_sims * request.difficulty_sim_weight
+            if request.tone_sim_weight > 0:
+                final_scores += tone_sims * request.tone_sim_weight
+
         w_semantic_active = w_semantic
         w_tag_active = w_tag
         w_topic_active = request.gamma_topic
@@ -1540,9 +1612,10 @@ def recommend(request: RecommendationRequest):
         w_semantic_active, w_tag_active, w_topic_active, w_quality_active, w_date_active, w_pop_active, w_length_active, w_difficulty_active, w_price_active = [
             request.alpha, request.beta, request.gamma_topic, request.quality_pref, request.age_pref, request.pop_pref, request.length_pref, request.difficulty_pref, request.price_pref
         ]
-        topic_sims = all_topic_sims[keep_indices] # Slice to filtered pool
+        
         z_tag_hybrid = np.clip(tag_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
         z_topic_hybrid = np.clip(topic_sims, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+        
         final_scores = (
             (semantic_sims * w_semantic_active) +
             (z_tag_hybrid * w_tag_active) +
@@ -1553,8 +1626,17 @@ def recommend(request: RecommendationRequest):
             (z_length * w_length_active) +
             (z_difficulty * w_difficulty_active) +
             (z_price * w_price_active) +
+            (diff_sims * request.difficulty_sim_weight) + # Add difficulty similarity
+            (tone_sims * request.tone_sim_weight) + # Add tone similarity
             5.0
         )
+        
+        # If Jackalope kernel was calculated, apply its global vetoes/consensus floor
+        if jackalope_sims is not None:
+            # We apply the jackalope's consensus-based floor to the manual scores
+            # If the high-fidelity kernel says 0, we heavily penalize the manual score
+            j_mask = jackalope_sims[keep_indices] < 1e-6
+            final_scores[j_mask] -= 20.0 # Heavy penalty for mechanical/vibe clash
 
     # Filter Seeds and Profile
     meta_filt = metadata.iloc[keep_indices].copy()
@@ -1644,6 +1726,7 @@ def recommend(request: RecommendationRequest):
             "z_length": float(z_length[idx]), "w_length": float(w_length_active),
             "z_difficulty": float(z_difficulty[idx]), "w_difficulty": float(w_difficulty_active),
             "z_price": float(z_price[idx]), "w_price": float(w_price_active),
+            "z_tone": float(tone_sims[idx]), "w_tone": float(request.tone_sim_weight),
             "raw_pop": int(game_meta['positive'] + game_meta['negative']), "raw_length": float(game_meta['estimated_playtime'] / 60.0)
         }
         response_items.append(item)

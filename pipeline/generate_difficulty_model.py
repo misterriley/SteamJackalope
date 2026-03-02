@@ -25,17 +25,43 @@ from common.constants import (
 )
 from pipeline.generate_tag_vectors import iterative_em_imputation, optimize_k_stochastic, apply_tag_transform
 
+def has_numeric_mismatch(s1, s2):
+    """
+    Returns True if s1 and s2 contain different numbers.
+    Used to prevent sequels from matching the original in title-matching rescues.
+    """
+    nums1 = set(re.findall(r'\d+', s1))
+    nums2 = set(re.findall(r'\d+', s2))
+    return nums1 != nums2
+
+def calculate_bic(n, rss, k):
+    """
+    Calculates the Bayesian Information Criterion.
+    n: number of samples
+    rss: residual sum of squares
+    k: number of parameters
+    """
+    if n <= 0: return 0
+    # Use the formula: n * ln(RSS/n) + k * ln(n)
+    # We use log10 or ln? Usually ln.
+    if rss <= 0: rss = 1e-12
+    return n * np.log(rss / n) + k * np.log(n)
+
 def rank_int(data, c=3.0/8.0):
     """
     Rank-based Inverse Normal Transformation.
     Maps data to a normal distribution.
     """
-    # data: (n_samples, n_features)
-    n = data.shape[0]
-    # We apply per column
-    transformed = np.zeros_like(data)
-    for i in range(data.shape[1]):
-        col = data[:, i]
+    # data: (n_samples, n_features) or (n_samples,)
+    data_array = np.asarray(data)
+    is_1d = data_array.ndim == 1
+    if is_1d:
+        data_array = data_array[:, np.newaxis]
+        
+    n = data_array.shape[0]
+    transformed = np.zeros_like(data_array, dtype=np.float32)
+    for i in range(data_array.shape[1]):
+        col = data_array[:, i]
         # Handle constant columns
         if np.all(col == col[0]):
             transformed[:, i] = 0
@@ -46,7 +72,8 @@ def rank_int(data, c=3.0/8.0):
         prob = (ranks - c) / (n - 2*c + 1)
         # Map to normal
         transformed[:, i] = norm.ppf(prob)
-    return transformed
+        
+    return transformed.flatten() if is_1d else transformed
 
 def normalize_title(title):
     if not isinstance(title, str): return ""
