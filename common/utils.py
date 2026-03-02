@@ -513,13 +513,14 @@ def calculate_jackalope_kernel(
                         if m_key in candidate_anchor_masks:
                             hard_clash_score = np.maximum(hard_clash_score, (~candidate_anchor_masks[m_key].astype(bool)).astype(float))
             
-            # Combine clashes: Hard clashes are always 1.0, MIG clashes are averaged
-            total_clash_score = np.maximum(mig_clash_score, hard_clash_score)
+            # Combine clashes: 
+            # MIG clashes can be rescued by high thematic similarity
+            # Hard clashes (Perspective, etc.) are IMMUNE to rescue
+            veto_multiplier_mig = 0.001 + 0.999 * (1.0 - mig_clash_score * (1.0 - rescue_weight))
+            veto_multiplier_hard = 0.001 + 0.999 * (1.0 - hard_clash_score)
             
-            # Apply Soft Veto: 0.001 base multiplier, but allows "Rescue" bypass
-            # Veto strength decreases as rescue_weight increases
-            veto_multiplier = 0.001 + 0.999 * (1.0 - total_clash_score * (1.0 - rescue_weight))
-            kernel *= veto_multiplier
+            # Use the stricter of the two vetoes
+            kernel *= np.minimum(veto_multiplier_mig, veto_multiplier_hard)
 
     # 8. Identity Intersection Rescues (Soul Matches)
     if candidate_anchor_masks and tone_z is not None and seed_tone_z is not None:
