@@ -11,7 +11,7 @@ MIGS = {
     "CASUAL_PUZZLE": {"Hidden Object", "Point & Click", "Match 3", "Trivia", "Word Game", "Board Game"},
     "COMPETITIVE": {"PvP", "eSports", "Competitive", "Battle Royale", "Multiplayer"},
     "STEALTH": {"Stealth", "Assassin", "Immersive Sim"},
-    "WALKING_SIM": {"Walking Simulator", "Interactive Fiction"},
+    "WALKING_SIM": {"Walking Simulator", "Interactive Fiction", "Cinematic", "Story Rich", "Choices Matter", "Multiple Endings"},
     "IDLE_CLICKER": {"Idler", "Clicker", "Incremental", "Idle"},
     "SINGLEPLAYER": {"Singleplayer"},
     "FAMILY_FRIENDLY": {"Family Friendly"},
@@ -44,7 +44,7 @@ MIGS = {
     "VR": {"VR", "VR Only"}
 }
 
-NARRATIVE_TAGS = {"Visual Novel", "Interactive Fiction", "Story Rich", "Multiple Endings", "Choices Matter", "Narrative", "Character Customization", "Lore-Rich", "Emotional"}
+NARRATIVE_TAGS = {"Visual Novel", "Interactive Fiction", "Story Rich", "Multiple Endings", "Choices Matter", "Narrative", "Character Customization", "Lore-Rich", "Emotional", "Cinematic"}
 HORROR_MARKERS = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
 HARD_ANCHORS = {"Platformer", "Puzzle", "Strategy", "RPG", "Roguelike", "Souls-like", "Metroidvania", "JRPG", "Survival", "Visual Novel", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator"}
 
@@ -321,6 +321,7 @@ def calculate_jackalope_kernel(
     candidate_anchor_masks=None, # dict: tag_name -> boolean mask
     active_narrative_seed=None,
     is_cinematic_seed=False,
+    is_crpg_seed=False,
     # PRE-CALCULATED MASKS (Optimization)
     precalculated_masks=None, # dict: key -> boolean mask
     # Similarity Dimensions
@@ -499,6 +500,20 @@ def calculate_jackalope_kernel(
                             m_key = t if t in masks else f"tag_{t}"
                             if m_key in masks: m |= masks[m_key].astype(bool)
                         clash_count += (~m).astype(float)
+                
+                # ADDITION: Conflicting MIG Veto (Identity Protection)
+                # If seed lacks an 'Active' MIG that the candidate has, it's a clash
+                ACTIVE_MIGS = {"SHOOTER", "FIGHTING", "MELEE_ACTION", "BULLET_HELL", "RACING", "SPORTS"}
+                for group_name in ACTIVE_MIGS:
+                    if group_name not in migs:
+                        m = np.zeros(len(kernel), dtype=bool)
+                        for t in MIGS[group_name]:
+                            m_key = t if t in masks else f"tag_{t}"
+                            if m_key in masks: m |= masks[m_key].astype(bool)
+                        # Penalty for having a noisy MIG the seed lacks
+                        # Increased to 1.0 (Full Clash) to enforce identity discipline
+                        clash_count += (m.astype(float) * 1.0) 
+
                 return clash_count / len(migs)
 
             mig_clash_score = calculate_soft_mig_clash(seed_migs, candidate_anchor_masks)

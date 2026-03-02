@@ -107,6 +107,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         seed_tags_soul = {t for t, v in tags_i_dict.items() if v / max_i > 0.15}
         seed_migs = {group for group, tags in MIGS.items() if any(t in seed_tags_strict for t in tags)}
         active_narrative = [t for t in NARRATIVE_TAGS if t in seed_tags_soul]
+        is_cinematic_i = "Cinematic" in seed_tags_soul
         
         k_row = calculate_jackalope_kernel(
             verb_profiles=verb_profiles,
@@ -123,6 +124,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
             seed_tags=seed_tags_soul,
             candidate_anchor_masks=user_anchor_masks,
             active_narrative_seed=active_narrative,
+            is_cinematic_seed=is_cinematic_i,
             difficulty_z=user_meta_df['difficulty_z'].values,
             seed_difficulty_z=user_meta_df.iloc[i]['difficulty_z'],
             tone_z=user_meta_df['tone_z'].values if 'tone_z' in user_meta_df.columns else None,
@@ -185,6 +187,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     s_tags_soul = {t for t, v in tags_s_dict.items() if v / max_s > 0.15}
     s_migs = {group for group, tags in MIGS.items() if any(t in s_tags_strict for t in tags)}
     s_active_narrative = [t for t in NARRATIVE_TAGS if t in s_tags_soul]
+    is_cinematic_s = "Cinematic" in s_tags_soul
 
     scores = calculate_jackalope_kernel(
         verb_profiles=all_verb_profiles, seed_verb_profile=all_verb_profiles[best_anchor_idx],
@@ -198,6 +201,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         seed_migs=s_migs, seed_tags=s_tags_soul,
         candidate_anchor_masks=all_anchor_masks,
         active_narrative_seed=s_active_narrative,
+        is_cinematic_seed=is_cinematic_s,
         difficulty_z=all_difficulty_z, seed_difficulty_z=all_difficulty_z[best_anchor_idx],
         tone_z=all_tone_z, seed_tone_z=all_tone_z[best_anchor_idx]
     )
@@ -262,6 +266,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         seed_migs=s_migs, seed_tags=s_tags_soul,
         candidate_anchor_masks=all_anchor_masks,
         active_narrative_seed=s_active_narrative,
+        is_cinematic_seed=is_cinematic_s,
         difficulty_z=all_difficulty_z, seed_difficulty_z=all_difficulty_z[best_anchor_idx],
         tone_z=all_tone_z, seed_tone_z=all_tone_z[best_anchor_idx]
     )
@@ -294,6 +299,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         f_tags_soul = {t for t, v in tags_f_dict.items() if v / max_f > 0.15}
         f_migs = {group for group, tags in MIGS.items() if any(t in f_tags_strict for t in tags)}
         f_active_narrative = [t for t in NARRATIVE_TAGS if t in f_tags_soul]
+        is_cinematic_f = "Cinematic" in f_tags_soul
 
         f_scores = calculate_jackalope_kernel(
             verb_profiles=all_verb_profiles, seed_verb_profile=all_verb_profiles[f_idx],
@@ -307,6 +313,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
             seed_migs=f_migs, seed_tags=f_tags_soul,
             candidate_anchor_masks=all_anchor_masks,
             active_narrative_seed=f_active_narrative,
+            is_cinematic_seed=is_cinematic_f,
             difficulty_z=all_difficulty_z, seed_difficulty_z=all_difficulty_z[f_idx],
             tone_z=all_tone_z, seed_tone_z=all_tone_z[f_idx]
         )

@@ -1403,6 +1403,7 @@ def recommend(request: RecommendationRequest):
         seed_migs = {group for group, tags in MIGS.items() if any(t in seed_tags_set for t in tags)}
         seed_tags = seed_tags_set & HARD_ANCHORS
         active_narrative_seed = [t for t in NARRATIVE_TAGS if t in seed_tags_set]
+        is_cinematic_seed = "Cinematic" in seed_tags_set
 
         # Title Hijack Detection (Indie Parodies)
         title_hijack_mask = np.zeros(len(metadata), dtype=bool)
@@ -1434,6 +1435,7 @@ def recommend(request: RecommendationRequest):
             seed_tags=seed_tags,
             candidate_anchor_masks=data_manager.anchor_masks,
             active_narrative_seed=active_narrative_seed,
+            is_cinematic_seed=is_cinematic_seed,
             precalculated_masks={"title_hijack": title_hijack_mask},
             difficulty_z=metadata['difficulty_z'].values,
             seed_difficulty_z=np.mean(metadata.iloc[seed_indices]['difficulty_z']),
