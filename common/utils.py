@@ -7,13 +7,14 @@ MIGS = {
     "SHOOTER": {"FPS", "Shooter", "Third-Person Shooter", "Arena Shooter", "Hero Shooter", "Looter Shooter", "Extraction Shooter", "Boomer Shooter", "On-Rails Shooter", "Immersive Sim", "Top-Down Shooter", "Twin Stick Shooter", "Battle Royale", "Tactical FPS"},
     "BULLET_HELL": {"Bullet Hell", "Shoot 'Em Up", "Twin Stick Shooter", "Top-Down Shooter"},
     "SPATIAL_PUZZLE": {"Puzzle", "First-Person", "Third Person", "3D", "Exploration", "Walking Simulator", "Puzzle Platformer"},
-    "LOGIC_PUZZLE": {"Logic", "Sokoban", "Abstract", "Minimalist", "Programming", "Coding", "Automation"},
+    "LOGIC_PUZZLE": {"Logic", "Sokoban", "Abstract", "Minimalist", "Programming", "Coding", "Automation", "Surreal", "Nonlinear", "Mind-Bending", "Psychedelic"},
     "CASUAL_PUZZLE": {"Hidden Object", "Point & Click", "Match 3", "Trivia", "Word Game", "Board Game"},
     "COMPETITIVE": {"PvP", "eSports", "Competitive", "Battle Royale", "Multiplayer"},
     "STEALTH": {"Stealth", "Assassin", "Immersive Sim"},
     "WALKING_SIM": {"Walking Simulator", "Interactive Fiction", "Cinematic", "Story Rich", "Choices Matter", "Multiple Endings"},
     "IDLE_CLICKER": {"Idler", "Clicker", "Incremental", "Idle"},
     "SINGLEPLAYER": {"Singleplayer"},
+    "CASUAL": {"Casual", "Relaxing", "Family Friendly", "Colorful", "Cartoony"},
     "FAMILY_FRIENDLY": {"Family Friendly"},
     "PLATFORMER": {"Precision Platformer", "2D Platformer", "3D Platformer", "Platformer", "Runner", "Puzzle Platformer", "Sokoban"},
     "FIGHTING": {"Fighting", "2D Fighter", "3D Fighter", "Boxing", "Wrestling", "Beat 'em up"},
@@ -46,7 +47,7 @@ MIGS = {
 
 NARRATIVE_TAGS = {"Visual Novel", "Interactive Fiction", "Story Rich", "Multiple Endings", "Choices Matter", "Narrative", "Character Customization", "Lore-Rich", "Emotional", "Cinematic"}
 HORROR_MARKERS = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
-HARD_ANCHORS = {"Platformer", "Puzzle", "Strategy", "RPG", "Roguelike", "Souls-like", "Metroidvania", "JRPG", "Survival", "Visual Novel", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator"}
+HARD_ANCHORS = {"Platformer", "Puzzle", "Strategy", "RPG", "Roguelike", "Souls-like", "Metroidvania", "JRPG", "Survival", "Visual Novel", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator", "Difficult", "Nonlinear", "Abstract", "Surreal"}
 
 def to_z(x, ignore_zeros=False):
     """
@@ -503,7 +504,7 @@ def calculate_jackalope_kernel(
                 
                 # ADDITION: Conflicting MIG Veto (Identity Protection)
                 # If seed lacks an 'Active' MIG that the candidate has, it's a clash
-                ACTIVE_MIGS = {"SHOOTER", "FIGHTING", "MELEE_ACTION", "BULLET_HELL", "RACING", "SPORTS"}
+                ACTIVE_MIGS = {"SHOOTER", "FIGHTING", "MELEE_ACTION", "BULLET_HELL", "RACING", "SPORTS", "CASUAL"}
                 for group_name in ACTIVE_MIGS:
                     if group_name not in migs:
                         m = np.zeros(len(kernel), dtype=bool)
