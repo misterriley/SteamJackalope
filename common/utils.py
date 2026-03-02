@@ -26,6 +26,7 @@ MIGS = {
     "SURVIVAL": {"Survival", "Survival Horror", "Open World Survival Craft", "Inventory Management", "Resource Management"},
     "MANAGEMENT": {"Management", "Colony Sim", "City Builder", "Resource Management", "Time Management", "Inventory Management", "Shop Keeper", "Base Building", "Automation", "Farming Sim", "Life Sim", "Economy"},
     "BUILDING": {"Building", "Base Building", "Sandbox"},
+    "REALISTIC_SIM": {"Realistic", "Simulation"},
     "AUTOMATION": {"Automation", "Programming", "Coding"},
     "EDUCATION": {"Education", "Science", "Math", "Typing", "Spelling"},
     "CRPG": {"CRPG", "Party-Based RPG", "Tactical RPG", "Strategy RPG", "Dungeon Crawler", "Hack and Slash", "JRPG", "Looter Shooter", "Action RPG", "Immersive Sim"},
@@ -504,7 +505,7 @@ def calculate_jackalope_kernel(
                 
                 # ADDITION: Conflicting MIG Veto (Identity Protection)
                 # If seed lacks an 'Active' MIG that the candidate has, it's a clash
-                ACTIVE_MIGS = {"SHOOTER", "FIGHTING", "MELEE_ACTION", "BULLET_HELL", "RACING", "SPORTS", "CASUAL"}
+                ACTIVE_MIGS = {"SHOOTER", "FIGHTING", "MELEE_ACTION", "BULLET_HELL", "RACING", "SPORTS", "CASUAL", "HORROR", "REALISTIC_SIM"}
                 for group_name in ACTIVE_MIGS:
                     if group_name not in migs:
                         m = np.zeros(len(kernel), dtype=bool)
