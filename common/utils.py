@@ -559,8 +559,27 @@ def calculate_jackalope_kernel(
 
         # B. COGNITIVE DISSONANCE (Cute + Horror)
         CUTE = {"Cute", "Colorful", "Family Friendly", "Relaxing", "Anime"}
-        HORROR = {"Horror", "Psychological Horror", "Survival Horror", "Gore", "Violent"}
+        HORROR = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
         
+        # C. MOOD CLASH (Serious/Emotional vs Funny/Lighthearted)
+        SERIOUS_MOOD = {"Emotional", "Cinematic", "Story Rich", "Atmospheric", "Beautiful", "Dark", "Realistic", "Horror", "Psychological Horror"}
+        LIGHT_MOOD = {"Funny", "Comedy", "Dark Comedy", "Satire", "Parody", "Cartoony", "Cute", "Casual", "Relaxing"}
+        
+        seed_is_serious = any(t in SERIOUS_MOOD for t in seed_tags_all)
+        seed_is_light = any(t in LIGHT_MOOD for t in seed_tags_all)
+        
+        # If seed is serious but NOT lighthearted, penalize lighthearted candidates
+        if seed_is_serious and not seed_is_light:
+            t_light = np.zeros(len(kernel), dtype=int)
+            for t in LIGHT_MOOD:
+                m_key = t if t in candidate_anchor_masks else f"tag_{t}"
+                if m_key in candidate_anchor_masks: t_light += candidate_anchor_masks[m_key].astype(int)
+            
+            # Penalty for being 'too light' for a serious seed
+            # 0.4x if it has multiple light markers
+            mood_clash_prob = soft_gate(t_light.astype(float), threshold=1.5, temperature=0.1)
+            kernel *= (1.0 - mood_clash_prob * 0.6)
+
         has_cut_seed = any(t in CUTE for t in seed_tags_all)
         has_hor_seed = any(t in HORROR for t in seed_tags_all)
         
