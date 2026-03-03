@@ -49,7 +49,7 @@ MIGS = {
 
 NARRATIVE_TAGS = {"Visual Novel", "Interactive Fiction", "Story Rich", "Multiple Endings", "Choices Matter", "Narrative", "Character Customization", "Lore-Rich", "Emotional", "Cinematic"}
 HORROR_MARKERS = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
-HARD_ANCHORS = {"Platformer", "Puzzle", "Strategy", "RPG", "Roguelike", "Souls-like", "Metroidvania", "JRPG", "Survival", "Visual Novel", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator", "Difficult", "Nonlinear", "Abstract", "Surreal"}
+HARD_ANCHORS = {"Platformer", "Puzzle", "Strategy", "RPG", "Roguelike", "Souls-like", "Metroidvania", "JRPG", "Survival", "Visual Novel", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator", "Difficult", "Nonlinear", "Abstract", "Surreal", "Isometric", "CRPG"}
 
 def to_z(x, ignore_zeros=False):
     """
