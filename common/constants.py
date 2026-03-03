@@ -359,3 +359,22 @@ SEMANTIC_PROMPT_SEED_BLEND = 0.5 # 50% prompt, 50% seeds for semantic vector
 MODEL_NAME = 'all-mpnet-base-v2'
 SENTENCE_TRANSFORMER_BACKEND = 'torch'
 SENTENCE_TRANSFORMER_MODEL_KWARGS = {}
+
+# Jackalope Kernel Constants
+KERNEL_VETO_PENALTY = 0.001
+KERNEL_RESCUE_THRESHOLD = 0.15
+KERNEL_SOUL_MATCH_THRESHOLD = 0.4
+KERNEL_MOOD_CLASH_PENALTY = 0.6
+KERNEL_CINEMATIC_BOOST = 0.05
+KERNEL_CRPG_BOOST = 0.05
+KERNEL_SOFT_GATE_TEMP = 0.05
+
+# Mechanical & Thematic Tag Sets
+HORROR_MARKERS = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
+HARD_ANCHORS = {"Platformer", "Puzzle", "Roguelike", "Souls-like", "Metroidvania", "Survival", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator", "Isometric", "CRPG", "RPG"}
+SYMMETRIC_ANCHORS = {"First-Person", "Third Person", "Isometric", "2D", "VR", "VR Only"}
+SERIOUS_TAGS = {"Education", "Math", "Science", "Typing", "Spelling", "Programming", "Logic"}
+CUTE_TAGS = {"Cute", "Colorful", "Family Friendly", "Relaxing", "Anime"}
+SERIOUS_MOOD_TAGS = {"Emotional", "Cinematic", "Story Rich", "Atmospheric", "Beautiful", "Dark", "Realistic", "Horror", "Psychological Horror"}
+LIGHT_MOOD_TAGS = {"Funny", "Comedy", "Dark Comedy", "Satire", "Parody", "Cartoony", "Cute", "Casual", "Relaxing"}
+NARRATIVE_TAGS = {"Visual Novel", "Interactive Fiction", "Story Rich", "Multiple Endings", "Choices Matter", "Narrative", "Character Customization", "Lore-Rich", "Emotional", "Cinematic"}

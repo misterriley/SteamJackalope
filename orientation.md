@@ -68,7 +68,9 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
 - **Metadata and Search:** The backend provides `/metadata`, `/genres`, `/term_links`, `/games/search`, and `/games/random` endpoints. `/games/search` enables fast autocomplete for seed game selection.
 - **Personalization Engine:** The system features a sophisticated "Taste DNA" pipeline.
     - **Async Solver:** The `/user/solve` endpoint runs an asynchronous subprocess to build a user's mathematical profile from their Steam history.
-    - **Hybrid LASSO Regression**: The solver uses **LASSO Regression** to identify the sparse subset of **Tags**, **Semantic Vibe Dimensions**, and **Topics** that define a user's taste.
+    - **Archetypal Ridge Regression (Build 50)**: The solver uses **Archetypal Ridge Regression** across 45 structural features (38 MIGs, 1 Quality Probit, 6 Metadata Z-scores). This prevents overfitting and ensures that the learned model generalizes to the entire Steam population. $R^2$ is typically around 0.28.
+    - **Differentiable Sigmoid-Based Kernel**: The Jackalope kernel has transitioned from hard Booleans to a **Differentiable Soft-Gate** framework. It uses sigmoid transitions ($1 / (1 + exp(-x))$) with controllable temperature to manage mechanical identity, mood clashes, and un-rescueable conflicts.
+    - **Symmetric Hard Anchors**: Perspective (First-Person, Isometric) and strict interaction models (CRPG, RPG) are enforced symmetrically. If a candidate possesses a hard anchor that the seed lacks, it is strictly penalized, ensuring structural consistency.
     - **Status-Based Training (Build 55)**: The solver trains **exclusively** on games marked **'rated'** in the catalogue. Games marked 'played', 'backlog', or 'wishlist' provide library metadata for exclusion but do not influence the vibe vector calculation.
     - **Zero-Order Relevance Filtering**: To prevent overfitting and increase training $R^2$, the solver applies a Pearson correlation filter to all 700+ thematic dimensions. Only the top $P$ dimensions ($P \le N-7$, where $N$ is the number of ratings) are eligible for the LASSO model.
     - **Population-Correct Scaling**: Modalities are scaled based on population variance to ensure fair competition in the solver: Tags (1.0x), Semantics (~2.0x), and Topics (~26.4x).
@@ -175,12 +177,13 @@ The "Analyze My Catalogue" feature allows users to solve for their personal pref
 1.  **Acquisition**: Fetch AppIDs and playtimes via SteamID64 API or manual HTML source paste (`scraping/get_user_stats.py`).
 2.  **Soft-Labeling**: Generate 0-10 predicted ratings using the **Personalized Quality** formula ($Q_{pers}$) and the global **Playtime-Sentiment** model.
 3.  **Verification (Ground Truth)**: User reviews the predicted ratings in a dense table UI, adjusting sliders or checking "Ignore" for games that don't reflect their taste.
-4.  **Taste Solver**: Run a **Hybrid LASSO Regression** mapping the 0-10 ratings against:
-    - **Tag Vectors** (ZCA Whitened, scaled by 11.28x)
-    - **Semantic Vectors** (235 dimensions, ZCA Whitened, scaled by 11.25x for variance parity)
-    - **Metadata Factors** (Age, Length, Difficulty, Popularity, Price)
+4.  **Taste Solver**: Run an **Archetypal Ridge Regression** mapping the 0-10 ratings against:
+    - **45 Structural Features** (38 MIG binary memberships, 1 Quality Probit, 6 Metadata Z-scores)
+    - **Semantic Vibe Vector** (Blended from 235 ZCA Whitened dimensions)
+    - **Tag Match Magnitude** (Derived from ZCA Whitened tag space)
 5.  **Explainability Calibration**: The solver uses **Composite Word-Sum Calibration** to label the 235 semantic dimensions with high-contrast pairs like "Exploration + Terraform vs. Gunplay + Ricochet."
-6.  **Deployment**: Exported weights (including the Unit Semantic Vibe Vector) are used to initialize the recommendation sliders and the underlying scoring engine.
+6.  **Generalization**: By reducing the feature count from $N$ to 45 archetypes, the solver prevents overfitting and ensures that the learned weights are representative of global Steam preferences ($R^2 \approx 0.28$).
+7.  **Deployment**: Exported weights (including the Unit Semantic Vibe Vector) are used to initialize the recommendation sliders and the underlying scoring engine.
 
 
 ### UI Requirements (For React Implementation)

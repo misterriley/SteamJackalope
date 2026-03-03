@@ -1,6 +1,12 @@
 import numpy as np
 import re
-from common.constants import EPSILON, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX, SOFTMIN_TEMPERATURE
+from common.constants import (
+    EPSILON, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX, SOFTMIN_TEMPERATURE,
+    KERNEL_VETO_PENALTY, KERNEL_RESCUE_THRESHOLD, KERNEL_SOUL_MATCH_THRESHOLD,
+    KERNEL_MOOD_CLASH_PENALTY, KERNEL_CINEMATIC_BOOST, KERNEL_CRPG_BOOST,
+    KERNEL_SOFT_GATE_TEMP, HORROR_MARKERS, HARD_ANCHORS, SYMMETRIC_ANCHORS,
+    SERIOUS_TAGS, CUTE_TAGS, SERIOUS_MOOD_TAGS, LIGHT_MOOD_TAGS, NARRATIVE_TAGS
+)
 
 # --- Mechanical Identity Groups (MIGs) ---
 MIGS = {
@@ -46,10 +52,6 @@ MIGS = {
     "SOULSLIKE": {"Souls-like", "Difficult", "Action RPG"},
     "VR": {"VR", "VR Only"}
 }
-
-NARRATIVE_TAGS = {"Visual Novel", "Interactive Fiction", "Story Rich", "Multiple Endings", "Choices Matter", "Narrative", "Character Customization", "Lore-Rich", "Emotional", "Cinematic"}
-HORROR_MARKERS = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
-HARD_ANCHORS = {"Platformer", "Puzzle", "Roguelike", "Souls-like", "Metroidvania", "Survival", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator", "Isometric", "CRPG", "RPG"}
 
 def to_z(x, ignore_zeros=False):
     """
@@ -441,7 +443,7 @@ def calculate_jackalope_kernel(
                 mask_key = t if t in precalculated_masks else f"tag_{t}"
                 if mask_key in precalculated_masks:
                     match_counts += precalculated_masks[mask_key].astype(int)
-            kernel += np.where(match_counts >= 3, 0.03, 0.0)
+            kernel += np.where(match_counts >= 3, KERNEL_CINEMATIC_BOOST, 0.0)
             vibe_sim = np.maximum(vibe_sim, np.where(match_counts >= 4, 0.01, 0.0))
             
         if is_cinematic_seed:
@@ -453,17 +455,17 @@ def calculate_jackalope_kernel(
             # Narrative Strength (0.0 to 1.0 based on tag presence)
             narr_strength = (m_cin.astype(float) + m_sr.astype(float) + m_if.astype(float)) / 3.0
             # Smooth penalty that transitions based on narrative presence
-            cin_penalty = 0.05 + 0.95 * soft_gate(narr_strength, threshold=0.1, temperature=0.05)
+            cin_penalty = 0.05 + 0.95 * soft_gate(narr_strength, threshold=0.1, temperature=KERNEL_SOFT_GATE_TEMP)
             kernel *= cin_penalty
             
             # Boost those that match the cinematic spirit perfectly
             cinematic_match = precalculated_masks.get("cinematic_resonance", np.zeros(len(kernel), dtype=bool))
-            kernel += np.where(cinematic_match & (kernel > 0.02), 0.05, 0.0)
+            kernel += np.where(cinematic_match & (kernel > 0.02), KERNEL_CINEMATIC_BOOST, 0.0)
             
         if is_crpg_seed:
             i_mask = precalculated_masks.get("tag_Isometric", np.zeros(len(kernel), dtype=bool))
             c_mask = precalculated_masks.get("tag_CRPG", np.zeros(len(kernel), dtype=bool))
-            kernel += np.where(i_mask & c_mask, 0.05, 0.0)
+            kernel += np.where(i_mask & c_mask, KERNEL_CRPG_BOOST, 0.0)
 
         # TITLE HIJACK PENALTY (Kept hard as it is a metadata correction)
         if "title_hijack" in precalculated_masks:
@@ -473,12 +475,11 @@ def calculate_jackalope_kernel(
 
     # 7. Soft Vetoes
     if candidate_anchor_masks:
-        HORROR_MARKERS = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
         seed_is_horror = any(t in HORROR_MARKERS for t in (seed_tags or [])) or any(t in HORROR_MARKERS for t in (active_narrative_seed or []))
 
         is_narrative_rescue = (active_narrative_seed is not None and len(active_narrative_seed) >= 2)
         # Rescue is now a probability weight
-        rescue_weight = soft_gate(topic_sims, threshold=0.15, temperature=temperature)
+        rescue_weight = soft_gate(topic_sims, threshold=KERNEL_RESCUE_THRESHOLD, temperature=temperature)
         if is_narrative_rescue:
             rescue_weight = np.maximum(rescue_weight, 1.0)
         
@@ -535,7 +536,6 @@ def calculate_jackalope_kernel(
             
             # B. Symmetric: If candidate HAS a hard anchor the seed LACKS
             # We only do this for perspective and high-level genre anchors
-            SYMMETRIC_ANCHORS = {"First-Person", "Third Person", "Isometric", "2D", "VR", "VR Only"}
             for t in SYMMETRIC_ANCHORS:
                 if t not in (seed_tags or []):
                     m_key = t if t in candidate_anchor_masks else f"tag_{t}"
@@ -545,8 +545,8 @@ def calculate_jackalope_kernel(
             # Combine clashes: 
             # MIG clashes can be rescued by high thematic similarity
             # Hard clashes (Perspective, etc.) are IMMUNE to rescue
-            veto_multiplier_mig = 0.001 + 0.999 * (1.0 - mig_clash_score * (1.0 - rescue_weight))
-            veto_multiplier_hard = 0.001 + 0.999 * (1.0 - hard_clash_score)
+            veto_multiplier_mig = KERNEL_VETO_PENALTY + (1.0 - KERNEL_VETO_PENALTY) * (1.0 - mig_clash_score * (1.0 - rescue_weight))
+            veto_multiplier_hard = KERNEL_VETO_PENALTY + (1.0 - KERNEL_VETO_PENALTY) * (1.0 - hard_clash_score)
             
             # ADDITION: Un-rescueable Identity Conflict (e.g. Shooter matching Narrative)
             # If candidate has a 'Violent' MIG that the seed lacks, we enforce it strictly
@@ -558,7 +558,7 @@ def calculate_jackalope_kernel(
                         m_key = t if t in candidate_anchor_masks else f"tag_{t}"
                         if m_key in candidate_anchor_masks: m |= candidate_anchor_masks[m_key].astype(bool)
                     # Force strict veto for these groups if seed lacks them
-                    veto_multiplier_hard = np.minimum(veto_multiplier_hard, 0.001 + 0.999 * (~m).astype(float))
+                    veto_multiplier_hard = np.minimum(veto_multiplier_hard, KERNEL_VETO_PENALTY + (1.0 - KERNEL_VETO_PENALTY) * (~m).astype(float))
 
             # Use the stricter of the two vetoes
             kernel *= np.minimum(veto_multiplier_mig, veto_multiplier_hard)
@@ -566,55 +566,47 @@ def calculate_jackalope_kernel(
     # 8. Identity Intersection Rescues (Soul Matches)
     if candidate_anchor_masks and tone_z is not None and seed_tone_z is not None:
         seed_tags_all = set(seed_tags or []) | set(active_narrative_seed or [])
-        SERIOUS = {"Education", "Math", "Science", "Typing", "Spelling", "Programming", "Logic"}
-        seed_has_serious = any(t in SERIOUS for t in seed_tags_all)
+        seed_has_serious = any(t in SERIOUS_TAGS for t in seed_tags_all)
         
-        if seed_has_serious and seed_tone_z > 0.4:
+        if seed_has_serious and seed_tone_z > KERNEL_SOUL_MATCH_THRESHOLD:
             t_ser = np.zeros(len(kernel), dtype=int)
-            for t in SERIOUS:
+            for t in SERIOUS_TAGS:
                 m_key = t if t in candidate_anchor_masks else f"tag_{t}"
                 if m_key in candidate_anchor_masks: t_ser += candidate_anchor_masks[m_key].astype(int)
             
             # Soul match if candidate has serious mechanics AND bizarre tone
-            soul_match_prob = soft_gate(t_ser.astype(float), threshold=0.5) * soft_gate(tone_z, threshold=0.4)
+            soul_match_prob = soft_gate(t_ser.astype(float), threshold=0.5) * soft_gate(tone_z, threshold=KERNEL_SOUL_MATCH_THRESHOLD)
             # Restore base score and apply boost smoothly
             kernel = kernel * (1.0 - soul_match_prob) + base_kernel * soul_match_prob
             kernel += soul_match_prob * 0.15
 
-        # B. COGNITIVE DISSONANCE (Cute + Horror)
-        CUTE = {"Cute", "Colorful", "Family Friendly", "Relaxing", "Anime"}
-        HORROR = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
-        
         # C. MOOD CLASH (Serious/Emotional vs Funny/Lighthearted)
-        SERIOUS_MOOD = {"Emotional", "Cinematic", "Story Rich", "Atmospheric", "Beautiful", "Dark", "Realistic", "Horror", "Psychological Horror"}
-        LIGHT_MOOD = {"Funny", "Comedy", "Dark Comedy", "Satire", "Parody", "Cartoony", "Cute", "Casual", "Relaxing"}
-        
-        seed_is_serious = any(t in SERIOUS_MOOD for t in seed_tags_all)
-        seed_is_light = any(t in LIGHT_MOOD for t in seed_tags_all)
+        seed_is_serious = any(t in SERIOUS_MOOD_TAGS for t in seed_tags_all)
+        seed_is_light = any(t in LIGHT_MOOD_TAGS for t in seed_tags_all)
         
         # If seed is serious but NOT lighthearted, penalize lighthearted candidates
         if seed_is_serious and not seed_is_light:
             t_light = np.zeros(len(kernel), dtype=int)
-            for t in LIGHT_MOOD:
+            for t in LIGHT_MOOD_TAGS:
                 m_key = t if t in candidate_anchor_masks else f"tag_{t}"
                 if m_key in candidate_anchor_masks: t_light += candidate_anchor_masks[m_key].astype(int)
             
             # Penalty for being 'too light' for a serious seed
             # 0.4x if it has multiple light markers
             mood_clash_prob = soft_gate(t_light.astype(float), threshold=1.5, temperature=0.1)
-            kernel *= (1.0 - mood_clash_prob * 0.6)
+            kernel *= (1.0 - mood_clash_prob * KERNEL_MOOD_CLASH_PENALTY)
 
-        has_cut_seed = any(t in CUTE for t in seed_tags_all)
-        has_hor_seed = any(t in HORROR for t in seed_tags_all)
+        has_cut_seed = any(t in CUTE_TAGS for t in seed_tags_all)
+        has_hor_seed = any(t in HORROR_MARKERS for t in seed_tags_all)
         
         if has_cut_seed and has_hor_seed:
             t_cut = np.zeros(len(kernel), dtype=int)
-            for t in CUTE:
+            for t in CUTE_TAGS:
                 m_key = t if t in candidate_anchor_masks else f"tag_{t}"
                 if m_key in candidate_anchor_masks: t_cut += candidate_anchor_masks[m_key].astype(int)
             
             t_hor = np.zeros(len(kernel), dtype=int)
-            for t in HORROR:
+            for t in HORROR_MARKERS:
                 m_key = t if t in candidate_anchor_masks else f"tag_{t}"
                 if m_key in candidate_anchor_masks: t_hor += candidate_anchor_masks[m_key].astype(int)
             

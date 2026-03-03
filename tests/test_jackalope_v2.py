@@ -72,8 +72,7 @@ def test_mig_bridge_dead_cells(data):
             topic_means=data['t_means'], topic_stds=data['t_stds'],
             tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR, dot_product_lambda=DOT_PRODUCT_LAMBDA,
             sem_scaling_factor=SEMANTIC_GLOBAL_SCALING_FACTOR, sem_lambda=SEMANTIC_DOT_PRODUCT_LAMBDA,
-            seed_anchors=seed_anchors,
-            candidate_anchor_masks={a: np.array([data['anchor_masks'][a][t_idx]]) for a in data['anchor_masks'] if a in seed_tags_set or any(a in tags for tags in MIGS.values())},
+            seed_migs=seed_anchors,            candidate_anchor_masks={a: np.array([data['anchor_masks'][a][t_idx]]) for a in data['anchor_masks'] if a in seed_tags_set or any(a in tags for tags in MIGS.values())},
             return_components=True
         )
         # We need to calculate skill_jaccard manually since it's not in return_components yet
@@ -193,8 +192,7 @@ def test_title_hijacking_penalty(data):
         topic_means=data['t_means'], topic_stds=data['t_stds'],
         tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR, dot_product_lambda=DOT_PRODUCT_LAMBDA,
         sem_scaling_factor=SEMANTIC_GLOBAL_SCALING_FACTOR, sem_lambda=SEMANTIC_DOT_PRODUCT_LAMBDA,
-        seed_anchors=seed_anchors,
-        candidate_anchor_masks={a: np.array([data['anchor_masks'][a][idx_h]]) for a in data['anchor_masks'] if a in seed_tags_set or any(a in tags for tags in MIGS.values())},
+        seed_migs=seed_anchors,        candidate_anchor_masks={a: np.array([data['anchor_masks'][a][idx_h]]) for a in data['anchor_masks'] if a in seed_tags_set or any(a in tags for tags in MIGS.values())},
         precalculated_masks={"title_hijack": title_hijack_mask},
         return_components=True
     )

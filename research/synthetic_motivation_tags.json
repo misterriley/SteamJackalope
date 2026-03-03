@@ -1,0 +1,243 @@
+{
+    "Destruction": {
+        "description": "Guns Explosives Chaos Mayhem. Gamers who score high on this, component are agents of chaos and, destruction. They love having many, tools at their disposal to blow things up, and cause relentless mayhem. They, enjoy games with lots of guns and, explosives.,. And if they, accidentally find themselves in games, like , they are the ones who, figure out innovative ways to get their, Sims killed., ,",
+        "synthetic_tags": [
+            "Shooter",
+            "Gun Customization",
+            "Combat",
+            "Violent",
+            "Destruction",
+            "Realistic",
+            "Mechs",
+            "Tanks",
+            "Stealth",
+            "Boss Rush",
+            "First-Person",
+            "Action-Adventure",
+            "FPS"
+        ]
+    },
+    "Excitement": {
+        "description": "Fast-Paced Action Surprises Thrills. Gamers who score high on this, component enjoy games that are fast-, paced, intense, and provide a constant, adrenaline rush. They want to be, surprised. They want gameplay that is, full of action and thrills, and rewards, them for rapid reaction times., While this style of gameplay can be,.TRIP, RUNNER., ,",
+        "synthetic_tags": [
+            "Action",
+            "Adventure",
+            "First-Person",
+            "FPS",
+            "Fast-Paced",
+            "Bullet Hell",
+            "Combat",
+            "Thriller",
+            "Stealth",
+            "Heist",
+            "Survival Horror",
+            "Battle Royale",
+            "PvE",
+            "PvP",
+            "Quick-Time Events",
+            "Boss Rush",
+            "Character Action Game",
+            "Character Customization",
+            "Realistic"
+        ]
+    },
+    "Competition": {
+        "description": "Duels Matches High on Rankings. Gamers who score high on this, component enjoy competing with other, players, often in duels, matches, or, team-vs-team scenarios., Competitive gameplay can be found in,. But competition isn\u0092t always, overtly combative; competitive players, may care about being acknowledged as, the best healer in a guild, or having a, high ranking/level on a , farming game relative to their friends., ,",
+        "synthetic_tags": [
+            "Action",
+            "Competitive",
+            "MMORPG",
+            "MOBA",
+            "FPS",
+            "PvP",
+            "RPGMaker",
+            "RTS",
+            "Tactical RPG",
+            "Turn-Based Strategy",
+            "Co-op",
+            "Online Co-Op",
+            "Singleplayer",
+            "Epic",
+            "Narrative",
+            "Steampunk",
+            "Fantasy",
+            "Sci-fi"
+        ]
+    },
+    "Community": {
+        "description": "Being on a Team Chatting Interacting. Gamers who score high on Community, enjoy socializing and collaborating with, other people while gaming. They like, chatting and grouping up with other, players., This might be playing with a, friend, playing at a party, or, being part of a large guild/clan in an, online game. They enjoy being part of a, team working towards a common goal., For them, games are an integral part of, maintaining their social network., , ,",
+        "synthetic_tags": [
+            "Casual",
+            "Co-op",
+            "Online Co-Op",
+            "Local Multiplayer",
+            "Team-Based",
+            "Multiplayer",
+            "Social Deduction",
+            "Crowdfunded",
+            "MMORPG",
+            "MMORPG",
+            "RPGMaker",
+            "JRPG",
+            "Action RPG",
+            "Adventure",
+            "Dungeon Crawler",
+            "Boss Rush",
+            "Party Game",
+            "Party-Based RPG"
+        ]
+    },
+    "Challenge": {
+        "description": "Practice High Difficulty Challenges. Gamers who score high on Challenge, enjoy playing games that rely heavily, on skill and ability. They are persistent, and take the time to practice and hone, their gameplay so they can take on the, most difficult missions and bosses that, the game can offer., These gamers play at the highest, difficulty settings and don\u0092t mind failing, missions repeatedly in. They want, gameplay that constantly challenges, them.,",
+        "synthetic_tags": [
+            "Action",
+            "RPG",
+            "Combat",
+            "Boss Rush",
+            "Asynchronous Multiplayer",
+            "Level Editor",
+            "Character Customization",
+            "Loot",
+            "Replay Value",
+            "Narrative"
+        ]
+    },
+    "Strategy": {
+        "description": "Thinking Ahead Making Decisions. Gamers who score high on this, component enjoy games that require, careful decision-making and planning., They like to think through their options, and likely outcomes. These may be, decisions related to balancing resources, and competing goals, managing foreign, diplomacy, or finding optimal long-term, strategies., They tend to enjoy both the tactical, combat in.",
+        "synthetic_tags": [
+            "Strategy",
+            "Grand Strategy",
+            "Real Time Tactics",
+            "Turn-Based Strategy",
+            "Tactical RPG",
+            "Resource Management",
+            "Combat",
+            "Diplomacy",
+            "Multiplayer",
+            "PvE",
+            "PvP"
+        ]
+    },
+    "Completion": {
+        "description": "Get All Collectibles Complete All Missions. Gamers with high Completion scores, want to finish everything the game has, to offer. They try to complete every, mission, find every collectible, and, discover every hidden location., For some players, this may mean, completing every listed achievement or, unlocking every possible, character/move in a game. For gamers, who score high on Design, this may, mean collecting costumes and mounts, in., , ,",
+        "synthetic_tags": [
+            "Collectathon",
+            "Character Customization",
+            "Loot",
+            "Exploration",
+            "Boss Rush",
+            "Hidden Object",
+            "Roguelike"
+        ]
+    },
+    "Power": {
+        "description": "Powerful Character Powerful Equipment. Gamers who score high on this, component strive for power in the, context of the game world. They want, to become as powerful as possible,, seeking out the tools and equipment, needed to make this happen., This may mean maxing stats or, acquiring the most powerful weapons., Power and Completion often together,, but some players enjoy collecting, cosmetic items without caring about, power, and some players prefer, attaining power through strategic, optimization rather than grinding.,",
+        "synthetic_tags": [
+            "Action",
+            "RPG",
+            "Character Customization",
+            "Loot",
+            "Combat",
+            "Boss Rush",
+            "PvE",
+            "Magic",
+            "Dungeon Crawler",
+            "Fantasy",
+            "Medieval",
+            "Stealth",
+            "Gore",
+            "First-Person",
+            "Action-Adventure",
+            "Singleplayer",
+            "Class-Based"
+        ]
+    },
+    "Fantasy": {
+        "description": "Being someone else somewhere else. Gamers who score high on Fantasy, want their gaming experiences to allow, them to become someone else,, somewhere else. They enjoy the sense, of being immersed in an alter ego in a, believable alternate world, and enjoy, exploring a game world just for the, sake of exploring it., These gamers enjoy., , , ,",
+        "synthetic_tags": [
+            "Fantasy",
+            "Dungeon Crawler",
+            "Adventure",
+            "Exploration",
+            "Alternate History",
+            "Character Customization",
+            "Lore-Rich",
+            "Mythology",
+            "Medieval",
+            "Steampunk",
+            "Hero Shooter",
+            "Boss Rush",
+            "Combat",
+            "Magic"
+        ]
+    },
+    "Story": {
+        "description": "Elaborate plots Interesting Characters. Gamers who score high on Story want, games with elaborate storylines and a, cast of multidimensional characters, with interesting back-stories and, personalities., They take the time to delve into the, back-stories of characters in games, like and , and, enjoy the elaborate and thoughtful, narratives in. Gamers who score low, on Story tend to find dialogue and, quest descriptions to be distracting and, skip through them if possible.,",
+        "synthetic_tags": [
+            "Adventure",
+            "Character Action Game",
+            "Combat",
+            "Dynamic Narration",
+            "Epic",
+            "Fantasy",
+            "Farming Sim",
+            "Hidden Object",
+            "Historical",
+            "Lore-Rich",
+            "Mystery",
+            "Narrative",
+            "Puzzle",
+            "RPG",
+            "Simulation",
+            "Singleplayer",
+            "Stylized",
+            "Story Rich",
+            "Turn-Based Strategy"
+        ]
+    },
+    "Design": {
+        "description": "Expression Customization. Gamers who score high on Discovery, are constantly asking \u0093What if?\u0094 For, them, game worlds are fascinating, contraptions to open up and tinker, with., In an MMO, they might swim out to the, edge of the ocean to see what happens., In , they might experiment, with whether crafting outcomes differ, by the time of day or proximity to, zombies. They \u0093play\u0094 games in the, broadest sense of the word, often in, ways not intended or imagined by the, game\u0092s developers.,",
+        "synthetic_tags": [
+            "Character Customization",
+            "Crafting",
+            "Dungeon Crawler",
+            "MMORPG",
+            "Roguelike",
+            "Simulation",
+            "Exploration",
+            "Adventure",
+            "Building",
+            "Puzzle Platformer",
+            "Stealth",
+            "Strategy RPG",
+            "VR",
+            "Open World Survival Craft",
+            "Farming Sim",
+            "Gore",
+            "Psychological Horror",
+            "Experimental"
+        ]
+    },
+    "Discovery": {
+        "description": "Explore Tinker Experiment. Gamers who score high on this, component want to actively express, their individuality in the game worlds, they find themselves in., In. In city-building games, or space strategy games, they take the, time to design and customize exactly, how their city or spaceships look. To, this end, they prefer games that, provide the tools and assets necessary, to make this possible and easy to do., ,",
+        "synthetic_tags": [
+            "Base Building",
+            "Character Customization",
+            "City Builder",
+            "Design & Illustration",
+            "Simulation",
+            "Resource Management",
+            "Stylized",
+            "Visual Novel",
+            "Crafting",
+            "Inventory Management",
+            "Story Rich",
+            "Narrative",
+            "Interactive Fiction",
+            "Exploration",
+            "Building",
+            "Strategy RPG",
+            "Open World"
+        ]
+    }
+}

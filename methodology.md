@@ -239,3 +239,17 @@ To handle the complexity of solving across three thematic layers (Tags, Semantic
 
 - **Relevance Filtering (p <= N-7)**: Before the LASSO regression runs, the solver calculates the absolute Pearson correlation between every feature and the user's ratings. Only the top $P$ features (where $P$ is constrained by the number of ratings $N$) are allowed into the model. This ensures the solver always has enough "degrees of freedom" to find a stable solution, significantly increasing the training $R^2$ for users with smaller libraries.
 - **Population-Correct Scaling**: To ensure that Tags, Semantics, and Topics compete fairly in the sparse model, we normalize each modality based on its **Population Variance**. This prevents "Topics" (which naturally have low variance) from being ignored by the L1 penalty, ensuring your DNA captures your true atmospheric preferences.
+
+## 20. Archetypal Generalization & Identity Isolation (Build 50)
+
+Build 50 introduced a significant refactoring of the "Taste DNA" solver and recommendation kernel to ensure that learned models generalize beyond a user's library and maintain strict mechanical identity.
+
+- **Archetypal Ridge Regression**: To prevent "overfitting" where the model $R^2$ exceeded 0.7 (effectively memorizing the user's library but failing on the broader Steam population), we refactored the solver to use **45 Fixed Structural Archetypes**. These features include 38 Mechanical Identity Group (MIG) memberships, 1 Quality Probit, and 6 Metadata Z-scores. By reducing the feature space from thousands of tags to 45 archetypes, the solver identifies the **Structural DNA** that defines a user's taste, resulting in a more robust and generalizable $R^2 \approx 0.28$.
+
+- **Differentiable Sigmoid-Based Kernel**: The Jackalope kernel transitioned from hard Boolean vetoes to a **Differentiable Soft-Gate** framework. Using a sigmoid transition function $f(x) = \frac{1}{1 + e^{-x}}$, the kernel now calculates "Conflict Potentials" for mechanical and thematic mismatches. This allows for:
+    - **Symmetric Anchor Enforcement**: Strict perspective (First-Person, Isometric) and interaction models (CRPG, RPG) are enforced symmetrically. If a candidate game possesses a hard anchor that the seed lacks, it is strictly penalized (0.001x), ensuring structural consistency in results.
+    - **Mood Clash Multipliers**: Serious/Emotional seeds now apply a differentiable penalty (up to 0.6x) to "Lighthearted" candidates (Funny, Comedy, Cartoon), preventing jarring tone shifts in recommendations.
+    - **Thematic Rescues**: MIG clashes (e.g., matching a Narrative game to a Walking Sim) can be "rescued" if the thematic (Semantic/Topic) similarity is sufficiently high, allowing for creative discovery without breaking mechanical identity.
+
+- **MIG Refinement**: The 38 Mechanical Identity Groups (MIGs) were refined to require **core verbs** (e.g., `SHOOTER` requires `FPS` or `Shooter`). Broad tags like `Exploration` and `Surreal` were removed from core mechanical definitions and moved to the thematic "Vibe" layer, eliminating identity leaks that previously caused false-positive matches (like matching *Disco Elysium* to a first-person puzzle game).
+

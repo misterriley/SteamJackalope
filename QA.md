@@ -77,6 +77,16 @@ This document serves as the manual verification protocol for human testers and d
 - [ ] **Live Re-ranking**: Adjust the Discovery slider while on the "Rating" list.
     - *Expectation*: The ranking updates in real-time.
 
+## ⚙️ Kernel & Identity Enforcement (Build 50)
+- [ ] **Symmetric Perspective Veto**: Use "Disco Elysium" (Isometric) as a seed. Search results for "Leons Identität" (First-Person) or "Portal 2" (First-Person).
+    - *Expectation*: Perspective-clashing games are heavily penalized ($0.001x$) and should not appear in the top 100 results, regardless of vibe similarity.
+- [ ] **RPG Anchor Enforcement**: Use "Mass Effect (2007)" (RPG) as a seed. Search for "Front Mission Evolved" (Shooter, No RPG).
+    - *Expectation*: Pure action games without the "RPG" tag are vetoed ($0.001x$) when matching an RPG seed.
+- [ ] **Hard Anchor Immunity**: Use "Antichamber" (Nonlinear, Abstract) as a seed.
+    - *Expectation*: Thematic "rescues" should not match realistic/linear shooters like "Call of Duty" or "Battlefield".
+- [ ] **Mood Clash Mitigation**: Use "Detroit: Become Human" (Emotional, Serious) as a seed.
+    - *Expectation*: Funny/Comedy games (e.g., "Suck Up!") are penalized ($0.4x$ - $0.6x$) to maintain atmospheric consistency.
+
 ## 📐 Documentation & Math
 - [ ] **Math Rendering**: View the Methodology page.
     - *Expectation*: LaTeX formulas (e.g., $z = \frac{x - \mu}{\sigma}$) render as clean images/KaTeX, not raw text.

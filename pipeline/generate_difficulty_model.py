@@ -116,8 +116,17 @@ def parse_gamefaqs_directory(directory):
 
 def main():
     print("--- Difficulty Model Generation (Build 68 - Rank-INT) ---")
-    games_csv = os.path.join(ROOT_DIR, "data", "pipeline_games_clean.csv")
-    gf_dir = os.path.join(ROOT_DIR, "data", "GameFAQs")
+    
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate difficulty model from GameFAQs ground truth.")
+    parser.add_argument("--games", type=str, default=os.path.join(ROOT_DIR, "data", "pipeline_games_clean.csv"), help="Path to cleaned games CSV.")
+    parser.add_argument("--gamefaqs", type=str, default=os.path.join(ROOT_DIR, "data", "GameFAQs"), help="Path to GameFAQs directory.")
+    parser.add_argument("--output", type=str, default=DIFFICULTY_PREDICTIONS_FILE, help="Path to save difficulty predictions.")
+    args = parser.parse_args()
+
+    games_csv = args.games
+    gf_dir = args.gamefaqs
+    output_preds = args.output
     
     steam_df = pd.read_csv(games_csv, low_memory=False)
     gf_df = parse_gamefaqs_directory(gf_dir)
@@ -132,7 +141,12 @@ def main():
         if norm_gf in norm_to_steam:
             matched_data.append({'appid': norm_to_steam[norm_gf], 'difficulty': row['difficulty']})
     
-    train_targets_df = pd.DataFrame(matched_data).drop_duplicates('appid')
+    train_targets_df = pd.DataFrame(matched_data)
+    if not train_targets_df.empty:
+        train_targets_df = train_targets_df.drop_duplicates('appid')
+    else:
+        train_targets_df = pd.DataFrame(columns=['appid', 'difficulty'])
+    
     print("Matched " + str(len(train_targets_df)) + " unique games for training.")
 
     # 2. Feature Extraction (Tags)
@@ -190,13 +204,19 @@ def main():
     X_train = X_all[train_indices]
     
     # 5. Train Final Model (L1)
-    print("Training Final L1 Model (Rank-INT features)...")
-    model = LassoCV(cv=20, random_state=42, n_jobs=-1, max_iter=10000)
-    model.fit(X_train, y_train)
-    
-    # 6. Predict for ALL Games
-    print("Generating predictions for all games...")
-    predictions = model.predict(X_all)
+    if len(train_indices) > 0:
+        print("Training Final L1 Model (Rank-INT features)...")
+        model = LassoCV(cv=min(20, len(train_indices)), random_state=42, n_jobs=-1, max_iter=10000)
+        model.fit(X_train, y_train)
+        
+        # 6. Predict for ALL Games
+        print("Generating predictions for all games...")
+        predictions = model.predict(X_all)
+        coef_vals = model.coef_
+    else:
+        print("WARNING: No training samples found. Using neutral difficulty (5.0).")
+        predictions = np.full(len(steam_df), 5.0)
+        coef_vals = np.zeros(len(feature_names))
     
     # Clamp 0-10
     predictions = np.clip(predictions, 0, 10)
@@ -206,38 +226,41 @@ def main():
         'appid': steam_df['appid'],
         'difficulty_predicted': predictions
     })
-    pred_df.to_csv(DIFFICULTY_PREDICTIONS_FILE, index=False)
+    pred_df.to_csv(output_preds, index=False)
     
     coef_df = pd.DataFrame({
         'feature': feature_names,
-        'coefficient': model.coef_
+        'coefficient': coef_vals
     })
     coef_df = coef_df[coef_df['coefficient'] != 0].sort_values('coefficient', ascending=False)
     
-    COEF_FILE = os.path.join(os.path.dirname(DIFFICULTY_PREDICTIONS_FILE), "difficulty_coefficients.json")
+    COEF_FILE = os.path.join(os.path.dirname(output_preds), "difficulty_coefficients.json")
     with open(COEF_FILE, 'w') as f:
         json.dump(coef_df.to_dict(orient='records'), f, indent=4)
 
-    # 8. Update Metadata Parquet
-    print("Updating metadata.parquet...")
-    metadata = pd.read_parquet(METADATA_FILE)
-    if 'difficulty_predicted' in metadata.columns:
-        metadata.drop(columns=['difficulty_predicted'], inplace=True)
-    if 'difficulty_z' in metadata.columns:
-        metadata.drop(columns=['difficulty_z'], inplace=True)
+    # 8. Update Metadata Parquet (Optional)
+    if os.path.exists(METADATA_FILE):
+        print("Updating metadata.parquet...")
+        metadata = pd.read_parquet(METADATA_FILE)
+        if 'difficulty_predicted' in metadata.columns:
+            metadata.drop(columns=['difficulty_predicted'], inplace=True)
+        if 'difficulty_z' in metadata.columns:
+            metadata.drop(columns=['difficulty_z'], inplace=True)
+            
+        metadata = metadata.merge(pred_df, on='appid', how='left')
+        metadata['difficulty_predicted'] = metadata['difficulty_predicted'].fillna(5.0)
         
-    metadata = metadata.merge(pred_df, on='appid', how='left')
-    metadata['difficulty_predicted'] = metadata['difficulty_predicted'].fillna(5.0)
+        diff_scores = metadata['difficulty_predicted'].values
+        mean_diff = np.mean(diff_scores)
+        std_diff = np.std(diff_scores)
+        metadata['difficulty_z'] = (metadata['difficulty_predicted'] - mean_diff) / (std_diff + 1e-9)
+        
+        table = pa.Table.from_pandas(metadata)
+        pq.write_table(table, METADATA_FILE)
+        print("Difficulty Stats (Metadata): Mean=" + str(mean_diff) + ", Std=" + str(std_diff))
+    else:
+        print("METADATA_FILE not found. skipping metadata update. Predictions saved to CSV.")
     
-    diff_scores = metadata['difficulty_predicted'].values
-    mean_diff = np.mean(diff_scores)
-    std_diff = np.std(diff_scores)
-    metadata['difficulty_z'] = (metadata['difficulty_predicted'] - mean_diff) / (std_diff + 1e-9)
-    
-    table = pa.Table.from_pandas(metadata)
-    pq.write_table(table, METADATA_FILE)
-    
-    print("Difficulty Stats: Mean=" + str(mean_diff) + ", Std=" + str(std_diff))
     print("Success!")
 
 if __name__ == "__main__":

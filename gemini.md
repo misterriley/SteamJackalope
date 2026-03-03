@@ -18,6 +18,8 @@ This document serves as a condensed reference for Gemini instances working on th
 *   **Memory Optimization**: Use `mmap_mode='r'` for all large NumPy arrays.
     *   Use `float16` for storage but `float64` for statistical calculations (`mean`, `std`) to avoid overflow.
 *   **Vectorization**: Use `numpy` for all scoring and similarity logic. Avoid Python loops in the hot path.
+*   **Differentiable Kernel**: Uses a sigmoid-based soft-gate framework with symmetric anchor enforcement for identity discipline.
+*   **Archetypal Solver**: Learns 45 structural feature weights (38 MIGs, Metadata) via Ridge Regression to ensure model generalizability.
 
 ## ⚠️ Critical Constraints & Gotchas
 *   **Artifact Synchronization**: All `.npy` files and `metadata.parquet` must have matching row counts and ordering, derived from `data/pipeline_games_clean.csv`.

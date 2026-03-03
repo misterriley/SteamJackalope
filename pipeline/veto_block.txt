@@ -1,0 +1,66 @@
+        # 4. Pool-Based Selection (Top 300 games)
+        valid_hybrid = pure_thematic_sim.copy()
+        valid_hybrid[~mask] = -np.inf
+        valid_hybrid[fav_idx] = -np.inf
+        
+        # GENRE ANCHOR VETO: Prevent mechanical noise
+        # We classify games into strict mechanical and narrative groups
+        STRICT_ANCHORS = ["Platformer", "Puzzle", "Strategy", "RPG", "Roguelike", "Souls-like", "Metroidvania", "Action-Adventure", "Adventure"]
+        
+        # Get seed tag weights to identify DOMINANT anchors
+        import ast
+        try:
+            fav_tags_dict = ast.literal_eval(fav_tags_str) if isinstance(fav_tags_str, str) else fav_tags_str
+        except:
+            fav_tags_dict = {}
+            
+        max_tag_val = max(fav_tags_dict.values()) if fav_tags_dict else 1.0
+        # A tag is dominant if it's at least 25% of the max tag's strength
+        dominant_anchors = [a for a in STRICT_ANCHORS if fav_tags_dict.get(a, 0) / max_tag_val > 0.25]
+        
+        def get_anchor_mask(anchors):
+            if not anchors: return np.ones(len(full_metadata), dtype=bool)
+            pattern = "|".join([rf"'{re.escape(a)}':" for a in anchors])
+            return pd.Series(full_tags_str).str.contains(pattern, regex=True).values
+
+        # 1. STRICT DOMINANCE VETO: If seed is primarily a Platformer, match MUST be a Platformer.
+        for anchor in dominant_anchors:
+            anchor_mask = get_anchor_mask([anchor])
+            valid_hybrid[~anchor_mask] *= 0.001 
+            
+        # 2. PURE PUZZLE VETO: If seed lacks Action/Combat, matches must also lack them.
+        ACTION_TAGS = ["Action", "Combat", "Action-Adventure", "Shooter"]
+        is_pure_puzzler = all(t not in fav_tags_dict for t in ACTION_TAGS) and fav_tags_dict.get("Puzzle", 0) > 0
+        if is_pure_puzzler:
+            action_mask = get_anchor_mask(ACTION_TAGS)
+            valid_hybrid[action_mask] *= 0.01 # Strict veto for unwanted action
+            
+        # 3. NARRATIVE PARITY: If seed is Story Rich/Choices Matter, match should be too.
+        NARRATIVE_TAGS = ["Story Rich", "Choices Matter", "Visual Novel", "RPG"]
+        seed_narrative_score = sum([1 for t in NARRATIVE_TAGS if t in fav_tags_dict])
+        if seed_narrative_score >= 2:
+            narr_mask = get_anchor_mask(NARRATIVE_TAGS)
+            valid_hybrid[~narr_mask] *= 0.01 
+            
+        # 4. RPG PARITY: Must match RPG anchor
+        if "RPG" in fav_tags_dict:
+            rpg_mask = get_anchor_mask(["RPG"])
+            valid_hybrid[~rpg_mask] *= 0.01 
+            
+        # 5. SETTING/CONTEXT: 
+        if "Sci-fi" in fav_tags_dict and "Military" not in fav_tags_dict:
+            military_mask = pd.Series(full_tags_str).str.contains("'Military':|'Modern':|'War':", regex=True).values
+            valid_hybrid[military_mask] *= 0.1
+
+        # NEGATIVE ANCHOR: Horror Veto
+        if "Horror" not in fav_tags_dict:
+            horror_mask = pd.Series(full_tags_dict).str.contains("'Horror':|'Survival Horror':|'Psychological Horror':", regex=True).values if isinstance(full_tags_dict, pd.Series) else pd.Series(full_tags_str).str.contains("'Horror':|'Survival Horror':|'Psychological Horror':", regex=True).values
+            valid_hybrid[horror_mask] *= 0.1
+
+        # CONSENSUS VETO
+        valid_hybrid[consensus_sim < 0.005] = -np.inf 
+        
+        pool_size = 300 
+        top_pool_indices = np.argpartition(-valid_hybrid, pool_size-1)[:pool_size]
+        # Survival floor 0.02
+        top_pool_indices = top_pool_indices[valid_hybrid[top_pool_indices] >= 0.02]
