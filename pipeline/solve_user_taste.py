@@ -321,7 +321,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
             'length': float(meta_coeffs[2]), 'difficulty': float(meta_coeffs[3]), 'price': float(meta_coeffs[4]),
             'tone': float(meta_coeffs[5]), 'tag_match': 1.0, 'semantic': 1.0, 'topic_match': 0.1
         },
-        'kernel_anchors': active_anchors[:50], 'r2': float(r2_train), 
+        'kernel_anchors': kernel_anchors[:50], 'r2': float(r2_train), 
         'vibe_vector': (all_tag_vectors[best_anchor_idx] / (all_tag_norms[best_anchor_idx] + 1e-9)).tolist(),
         'semantic_vibe_vector': (all_sem_vectors[best_anchor_idx] / (all_sem_norms[best_anchor_idx] + 1e-9)).tolist(),
         'topic_vibe_vector': all_topic_dist[best_anchor_idx].tolist(),
