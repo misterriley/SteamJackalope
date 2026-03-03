@@ -83,6 +83,9 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
 - **Verification:** Automated tests are handled via `run_all_tests.bat`. Manual verification of UI and discovery features is documented in `QA.md`.
 - **Networking:** `127.0.0.1` is preferred over `localhost` for local backend connectivity on Windows to avoid latency and connection issues.
 - **Tool Usage Constraints**: 
+    - **PowerShell Separators**: When using `run_shell_command`, do not use `&&` as a statement separator, as the environment uses PowerShell by default. Use `;` instead.
+    - **Path Resolution**: Relative paths are resolved against the project root. Use `common/constants.py` as the source of truth for all data paths.
+    - **Environment Variables**: Use `$env:PYTHONPATH="."` prefix for shell commands requiring module imports from the root.
     - When using `run_shell_command` in this environment (PowerShell), avoid using the `&&` operator to chain commands as it will cause a `ParserError`. Execute commands sequentially instead.
     - Many data artifacts (`.npy`, `.parquet`) are memory-mapped by the server. If a script fails to update them with a "Permission Denied" or "File in Use" error, the FastAPI server MUST be stopped first.
     - Large files read via `read_file` will be truncated. Use `offset` and `limit` to paginate through long files like `server.py` or large CSVs.
