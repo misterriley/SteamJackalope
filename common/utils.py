@@ -30,7 +30,7 @@ MIGS = {
     "REALISTIC_SIM": {"Realistic", "Simulation"},
     "AUTOMATION": {"Automation", "Programming", "Coding"},
     "EDUCATION": {"Education", "Science", "Math", "Typing", "Spelling"},
-    "CRPG": {"CRPG", "Party-Based RPG", "Tactical RPG", "Strategy RPG", "Dungeon Crawler"},
+    "CRPG": {"CRPG", "Party-Based RPG", "Tactical RPG", "Strategy RPG", "Dungeon Crawler", "RPG", "Action RPG", "JRPG"},
     "POINT_AND_CLICK": {"Point & Click", "Hidden Object", "Visual Novel", "Interactive Fiction"},
     "LIFE_SIM": {"Life Sim", "Farming Sim", "Social Beam", "Dating Sim", "Otome"},
     "METROIDVANIA": {"Metroidvania", "Roguevania"},
@@ -49,7 +49,7 @@ MIGS = {
 
 NARRATIVE_TAGS = {"Visual Novel", "Interactive Fiction", "Story Rich", "Multiple Endings", "Choices Matter", "Narrative", "Character Customization", "Lore-Rich", "Emotional", "Cinematic"}
 HORROR_MARKERS = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
-HARD_ANCHORS = {"Platformer", "Puzzle", "Roguelike", "Souls-like", "Metroidvania", "Survival", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator", "Isometric", "CRPG"}
+HARD_ANCHORS = {"Platformer", "Puzzle", "Roguelike", "Souls-like", "Metroidvania", "Survival", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator", "Isometric", "CRPG", "RPG"}
 
 def to_z(x, ignore_zeros=False):
     """

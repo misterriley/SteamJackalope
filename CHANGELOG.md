@@ -6,10 +6,11 @@ All notable changes to the Steam Jackalope project will be documented in this fi
 ### Build 50
 ### Version 0.0.1-pre-alpha.50
 
-- **Algorithm**: Exorcised low-fidelity matches for *Disco Elysium* (e.g., *Leons Identität*) by refining `MIGS` to require core verbs and implementing **Symmetric Hard Anchor** enforcement.
-- **Algorithm**: Refined `HARD_ANCHORS` to focus on Perspective (Isometric, First-Person) and strict Interaction Models (CRPG), removing thematic descriptors (Surreal, Abstract) that caused false-positive vetoes for high-fidelity matches like *Planescape: Torment*.
-- **Algorithm**: Cleaned up `SPATIAL_PUZZLE`, `LOGIC_PUZZLE`, and `WALKING_SIM` mechanical groups to prevent identity cross-contamination from broad tags like `Exploration` or `Surreal`.
+- **Algorithm**: Exorcised low-fidelity matches for *Disco Elysium* (e.g., *Leons Identität*) and *Mass Effect* (e.g., *Front Mission Evolved*) by refining `MIGS` to require core verbs and implementing **Symmetric Hard Anchor** enforcement.
+- **Algorithm**: Broadened the `CRPG` MIG to include general `RPG` and `Action RPG` tags, ensuring high-fidelity matches for narrative RPGs like *Mass Effect* and *Alpha Protocol*.
+- **Algorithm**: Refined `HARD_ANCHORS` to focus on Perspective (Isometric, First-Person) and strict Interaction Models (CRPG, RPG), removing thematic descriptors (Surreal, Abstract) that caused false-positive vetoes for high-fidelity matches.
 - **Algorithm**: Symmetric Perspective Enforcer: Candidates with a hard perspective anchor (e.g., First-Person) that the seed lacks are now strictly penalized (0.001x), ensuring structural consistency in recommendations.
+- **Algorithm**: Cleaned up `SPATIAL_PUZZLE`, `LOGIC_PUZZLE`, and `WALKING_SIM` mechanical groups to prevent identity cross-contamination from broad tags like `Exploration` or `Surreal`.
 
 ## [49] - 2026-02-26
 ### Build 49
