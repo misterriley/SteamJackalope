@@ -81,9 +81,13 @@ def solve_user_taste(ground_truth_path, output_path=None):
     t_means = np.load(os.path.join(PRODUCTION_DATA_DIR, "topic_means.npy")).astype(np.float32)
     t_stds = np.load(os.path.join(PRODUCTION_DATA_DIR, "topic_stds.npy")).astype(np.float32)
 
-    # 3. Calculate 0.60 Kernel Matrix (NxN) with GLOBAL scaling
+    # 3. Calculate Structural Archetype Features (MIGs, Meta)
+    # Instead of NxN kernel (Overfit), we use alignment with Mechanical Identity Groups
     N = len(user_indices)
-    K = np.zeros((N, N))
+    
+    # A. MIG Features: Game's binary membership in each MIG
+    X_mig = np.zeros((N, len(MIGS)))
+    mig_names = list(MIGS.keys())
     
     # Pre-calculate anchor masks for the user's rated games (Local pool)
     user_anchor_masks = {}
@@ -98,39 +102,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
         pattern = rf"'{re.escape(tag)}':"
         user_anchor_masks[tag] = tag_series.str.contains(pattern, regex=True).values
 
-    print(f"Calculating {N}x{N} Jackalope Kernel matrix (MIG-Enabled)...")
-    for i in range(N):
-        tags_i_str = user_meta_df.iloc[i]['tags']
-        tags_i_dict = ast.literal_eval(tags_i_str)
-        max_i = max(tags_i_dict.values()) if tags_i_dict else 1.0
-        seed_tags_strict = {t for t, v in tags_i_dict.items() if v / max_i > 0.25}
-        seed_tags_soul = {t for t, v in tags_i_dict.items() if v / max_i > 0.15}
-        seed_migs = {group for group, tags in MIGS.items() if any(t in seed_tags_strict for t in tags)}
-        active_narrative = [t for t in NARRATIVE_TAGS if t in seed_tags_soul]
-        is_cinematic_i = "Cinematic" in seed_tags_soul
-        
-        k_row = calculate_jackalope_kernel(
-            verb_profiles=verb_profiles,
-            seed_verb_profile=verb_profiles[i],
-            sem_vectors=sem_vectors, sem_norms=sem_norms,
-            seed_sem_vec=sem_vectors[i], seed_sem_norm=sem_norms[i],
-            topic_distributions=topic_dist, seed_topic_dist=topic_dist[i],
-            topic_means=t_means, topic_stds=t_stds,
-            tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR, dot_product_lambda=DOT_PRODUCT_LAMBDA,
-            sem_scaling_factor=SEMANTIC_GLOBAL_SCALING_FACTOR, sem_lambda=SEMANTIC_DOT_PRODUCT_LAMBDA,
-            mature_content_flags=user_meta_df['mature_content'].values > 0,
-            seed_mature_content=bool(user_meta_df.iloc[i]['mature_content'] > 0),
-            seed_migs=seed_migs,
-            seed_tags=seed_tags_soul,
-            candidate_anchor_masks=user_anchor_masks,
-            active_narrative_seed=active_narrative,
-            is_cinematic_seed=is_cinematic_i,
-            difficulty_z=user_meta_df['difficulty_z'].values,
-            seed_difficulty_z=user_meta_df.iloc[i]['difficulty_z'],
-            tone_z=user_meta_df['tone_z'].values if 'tone_z' in user_meta_df.columns else None,
-            seed_tone_z=user_meta_df.iloc[i]['tone_z'] if 'tone_z' in user_meta_df.columns else None
-        )
-        K[:, i] = k_row
+    for j, (group, tags) in enumerate(MIGS.items()):
+        m = np.zeros(N, dtype=bool)
+        for t in tags:
+            if t in user_anchor_masks: m |= user_anchor_masks[t]
+        X_mig[:, j] = m.astype(float)
 
     # 4. Regression
     quality_grid = np.load(os.path.join(PRODUCTION_DATA_DIR, "quality_scores_grid.npy"), mmap_mode='r')
@@ -141,9 +117,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
     meta_cols = ['date_z', 'pop_z', 'playtime_z', 'difficulty_z', 'price_z', 'tone_z']
     X_meta = np.clip(user_meta_df[meta_cols].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     
-    X = np.hstack([q_global.reshape(-1, 1), X_meta, K])
+    # COMBINE: X = [Q, Meta, MIGs]
+    # We omit NxN kernel to prevent overfitting (R^2 > 0.7 issue)
+    X = np.hstack([q_global.reshape(-1, 1), X_meta, X_mig])
     
-    print(f"Solving Hybrid Ridge (GLOBAL PARITY) for {N} samples...")
+    print(f"Solving Archetypal Ridge for {N} samples with {X.shape[1]} features...")
     model = RidgeCV(alphas=[0.1, 1.0, 10.0, 50.0]).fit(X, y)
     r2_train = model.score(X, y)
     print(f"Model Training R^2: {r2_train:.4f}")
@@ -151,14 +129,24 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # --- RESULT GENERATION ---
     q_coeff = model.coef_[0]
     meta_coeffs = model.coef_[1:7]
-    kernel_coeffs = model.coef_[7:]
+    mig_coeffs = model.coef_[7:]
     
-    sorted_anchor_idxs = sorted(range(len(kernel_coeffs)), key=lambda idx: abs(kernel_coeffs[idx]), reverse=True)
-    active_anchors = [{'appid': int(user_appids[idx]), 'name': str(user_meta_df.iloc[idx]['name']), 'weight': float(kernel_coeffs[idx])} for idx in sorted_anchor_idxs if abs(kernel_coeffs[idx]) > 1e-5]
+    # Map MIG coefficients to meaningful impacts
+    active_migs = sorted([{'group': mig_names[i], 'impact': float(mig_coeffs[i])} for i in range(len(mig_names)) if abs(mig_coeffs[i]) > 1e-4], key=lambda x: x['impact'], reverse=True)
     
-    # Calculate Unit Vibe Vectors for Ranking
-    best_anchor_idx = user_indices[sorted_anchor_idxs[0]] if active_anchors else 0
+    # We use active_migs as our 'Structural DNA'
+    kernel_anchors = active_migs # For schema compatibility with frontend
     
+    # Use top weighted MIG to find the "Best Anchor" from user's library for UI seeding
+    top_mig_idx = np.argmax(mig_coeffs)
+    matches_top_mig = X_mig[:, top_mig_idx] > 0.5
+    if np.any(matches_top_mig):
+        # Pick highest rated game from the top MIG
+        best_anchor_idx = user_indices[np.where(matches_top_mig)[0][np.argmax(y[matches_top_mig])]]
+    else:
+        # Fallback to absolute highest rated game
+        best_anchor_idx = user_indices[np.argmax(y)]
+
     # Full population artifacts for similarity preview
     all_verb_profiles = np.load(os.path.join(PRODUCTION_DATA_DIR, "diffused_verb_profiles.npy"), mmap_mode='r')
     all_sem_vectors = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
@@ -183,7 +171,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     tags_s_str = full_metadata.iloc[best_anchor_idx]['tags']
     tags_s_dict = ast.literal_eval(tags_s_str)
     max_s = max(tags_s_dict.values()) if tags_s_dict else 1.0
-    s_tags_strict = {t for t, v in tags_s_dict.items() if v / max_s > 0.35}
+    s_tags_strict = {t for t, v in tags_s_dict.items() if v / max_s > 0.25}
     s_tags_soul = {t for t, v in tags_s_dict.items() if v / max_s > 0.15}
     s_migs = {group for group, tags in MIGS.items() if any(t in s_tags_strict for t in tags)}
     s_active_narrative = [t for t in NARRATIVE_TAGS if t in s_tags_soul]

@@ -11,7 +11,8 @@ MIGS = {
     "CASUAL_PUZZLE": {"Hidden Object", "Point & Click", "Match 3", "Trivia", "Word Game", "Board Game"},
     "COMPETITIVE": {"PvP", "eSports", "Competitive", "Battle Royale", "Multiplayer"},
     "STEALTH": {"Stealth", "Assassin", "Immersive Sim"},
-    "WALKING_SIM": {"Walking Simulator", "Interactive Fiction", "Cinematic", "Story Rich", "Choices Matter", "Multiple Endings"},
+    "WALKING_SIM": {"Walking Simulator", "Interactive Fiction", "Exploration", "First-Person", "3D"},
+    "NARRATIVE": {"Story Rich", "Choices Matter", "Multiple Endings", "Cinematic", "Dynamic Narration", "Narration", "Emotional"},
     "IDLE_CLICKER": {"Idler", "Clicker", "Incremental", "Idle"},
     "SINGLEPLAYER": {"Singleplayer"},
     "CASUAL": {"Casual", "Relaxing", "Family Friendly", "Colorful", "Cartoony"},
@@ -36,7 +37,7 @@ MIGS = {
     "ROGUELIKE": {"Roguelike", "Roguelite", "Action Roguelike", "Traditional Roguelike", "Roguevania", "Roguelike Deckbuilder", "Rogue-like", "Rogue-lite", "Dungeon Crawler"},
     "BOARD_GAME": {"Board Game", "Trivia", "Chess", "Tabletop", "Solitaire", "Word Game"},
     "RACING": {"Racing", "Driving", "Automobile Sim", "Combat Racing", "Vehicular Combat"},
-    "FLIGHT_SPACE": {"Flight", "Space Sim", "Space", "Sci-fi", "Sailing"},
+    "FLIGHT_SPACE": {"Flight", "Space Sim", "Space", "Sailing"},
     "RHYTHM": {"Rhythm", "Music"},
     "MOBA": {"MOBA", "Hero Shooter"},
     "HORROR": {"Horror", "Survival Horror", "Psychological Horror"},
@@ -536,6 +537,18 @@ def calculate_jackalope_kernel(
             veto_multiplier_mig = 0.001 + 0.999 * (1.0 - mig_clash_score * (1.0 - rescue_weight))
             veto_multiplier_hard = 0.001 + 0.999 * (1.0 - hard_clash_score)
             
+            # ADDITION: Un-rescueable Identity Conflict (e.g. Shooter matching Narrative)
+            # If candidate has a 'Violent' MIG that the seed lacks, we enforce it strictly
+            UNRESCUEABLE_MIGS = {"SHOOTER", "FIGHTING", "RACING", "SPORTS", "BULLET_HELL"}
+            for group_name in UNRESCUEABLE_MIGS:
+                if group_name not in seed_migs:
+                    m = np.zeros(len(kernel), dtype=bool)
+                    for t in MIGS[group_name]:
+                        m_key = t if t in candidate_anchor_masks else f"tag_{t}"
+                        if m_key in candidate_anchor_masks: m |= candidate_anchor_masks[m_key].astype(bool)
+                    # Force strict veto for these groups if seed lacks them
+                    veto_multiplier_hard = np.minimum(veto_multiplier_hard, 0.001 + 0.999 * (~m).astype(float))
+
             # Use the stricter of the two vetoes
             kernel *= np.minimum(veto_multiplier_mig, veto_multiplier_hard)
 
