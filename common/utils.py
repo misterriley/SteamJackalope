@@ -6,18 +6,18 @@ from common.constants import EPSILON, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX, SOFT
 MIGS = {
     "SHOOTER": {"FPS", "Shooter", "Third-Person Shooter", "Arena Shooter", "Hero Shooter", "Looter Shooter", "Extraction Shooter", "Boomer Shooter", "On-Rails Shooter", "Immersive Sim", "Top-Down Shooter", "Twin Stick Shooter", "Battle Royale", "Tactical FPS"},
     "BULLET_HELL": {"Bullet Hell", "Shoot 'Em Up", "Twin Stick Shooter", "Top-Down Shooter"},
-    "SPATIAL_PUZZLE": {"Puzzle", "First-Person", "Third Person", "3D", "Exploration", "Walking Simulator", "Puzzle Platformer"},
-    "LOGIC_PUZZLE": {"Logic", "Sokoban", "Abstract", "Minimalist", "Programming", "Coding", "Automation", "Surreal", "Nonlinear", "Mind-Bending", "Psychedelic"},
-    "CASUAL_PUZZLE": {"Hidden Object", "Point & Click", "Match 3", "Trivia", "Word Game", "Board Game"},
+    "SPATIAL_PUZZLE": {"Puzzle", "Puzzle Platformer", "3D Platformer"},
+    "LOGIC_PUZZLE": {"Logic", "Sokoban", "Abstract", "Minimalist", "Programming", "Coding", "Automation"},
+    "CASUAL_PUZZLE": {"Hidden Object", "Match 3", "Trivia", "Word Game", "Board Game"},
     "COMPETITIVE": {"PvP", "eSports", "Competitive", "Battle Royale", "Multiplayer"},
     "STEALTH": {"Stealth", "Assassin", "Immersive Sim"},
-    "WALKING_SIM": {"Walking Simulator", "Interactive Fiction", "Exploration", "First-Person", "3D"},
-    "NARRATIVE": {"Story Rich", "Choices Matter", "Multiple Endings", "Cinematic", "Dynamic Narration", "Narration", "Emotional"},
+    "WALKING_SIM": {"Walking Simulator"},
+    "NARRATIVE": {"Story Rich", "Choices Matter", "Multiple Endings", "Cinematic", "Dynamic Narration", "Narration", "Emotional", "Interactive Fiction", "Visual Novel", "Dating Sim", "Otome"},
     "IDLE_CLICKER": {"Idler", "Clicker", "Incremental", "Idle"},
     "SINGLEPLAYER": {"Singleplayer"},
     "CASUAL": {"Casual", "Relaxing", "Family Friendly", "Colorful", "Cartoony"},
     "FAMILY_FRIENDLY": {"Family Friendly"},
-    "PLATFORMER": {"Precision Platformer", "2D Platformer", "3D Platformer", "Platformer", "Runner", "Puzzle Platformer", "Sokoban"},
+    "PLATFORMER": {"Precision Platformer", "2D Platformer", "3D Platformer", "Platformer", "Runner", "Puzzle Platformer"},
     "FIGHTING": {"Fighting", "2D Fighter", "3D Fighter", "Boxing", "Wrestling", "Beat 'em up"},
     "MELEE_ACTION": {"Souls-like", "Spectacle fighter", "Hack and Slash", "Beat 'em up", "Character Action Game", "Musou", "Swordplay", "Action Roguelike", "Action RPG"},
     "DECKBUILDER": {"Card Battler", "Roguelike Deckbuilder", "Trading Card Game", "Card Game", "Deckbuilding", "Board Game"},
@@ -30,8 +30,8 @@ MIGS = {
     "REALISTIC_SIM": {"Realistic", "Simulation"},
     "AUTOMATION": {"Automation", "Programming", "Coding"},
     "EDUCATION": {"Education", "Science", "Math", "Typing", "Spelling"},
-    "CRPG": {"CRPG", "Party-Based RPG", "Tactical RPG", "Strategy RPG", "Dungeon Crawler", "Hack and Slash", "JRPG", "Looter Shooter", "Action RPG", "Immersive Sim"},
-    "POINT_AND_CLICK": {"Point & Click", "Hidden Object", "Visual Novel", "Interactive Fiction", "Dating Sim", "Otome"},
+    "CRPG": {"CRPG", "Party-Based RPG", "Tactical RPG", "Strategy RPG", "Dungeon Crawler"},
+    "POINT_AND_CLICK": {"Point & Click", "Hidden Object", "Visual Novel", "Interactive Fiction"},
     "LIFE_SIM": {"Life Sim", "Farming Sim", "Social Beam", "Dating Sim", "Otome"},
     "METROIDVANIA": {"Metroidvania", "Roguevania"},
     "ROGUELIKE": {"Roguelike", "Roguelite", "Action Roguelike", "Traditional Roguelike", "Roguevania", "Roguelike Deckbuilder", "Rogue-like", "Rogue-lite", "Dungeon Crawler"},
@@ -49,7 +49,7 @@ MIGS = {
 
 NARRATIVE_TAGS = {"Visual Novel", "Interactive Fiction", "Story Rich", "Multiple Endings", "Choices Matter", "Narrative", "Character Customization", "Lore-Rich", "Emotional", "Cinematic"}
 HORROR_MARKERS = {"Horror", "Survival Horror", "Psychological Horror", "Gore", "Violent"}
-HARD_ANCHORS = {"Platformer", "Puzzle", "Strategy", "RPG", "Roguelike", "Souls-like", "Metroidvania", "JRPG", "Survival", "Visual Novel", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator", "Difficult", "Nonlinear", "Abstract", "Surreal", "Isometric", "CRPG"}
+HARD_ANCHORS = {"Platformer", "Puzzle", "Roguelike", "Souls-like", "Metroidvania", "Survival", "FPS", "First-Person", "Third Person", "Third-Person Shooter", "Shooter", "Walking Simulator", "Isometric", "CRPG"}
 
 def to_z(x, ignore_zeros=False):
     """
@@ -523,6 +523,8 @@ def calculate_jackalope_kernel(
             
             # Hard Anchor Enforcement (Perspective, etc.)
             hard_clash_score = np.zeros(len(kernel), dtype=float)
+            
+            # A. If candidate LACKS a hard anchor the seed HAS
             if seed_tags:
                 hard_seed_tags = set(seed_tags) & HARD_ANCHORS
                 if hard_seed_tags:
@@ -530,6 +532,15 @@ def calculate_jackalope_kernel(
                         m_key = t if t in candidate_anchor_masks else f"tag_{t}"
                         if m_key in candidate_anchor_masks:
                             hard_clash_score = np.maximum(hard_clash_score, (~candidate_anchor_masks[m_key].astype(bool)).astype(float))
+            
+            # B. Symmetric: If candidate HAS a hard anchor the seed LACKS
+            # We only do this for perspective and high-level genre anchors
+            SYMMETRIC_ANCHORS = {"First-Person", "Third Person", "Isometric", "2D", "VR", "VR Only"}
+            for t in SYMMETRIC_ANCHORS:
+                if t not in (seed_tags or []):
+                    m_key = t if t in candidate_anchor_masks else f"tag_{t}"
+                    if m_key in candidate_anchor_masks:
+                        hard_clash_score = np.maximum(hard_clash_score, candidate_anchor_masks[m_key].astype(float))
             
             # Combine clashes: 
             # MIG clashes can be rescued by high thematic similarity
