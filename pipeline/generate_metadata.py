@@ -60,45 +60,23 @@ def calculate_date_z_scores(df):
     Calculates z-scores for release dates, clamping future dates and handling unknowns.
     Future dates are clamped to today to prevent distribution skew.
     """
+    from common.utils import to_z
     # Clamp future dates to today
     now = pd.Timestamp.now().normalize()
-    
-    # Create a working copy of the date series to modify
     working_dates = df['parsed_date'].copy()
-    
-    # Clamp future dates
     working_dates[working_dates > now] = now
     
     # Convert to numeric timestamp for z-scoring
-    # We convert to float to support NaNs for unknown dates
     ts = pd.to_numeric(working_dates, errors='coerce').astype(float)
-    
-    # Ensure NaT values are treated as NaN (handles int64 NaT representation if any)
     ts[working_dates.isna()] = np.nan
     
-    # Calculate stats on valid dates only
-    valid_ts = ts.dropna()
-    
-    if len(valid_ts) > 0:
-        mean_ts = valid_ts.mean()
-        std_ts = valid_ts.std()
-        
-        if std_ts < 1e-12:
-            std_ts = 1.0
-    else:
-        mean_ts = 0
-        std_ts = 1.0
-
-    # Initialize z-scores to 0.0 (handles unknowns)
-    df['date_z'] = 0.0
-    
     # Calculate z-scores for valid dates
-    df.loc[ts.notna(), 'date_z'] = (ts[ts.notna()] - mean_ts) / std_ts
+    df['date_z'] = 0.0
+    valid_mask = ts.notna()
+    if valid_mask.any():
+        df.loc[valid_mask, 'date_z'] = to_z(ts[valid_mask])
     
-    # Update parsed_date in the dataframe to reflect clamping? 
-    # The requirement didn't explicitly say to update the stored date, but it makes sense for consistency.
-    # However, "parsed_date" is an intermediate column. "release_year" was already extracted.
-    # We'll update parsed_date just in case.
+    # Update parsed_date in the dataframe to reflect clamping
     df['parsed_date'] = working_dates
     
     return df

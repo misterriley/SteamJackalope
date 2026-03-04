@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import RidgeCV, LassoCV, ElasticNetCV
+from sklearn.linear_model import RidgeCV, LassoCV, ElasticNetCV, Ridge
 from sklearn.model_selection import KFold
 import os
 import sys
@@ -18,7 +18,9 @@ from common.utils import to_z, calculate_jackalope_kernel_2d, MIGS, normalize_st
 
 def benchmark_all_features(user_id="76561198039155404"):
     gt_path = f"data/user_{user_id}_ground_truth.csv"
-    df_gt = pd.read_csv(gt_path).dropna(subset=['actual_rating'])
+    df_gt = pd.read_csv(gt_path)
+    # Strictly filter for verified human ratings
+    df_gt = df_gt[df_gt['status'] == 'rated'].dropna(subset=['actual_rating'])
     y = df_gt['actual_rating'].values
     y_dev_global = y - 5.0
     
@@ -97,49 +99,42 @@ def benchmark_all_features(user_id="76561198039155404"):
 
     # --- STRICT OOS LOOP ---
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
-    ridge_scores, lasso_scores, en_scores = [], [], []
+    alphas = np.logspace(-3, 6, 50)
+    alpha_scores = np.zeros(len(alphas))
     
     print(f"\n--- 'All-In' discovery Benchmark (Strict OOS) ---")
     print(f"Features: Metadata + Graph + Topics + Kernel ({X_static.shape[1] + 2} total)")
     
     for train_idx, test_idx in kf.split(range(N)):
-        # TRAIN Assembly
+        # Assembly (Exactly matching production solver logic)
         K_sub_train = K_full[np.ix_(train_idx, train_idx)]
         lp_train = lp_mask[np.ix_(train_idx, train_idx)]
         K_exp_train = np.exp(K_sub_train * 10.0) * lp_train
         np.fill_diagonal(K_exp_train, 0.0)
-        X_k_train = (np.sum(K_exp_train * y_dev_global[train_idx], axis=1) / (np.sum(K_exp_train, axis=1) + 1e-9))
+        X_k_train = (np.sum(K_exp_train * y_dev_global[train_idx], axis=1) / (np.sum(K_exp_train, axis=1) + 1e-9)).reshape(-1, 1)
         
         G_train = G_full[np.ix_(train_idx, train_idx)] * lp_train
         np.fill_diagonal(G_train, 0.0)
-        X_g_train = (np.sum(G_train * y_dev_global[train_idx], axis=1) / (np.sum(G_train, axis=1) + 1e-9))
+        X_g_train = (np.sum(G_train * y_dev_global[train_idx], axis=1) / (np.sum(G_train, axis=1) + 1e-9)).reshape(-1, 1)
         
-        X_train = np.hstack([X_k_train.reshape(-1, 1), X_g_train.reshape(-1, 1), X_static[train_idx]])
+        X_train = np.hstack([X_k_train, X_g_train, X_static[train_idx]])
         
-        # TEST Assembly
         K_sub_test = K_full[np.ix_(test_idx, train_idx)]
         lp_test = lp_mask[np.ix_(test_idx, train_idx)]
         K_exp_test = np.exp(K_sub_test * 10.0) * lp_test
-        X_k_test = (np.sum(K_exp_test * y_dev_global[train_idx], axis=1) / (np.sum(K_exp_test, axis=1) + 1e-9))
+        X_k_test = (np.sum(K_exp_test * y_dev_global[train_idx], axis=1) / (np.sum(K_exp_test, axis=1) + 1e-9)).reshape(-1, 1)
         
         G_test = G_full[np.ix_(test_idx, train_idx)] * lp_test
-        X_g_test = (np.sum(G_test * y_dev_global[train_idx], axis=1) / (np.sum(G_test, axis=1) + 1e-9))
+        X_g_test = (np.sum(G_test * y_dev_global[train_idx], axis=1) / (np.sum(G_test, axis=1) + 1e-9)).reshape(-1, 1)
         
-        X_test = np.hstack([X_k_test.reshape(-1, 1), X_g_test.reshape(-1, 1), X_static[test_idx]])
+        X_test = np.hstack([X_k_test, X_g_test, X_static[test_idx]])
         
-        # Models (RAW FEATURES)
-        ridge = RidgeCV(alphas=[0.1, 1.0, 10.0, 100.0, 1000.0, 5000.0]).fit(X_train, y[train_idx])
-        ridge_scores.append(ridge.score(X_test, y[test_idx]))
-        
-        lasso = LassoCV(cv=5, max_iter=10000, selection='random').fit(X_train, y[train_idx])
-        lasso_scores.append(lasso.score(X_test, y[test_idx]))
-        
-        en = ElasticNetCV(l1_ratio=[.1, .5, .7, .9, .95, .99, 1], cv=5, max_iter=10000).fit(X_train, y[train_idx])
-        en_scores.append(en.score(X_test, y[test_idx]))
+        for i, a in enumerate(alphas):
+            ridge = Ridge(alpha=a).fit(X_train, y[train_idx])
+            alpha_scores[i] += ridge.score(X_test, y[test_idx])
 
-    print(f"Ridge OOS R2:       {np.mean(ridge_scores):.4f}")
-    print(f"Lasso OOS R2:       {np.mean(lasso_scores):.4f}")
-    print(f"Elastic Net OOS R2: {np.mean(en_scores):.4f}")
+    best_idx = np.argmax(alpha_scores)
+    print(f"Ridge OOS R2:       {alpha_scores[best_idx] / 5.0:.4f} (Alpha: {alphas[best_idx]:.4f})")
 
 if __name__ == "__main__":
     benchmark_all_features()

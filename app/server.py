@@ -1519,16 +1519,20 @@ def recommend(request: RecommendationRequest):
 
         # --- ZERO-DRIFT STRUCTURAL FEATURES ---
         # 1. MIG Features for Candidates
-        candidate_mig_features = {}
+        candidate_mig_features_list = []
         for group in MIGS.keys():
-            # Use pre-calculated anchor masks from DataManager
             m = np.zeros(len(metadata), dtype=bool)
             for t in MIGS[group]:
                 if t in data_manager.anchor_masks: m |= data_manager.anchor_masks[t]
-            candidate_mig_features[group] = m.astype(float)
-            
+            candidate_mig_features_list.append(m.astype(float))
+        
+        # [N_library, 38]
+        mig_matrix = np.column_stack(candidate_mig_features_list)
+
         # 2. NW Kernel Feature (Relative to Rated Games)
         x_kernel_all = np.zeros(len(metadata), dtype=np.float32)
+        x_graph_all = np.zeros(len(metadata), dtype=np.float32)
+        
         if request.rated_appids:
             rated_indices = [data_manager.appid_to_idx[aid] for aid in request.rated_appids if aid in data_manager.appid_to_idx]
             if rated_indices:
@@ -1578,7 +1582,7 @@ def recommend(request: RecommendationRequest):
                 )
                 
                 # Nadaraya-Watson aggregation
-                k_exp = np.exp(k_mat * 5.0)
+                k_exp = np.exp(k_mat * 10.0) # Corrected sharpening
                 # Prevent games from predicting themselves
                 for c, r_idx in enumerate(rated_indices):
                     k_exp[r_idx, c] = 0.0
@@ -1589,8 +1593,6 @@ def recommend(request: RecommendationRequest):
                 x_kernel_all = np.sum(k_exp * y_dev, axis=1) / (sum_weights + 1e-9)
 
                 # Calculate full library Graph Similarity feature (v6.0 Restoration)
-                graph_coeff = effective_weights.get('graph_match', 0.0)
-                x_graph_all = np.zeros(len(metadata), dtype=np.float32)
                 if data_manager.embeddings_graph is not None:
                     user_graph_vecs = data_manager.embeddings_graph[rated_indices]
                     all_graph_vectors = data_manager.embeddings_graph
@@ -1604,32 +1606,44 @@ def recommend(request: RecommendationRequest):
                     for c, f_idx in enumerate(rated_indices): graph_sim_matrix[f_idx, c] = 0.0
                     x_graph_all = (np.dot(graph_sim_matrix, y_dev) / (np.sum(graph_sim_matrix, axis=1) + 1e-9))
 
-        final_scores_all = calculate_linear_scores(
-            z_quality=q_grid_working,
-            z_date=metadata['date_z'].values,
-            z_pop=metadata['pop_z'].values,
-            z_playtime=metadata['playtime_z'].values,
-            z_difficulty=metadata['difficulty_z'].values,
-            z_price=metadata['price_z'].values,
-            tag_vectors=data_manager.tag_vectors,
-            tag_norms=data_manager.tag_vectors_norms,
-            beta_tag=np.array(request.vibe_vector, dtype=np.float32),
-            weights=effective_weights,
-            tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
-            dot_product_lambda=DOT_PRODUCT_LAMBDA,
-            z_semantic=all_semantic_sims if (request.prompt or seed_appids or request.semantic_vibe_vector) else None,
-            w_semantic=w_semantic,
-            z_topic=all_topic_sims if (request.prompt or request.topic_vibe_vector) else None,
-            w_topic=request.gamma_topic,
-            z_clamp_min=Z_SCORE_CLAMP_MIN,
-            z_clamp_max=Z_SCORE_CLAMP_MAX,
-            dna_scaling_factor=1.0, # 0.57 Restoration: Force raw model output
-            intercept=request.intercept or 5.0,
-            tag_sim=all_tag_sims,
-            x_kernel=x_kernel_all,
-            x_graph=x_graph_all,
-            mig_features=candidate_mig_features
-        )
+        # --- ASSEMBLE X AND APPLY LEARNED COEFFS ---
+        x_q = to_z(q_grid_working, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+        x_date = to_z(metadata['date_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+        x_pop = to_z(metadata['pop_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+        x_playtime = to_z(metadata['playtime_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+        x_diff = to_z(metadata['difficulty_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+        x_price = to_z(metadata['price_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+        x_tone = to_z(data_manager.tone_z if data_manager.tone_z is not None else metadata['tone_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+        
+        # X order must match solver: [Kernel, Graph, Q, Date, Pop, Playtime, Diff, Price, Tone, MIGs, Topics]
+        X_full = np.column_stack([
+            x_kernel_all, x_graph_all, x_q, 
+            x_date, x_pop, x_playtime, x_diff, x_price, x_tone,
+            mig_matrix,
+            data_manager.topic_distributions
+        ])
+        
+        # Linear combination using profile weights
+        learned_coeffs = []
+        learned_coeffs.append(request.metadata_weights.get('kernel_match', 0.0))
+        learned_coeffs.append(request.metadata_weights.get('graph_match', 0.0))
+        learned_coeffs.append(request.metadata_weights.get('quality', 0.0))
+        learned_coeffs.append(request.metadata_weights.get('age', 0.0))
+        learned_coeffs.append(request.metadata_weights.get('popularity', 0.0))
+        learned_coeffs.append(request.metadata_weights.get('length', 0.0))
+        learned_coeffs.append(request.metadata_weights.get('difficulty', 0.0))
+        learned_coeffs.append(request.metadata_weights.get('price', 0.0))
+        learned_coeffs.append(request.metadata_weights.get('tone', 0.0))
+        
+        mig_weights = {a['group']: a['impact'] for a in request.metadata_weights.get('kernel_anchors', [])}
+        for group in MIGS.keys():
+            learned_coeffs.append(mig_weights.get(group, 0.0))
+            
+        # Add Topic weights from profile if they exist
+        topic_weights = request.metadata_weights.get('topic_coeffs', [0.0] * 249)
+        learned_coeffs.extend(topic_weights)
+        
+        final_scores_all = np.dot(X_full, np.array(learned_coeffs)) + (request.intercept or 5.0)
         final_scores = final_scores_all[keep_indices]
         
         # Add Dimension Similarities to linear scores if requested
