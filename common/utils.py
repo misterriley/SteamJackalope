@@ -413,24 +413,29 @@ def calculate_jackalope_kernel_2d(verb_profiles, seed_verb_profiles, sem_vectors
     c_sums_w, s_sums_w = np.dot(C_mig, w_vec), np.dot(S_mig, w_vec)
     union_w = c_sums_w[:, None] + s_sums_w[None, :] - inter_w
     identity_match = inter_w / (union_w + 1e-9)
-    v_c, v_s = verb_profiles.astype(np.float32) ** 2, seed_verb_profiles.astype(np.float32) ** 2
+    v_c, v_s = verb_profiles.astype(np.float32), seed_verb_profiles.astype(np.float32)
     tag_sims = np.zeros((N_cand, M_seed), dtype=np.float32)
     for i in range(M_seed):
         tag_sims[:, i] = np.sum(np.minimum(v_c, v_s[i]), axis=1) / (np.sum(np.maximum(v_c, v_s[i]), axis=1) + 1e-9)
     
     # 2. Thematic Signal (The Soul)
     sem_dots = np.dot(sem_vectors.astype(np.float32), seed_sem_vecs.astype(np.float32).T)
-    from common.constants import SEMANTIC_DOT_PRODUCT_LAMBDA
+    from common.constants import SEMANTIC_DOT_PRODUCT_LAMBDA, TOPIC_GLOBAL_SCALING_FACTOR
     sem_sims = (sem_dots / (sem_norms[:, None].astype(np.float32) + SEMANTIC_DOT_PRODUCT_LAMBDA)) / (seed_sem_norms[None, :].astype(np.float32) + SEMANTIC_DOT_PRODUCT_LAMBDA)
-    
-    # 0.57 Restoration: Remove topics and CDFs, use raw semantic similarity
-    vibe_sim = sem_sims
-    vibe_shield = (sem_sims > 0.4)
-    
+
+    # Re-integrate Topic Signal
+    topic_sims = np.dot(topic_distributions.astype(np.float32), seed_topic_dists.astype(np.float32).T)
+    topic_sims = np.clip(topic_sims, 0, 1)
+
+    # Composite Vibe: Topics act as a multiplier, not a divisor
+    vibe_sim = sem_sims * (1.0 + 0.5 * topic_sims)
+    vibe_shield = (sem_sims > 0.35) | (topic_sims > 0.6)
+
     # 3. Oracle Blend
-    id_power = np.where(vibe_shield, 1.0, 2.5).astype(np.float32)
+    id_power = np.where(vibe_shield, 1.0, 2.0).astype(np.float32)
     kernel = (tag_sims * (identity_match ** id_power)) * vibe_sim * tone_sim * diff_sim
-    
-    # 4. Hard Gates
-    kernel = np.where((sem_sims < 0.12) & ~vibe_shield, 0.01, kernel)
+
+    # 4. Hard Gates (Softer Floor)
+    kernel = np.where((sem_sims < 0.05) & ~vibe_shield, 0.001, kernel)
     return np.maximum(kernel.astype(np.float32), 0.0)
+
