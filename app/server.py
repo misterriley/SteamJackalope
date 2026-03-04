@@ -85,7 +85,11 @@ from common.constants import (
     TOPIC_GLOBAL_SCALING_FACTOR,
     TOPIC_DOT_PRODUCT_LAMBDA
 )
-from common.utils import to_z, calculate_hybrid_score, calculate_linear_scores, calculate_personalized_quality, softmin_blend, fast_jsd_similarity, calculate_jackalope_kernel
+from common.utils import (
+    to_z, calculate_hybrid_score, calculate_linear_scores, calculate_personalized_quality, 
+    softmin_blend, fast_jsd_similarity, calculate_jackalope_kernel, normalize_string, 
+    clean_release_date, MIGS, NARRATIVE_TAGS, HORROR_MARKERS, HARD_ANCHORS
+)
 
 app = FastAPI()
 
@@ -112,6 +116,7 @@ class DataManager:
         self.topic_means = None
         self.topic_stds = None
         self.topic_model = None
+        self.embeddings_graph = None
         self.w_desc = None
         self.mean_desc = None
         self.model = None
@@ -122,19 +127,6 @@ class DataManager:
         self.tag_dimension_descriptions = {}
         self.lists_cache = {}
         self.appid_to_idx = {}
-
-    def normalize_string(self, s):
-        """Removes accents and special characters for fuzzy matching."""
-        if not s or not isinstance(s, str):
-            return ""
-        # Remove accents and convert to lowercase
-        s = "".join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
-        s = s.lower()
-        # Remove common special characters that users often omit
-        s = re.sub(r'[™®©:]', '', s)
-        # Replace non-alphanumeric with space and clean up double spaces
-        s = re.sub(r'[^a-z0-9]', ' ', s)
-        return " ".join(s.split())
 
     def filter_dead_tags(self, tags_str):
         """Filters out tags that are not in the term_links mapping (dead tags)."""
@@ -152,46 +144,6 @@ class DataManager:
             return tags_str
         except:
             return tags_str
-
-    def clean_release_date(self, date_str):
-        if pd.isna(date_str) or date_str == "":
-            return pd.NaT
-        
-        s = str(date_str).strip()
-        
-        # Handle "coming soon", "TBD", "Maybe", etc.
-        placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
-        if s.lower() in placeholders:
-            return pd.Timestamp.now().normalize() + pd.DateOffset(years=1)
-        
-        # Handle extreme placeholder dates (e.g., 9998, 6969, 9000)
-        extreme_match = re.search(r'\b(9998|6969|9000|2099)\b', s)
-        if extreme_match:
-            return pd.Timestamp.now().normalize() + pd.DateOffset(years=1)
-
-        # Handle Quarterly dates (e.g., Q1 2026)
-        if re.match(r'^[Qq][1-4]\s+\d{4}$', s):
-            return pd.Timestamp.now().normalize() + pd.DateOffset(years=1)
-        
-        # Match "YYYY-MM-DD"
-        if re.match(r'^\d{4}-\d{2}-\d{2}$', s):
-            return pd.to_datetime(s, errors='coerce')
-        
-        # Match "YYYY" -> YYYY-07-01
-        if re.match(r'^\d{4}$', s):
-            return pd.to_datetime(s + "-07-01", errors='coerce')
-        
-        # Match "Month YYYY" or "YYYY Month" (assume 15th)
-        m1 = re.match(r'^([A-Za-z]+)\s+(\d{4})$', s)
-        if m1:
-            return pd.to_datetime(f"{m1.group(1)} 15, {m1.group(2)}", errors='coerce')
-        
-        m2 = re.match(r'^(\d{4})\s+([A-Za-z]+)$', s)
-        if m2:
-            return pd.to_datetime(f"{m2.group(2)} 15, {m2.group(1)}", errors='coerce')
-
-        # Default fallback for "DD Mon, YYYY" etc.
-        return pd.to_datetime(s, errors='coerce')
 
     def load_data(self):
         logger.info("Starting data load...")
@@ -251,6 +203,16 @@ class DataManager:
             logger.info("Topic model loaded successfully")
         else:
             logger.warning(f"Topic model file NOT FOUND at {TOPIC_MODEL_FILE}")
+
+        # 2.6 Load Behavioral Graph Embeddings (v7.0)
+        graph_path = os.path.join(PRODUCTION_DATA_DIR, "embeddings_graph.npy")
+        if os.path.exists(graph_path):
+            logger.info(f"Loading embeddings_graph from {graph_path}")
+            self.embeddings_graph = np.load(graph_path, mmap_mode='r')
+            logger.info(f"Embeddings_graph: shape={self.embeddings_graph.shape}, dtype={self.embeddings_graph.dtype}")
+        else:
+            logger.warning(f"Graph embeddings NOT FOUND at {graph_path}")
+            self.embeddings_graph = None
 
 
         # 3. Load Metadata
@@ -362,13 +324,13 @@ class DataManager:
         # Release dates are now pre-parsed in the pipeline
         if 'parsed_date' not in self.metadata.columns:
             logger.warning("parsed_date missing from metadata! Re-parsing...")
-            self.metadata['parsed_date'] = self.metadata['release_date'].apply(self.clean_release_date)
+            self.metadata['parsed_date'] = self.metadata['release_date'].apply(clean_release_date)
         else:
             self.metadata['parsed_date'] = pd.to_datetime(self.metadata['parsed_date'])
 
         # Pre-calculate normalized names for fuzzy search
         logger.info("Pre-calculating normalized names for search...")
-        self.metadata['normalized_name'] = self.metadata['name'].apply(self.normalize_string)
+        self.metadata['normalized_name'] = self.metadata['name'].apply(normalize_string)
         
         # Mapping AppID to Index for fast lookups
         self.appid_to_idx = {appid: i for i, appid in enumerate(self.metadata['appid'])}
@@ -492,7 +454,6 @@ class DataManager:
 
         # Pre-calculate anchor masks for MIGs and Narrative tags
         logger.info("Pre-calculating anchor masks...")
-        from common.utils import MIGS, NARRATIVE_TAGS, HORROR_MARKERS, HARD_ANCHORS
         self.anchor_masks = {}
         
         # Collect all tags needed for masks
@@ -1329,28 +1290,17 @@ def recommend(request: RecommendationRequest):
     logger.info(f"Seed games: requested={len(request.seed_games)}, found={len(seed_indices)}")
     seed_appids = metadata.iloc[seed_indices]['appid'].tolist()
 
-    # 1. Filtering
-    mask = np.ones(len(metadata), dtype=bool)
-    
-    if request.english_only or is_linear_mode:
-        mask &= metadata['is_english'].values.astype(bool)
-    if request.remove_utilities or is_linear_mode:
-        mask &= ~metadata['is_utility'].values.astype(bool)
-    if request.remove_unreleased or is_linear_mode:
-        if os.path.exists(METADATA_FILE):
-            try:
-                build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s')
-                # Fallback: also check release_date string for placeholders
-                placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
-                is_placeholder = metadata['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True).values
-                is_future = (metadata['parsed_date'] > build_time).fillna(False).values | is_placeholder
-                mask &= ~is_future.astype(bool)
-            except Exception as e:
-                logger.error(f"Error in unreleased filter: {e}")
-    if request.remove_vr or is_linear_mode:
-        mask &= ~metadata['is_vr_only'].values.astype(bool)
-    if request.remove_delisted or is_linear_mode:
-        mask &= ~metadata['is_delisted'].values.astype(bool)
+    # 1. Base Filtering via unified helper
+    from common.utils import get_base_filter_mask
+    mask = get_base_filter_mask(
+        metadata,
+        english_only=request.english_only or is_linear_mode,
+        remove_vr=request.remove_vr or is_linear_mode,
+        remove_utilities=request.remove_utilities or is_linear_mode,
+        remove_delisted=request.remove_delisted or is_linear_mode,
+        remove_hollow=is_linear_mode, # Linear mode always removes hollow
+        remove_unreleased=request.remove_unreleased or is_linear_mode
+    )
 
     # 7. No Games with Zero Reviews (Parity with Solver)
     total_reviews = metadata['positive'].fillna(0) + metadata['negative'].fillna(0)
@@ -1392,27 +1342,10 @@ def recommend(request: RecommendationRequest):
         seed_topic_dist = np.mean(data_manager.topic_distributions[seed_indices], axis=0)
         seed_topic_dist /= (np.sum(seed_topic_dist) + EPSILON)
         
-        # Prepare Metadata
-        seed_tags_list = []
-        for idx in seed_indices:
-            tags_str = metadata.iloc[idx]['tags']
-            seed_tags_list.extend(re.findall(r"'([^']+)':", tags_str))
-        seed_tags_set = set(seed_tags_list)
-
-        from common.utils import MIGS, NARRATIVE_TAGS, HARD_ANCHORS
-        seed_migs = {group for group, tags in MIGS.items() if any(t in seed_tags_set for t in tags)}
-        seed_tags = seed_tags_set & HARD_ANCHORS
-        active_narrative_seed = [t for t in NARRATIVE_TAGS if t in seed_tags_set]
-        is_cinematic_seed = "Cinematic" in seed_tags_set
-
-        # Title Hijack Detection (Indie Parodies)
-        title_hijack_mask = np.zeros(len(metadata), dtype=bool)
-        for seed_name in request.seed_games:
-            keywords = [k for k in re.split(r'[^a-zA-Z0-9]', seed_name.lower()) if len(k) > 3]
-            if keywords:
-                pattern = '|'.join(keywords)
-                title_match = metadata['normalized_name'].str.contains(pattern, regex=True).values
-                title_hijack_mask |= title_match
+        # Prepare Metadata via unified helper
+        from common.utils import extract_seed_metadata, calculate_title_hijack_mask
+        seed_meta = extract_seed_metadata(seed_indices, metadata)
+        title_hijack_mask = calculate_title_hijack_mask(request.seed_games, metadata)
 
         jackalope_sims, jackalope_components = calculate_jackalope_kernel(
             verb_profiles=data_manager.verb_profiles,
@@ -1430,18 +1363,20 @@ def recommend(request: RecommendationRequest):
             sem_scaling_factor=SEMANTIC_GLOBAL_SCALING_FACTOR,
             sem_lambda=SEMANTIC_DOT_PRODUCT_LAMBDA,
             mature_content_flags=metadata['mature_content'].values > 0,
-            seed_mature_content=bool(np.any(metadata.iloc[seed_indices]['mature_content'] > 0)),
-            seed_migs=seed_migs,
-            seed_tags=seed_tags,
+            seed_mature_content=bool(np.any(seed_meta['mature_flags'])),
+            seed_migs=seed_meta['migs_list'][0] if len(seed_meta['migs_list']) == 1 else set().union(*seed_meta['migs_list']),
+            seed_tags=seed_meta['all_soul_tags'],
             candidate_anchor_masks=data_manager.anchor_masks,
-            active_narrative_seed=active_narrative_seed,
-            is_cinematic_seed=is_cinematic_seed,
+            active_narrative_seed=seed_meta['active_narrative'],
+            is_cinematic_seed=seed_meta['is_cinematic'],
             precalculated_masks={"title_hijack": title_hijack_mask},
             difficulty_z=metadata['difficulty_z'].values,
             seed_difficulty_z=np.mean(metadata.iloc[seed_indices]['difficulty_z']),
             tone_z=metadata['tone_z'].values if 'tone_z' in metadata.columns else None,
             seed_tone_z=np.mean(metadata.iloc[seed_indices]['tone_z']) if 'tone_z' in metadata.columns else None,
-            return_components=True
+            return_components=True,
+            graph_embeddings=data_manager.embeddings_graph,
+            seed_graph_vec=np.mean(data_manager.embeddings_graph[seed_indices], axis=0) if data_manager.embeddings_graph is not None else None
         )
     # 3. Component Blending (Prompt + DNA + Jackalope)
     all_semantic_sims = np.zeros(len(metadata))
@@ -1548,19 +1483,19 @@ def recommend(request: RecommendationRequest):
                     q_global = q_grid_working[idx]
                     q_grid_working[idx] = calculate_personalized_quality(np.array([q_global]), np.array([p_plus_t]))[0]
 
-    z_spps = np.clip(q_grid_working[keep_indices], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-    z_date = np.clip(metadata.iloc[keep_indices]['date_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-    z_pop = np.clip(metadata.iloc[keep_indices]['pop_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-    z_length = np.clip(metadata.iloc[keep_indices]['playtime_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-    z_difficulty = np.clip(metadata.iloc[keep_indices]['difficulty_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
-    z_price = np.clip(metadata.iloc[keep_indices]['price_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
+    z_spps = to_z(q_grid_working[keep_indices], clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+    z_date = to_z(metadata.iloc[keep_indices]['date_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+    z_pop = to_z(metadata.iloc[keep_indices]['pop_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+    z_length = to_z(metadata.iloc[keep_indices]['playtime_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+    z_difficulty = to_z(metadata.iloc[keep_indices]['difficulty_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
+    z_price = to_z(metadata.iloc[keep_indices]['price_z'].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
 
     # 5. Final Scoring
     if is_linear_mode:
         logger.info("Using Linear Mode (Taste DNA)")
         w_tag = request.beta
         w_semantic = request.alpha
-
+        
         effective_weights = {
             'quality': request.quality_pref,
             'age': request.age_pref,
@@ -1569,10 +1504,106 @@ def recommend(request: RecommendationRequest):
             'difficulty': request.difficulty_pref,
             'price': request.price_pref,
             'tag_match': w_tag,
-            'topic_match': request.gamma_topic
+            'topic_match': request.gamma_topic,
+            'kernel_match': request.metadata_weights.get('kernel_match', 0.0) if request.metadata_weights else 0.0,
+            'graph_match': request.metadata_weights.get('graph_match', 0.0) if request.metadata_weights else 0.0
         }
+        
+        # Add MIG weights from profile
+        if request.metadata_weights:
+            for group in MIGS.keys():
+                feat_key = f"MIG_{group}"
+                for anchor in request.metadata_weights.get('kernel_anchors', []):
+                    if anchor['group'] == group:
+                        effective_weights[feat_key] = anchor['impact']
 
-        # For DNA mode, we use the blended tag_sims calculated above
+        # --- ZERO-DRIFT STRUCTURAL FEATURES ---
+        # 1. MIG Features for Candidates
+        candidate_mig_features = {}
+        for group in MIGS.keys():
+            # Use pre-calculated anchor masks from DataManager
+            m = np.zeros(len(metadata), dtype=bool)
+            for t in MIGS[group]:
+                if t in data_manager.anchor_masks: m |= data_manager.anchor_masks[t]
+            candidate_mig_features[group] = m.astype(float)
+            
+        # 2. NW Kernel Feature (Relative to Rated Games)
+        x_kernel_all = np.zeros(len(metadata), dtype=np.float32)
+        if request.rated_appids:
+            rated_indices = [data_manager.appid_to_idx[aid] for aid in request.rated_appids if aid in data_manager.appid_to_idx]
+            if rated_indices:
+                # Need seed tags/migs for constraints
+                rated_seed_tags = []
+                rated_seed_migs = []
+                for idx in rated_indices:
+                    t_str = metadata.iloc[idx]['tags']
+                    t_dict = ast.literal_eval(t_str)
+                    max_v = max(t_dict.values()) if t_dict else 1.0
+                    s_tags_soul = {t for t, v in t_dict.items() if v / max_v > 0.15}
+                    rated_seed_tags.append(s_tags_soul)
+                    s_migs = {group for group, tags in MIGS.items() if any(t in s_tags_soul for t in tags)}
+                    rated_seed_migs.append(s_migs)
+                
+                # Pre-calculate candidate MIG mask array
+                mig_mask_array = np.zeros((len(metadata), len(MIGS)), dtype=bool)
+                for j, group in enumerate(MIGS.keys()):
+                    for t in MIGS[group]:
+                        if t in data_manager.anchor_masks: mig_mask_array[:, j] |= data_manager.anchor_masks[t]
+                
+                # Use synchronized 2D kernel
+                from common.utils import calculate_jackalope_kernel_2d
+                k_mat = calculate_jackalope_kernel_2d(
+                    verb_profiles=data_manager.verb_profiles,
+                    seed_verb_profiles=data_manager.verb_profiles[rated_indices],
+                    sem_vectors=data_manager.embeddings_desc_norm,
+                    sem_norms=data_manager.embeddings_desc_norms,
+                    seed_sem_vecs=data_manager.embeddings_desc_norm[rated_indices],
+                    seed_sem_norms=data_manager.embeddings_desc_norms[rated_indices],
+                    topic_distributions=data_manager.topic_distributions,
+                    seed_topic_dists=data_manager.topic_distributions[rated_indices],
+                    topic_means=data_manager.topic_means,
+                    topic_stds=data_manager.topic_stds,
+                    candidate_mig_masks=mig_mask_array,
+                    seed_mig_masks=mig_mask_array[rated_indices],
+                    difficulty_z=metadata['difficulty_z'].values,
+                    seed_difficulty_z=metadata['difficulty_z'].values[rated_indices],
+                    tone_z=data_manager.tone_z if data_manager.tone_z is not None else metadata['tone_z'].values,
+                    seed_tone_z=data_manager.tone_z[rated_indices] if data_manager.tone_z is not None else metadata['tone_z'].values[rated_indices],
+                    seed_tags=rated_seed_tags,
+                    seed_migs=rated_seed_migs,
+                    mature_content_flags=metadata['mature_content'].values > 0,
+                    seed_mature_content_flags=metadata['mature_content'].values[rated_indices] > 0,
+                    graph_embeddings=data_manager.embeddings_graph,
+                    seed_graph_vecs=data_manager.embeddings_graph[rated_indices] if data_manager.embeddings_graph is not None else None
+                )
+                
+                # Nadaraya-Watson aggregation
+                k_exp = np.exp(k_mat * 5.0)
+                # Prevent games from predicting themselves
+                for c, r_idx in enumerate(rated_indices):
+                    k_exp[r_idx, c] = 0.0
+                
+                y_rated = np.array([request.library_details.get(str(aid), {}).get('actual_rating', 5.0) for aid in request.rated_appids])
+                y_dev = y_rated - 5.0
+                sum_weights = np.sum(k_exp, axis=1)
+                x_kernel_all = np.sum(k_exp * y_dev, axis=1) / (sum_weights + 1e-9)
+
+                # Calculate full library Graph Similarity feature (v6.0 Restoration)
+                graph_coeff = effective_weights.get('graph_match', 0.0)
+                x_graph_all = np.zeros(len(metadata), dtype=np.float32)
+                if data_manager.embeddings_graph is not None:
+                    user_graph_vecs = data_manager.embeddings_graph[rated_indices]
+                    all_graph_vectors = data_manager.embeddings_graph
+                    # (N_library, M_seeds)
+                    graph_sim_matrix = np.dot(all_graph_vectors.astype(np.float32), user_graph_vecs.astype(np.float32).T)
+                    g_norms = np.linalg.norm(all_graph_vectors.astype(np.float32), axis=1)
+                    s_norms = np.linalg.norm(user_graph_vecs.astype(np.float32), axis=1)
+                    graph_sim_matrix /= (g_norms[:, None] * s_norms[None, :] + 1e-9)
+                    graph_sim_matrix = np.maximum(0, graph_sim_matrix)
+                    # Zero out identity matches
+                    for c, f_idx in enumerate(rated_indices): graph_sim_matrix[f_idx, c] = 0.0
+                    x_graph_all = (np.dot(graph_sim_matrix, y_dev) / (np.sum(graph_sim_matrix, axis=1) + 1e-9))
+
         final_scores_all = calculate_linear_scores(
             z_quality=q_grid_working,
             z_date=metadata['date_z'].values,
@@ -1592,9 +1623,12 @@ def recommend(request: RecommendationRequest):
             w_topic=request.gamma_topic,
             z_clamp_min=Z_SCORE_CLAMP_MIN,
             z_clamp_max=Z_SCORE_CLAMP_MAX,
-            dna_scaling_factor=request.scaling_factor or 1.0,
-            intercept=5.0,
-            tag_sim=all_tag_sims
+            dna_scaling_factor=1.0, # 0.57 Restoration: Force raw model output
+            intercept=request.intercept or 5.0,
+            tag_sim=all_tag_sims,
+            x_kernel=x_kernel_all,
+            x_graph=x_graph_all,
+            mig_features=candidate_mig_features
         )
         final_scores = final_scores_all[keep_indices]
         

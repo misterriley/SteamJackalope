@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import RidgeCV
+from sklearn.linear_model import LassoCV
 import os
 import sys
 import json
@@ -143,8 +143,25 @@ def solve_user_taste(ground_truth_path, output_path=None):
         graph_embeddings=user_graph_vectors, seed_graph_vecs=user_graph_vectors
     )
 
+    # --- LEAK-PROOFING: Identify "Twins" and "Series" in the rated pool ---
+    from common.utils import normalize_string
+    user_names = user_meta_df['name'].tolist()
+    leak_proof_mask = (K_train < 0.95)
+    
+    # Simple keyword-based series detection for masking
+    for i in range(N):
+        clean_i = set(normalize_string(user_names[i]).split())
+        if len(clean_i) < 2: continue 
+        for j in range(i + 1, N):
+            clean_j = set(normalize_string(user_names[j]).split())
+            overlap = clean_i.intersection(clean_j)
+            if len(overlap) >= 2 and (len(overlap) / max(len(clean_i), len(clean_j)) > 0.7):
+                leak_proof_mask[i, j] = False
+                leak_proof_mask[j, i] = False
+
     # Exponential scaling to punish non-identical matches and favor extreme local clustering (0.57 Restoration)
     K_exp = np.exp(K_train * 10.0)
+    K_exp *= leak_proof_mask # Apply the leak-proof mask
     # Zero out diagonal so a game doesn't predict itself
     np.fill_diagonal(K_exp, 0.0)
     
@@ -176,6 +193,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     g_norms = np.linalg.norm(user_graph_vectors, axis=1)
     graph_sim_matrix = dot_graph / (g_norms[:, None] * g_norms[None, :] + 1e-9)
     graph_sim_matrix = np.maximum(0, graph_sim_matrix)
+    graph_sim_matrix *= leak_proof_mask # Apply same leak-proof mask to graph
     np.fill_diagonal(graph_sim_matrix, 0.0)
     
     # Average graph similarity to other rated games (weighted by their dev from 5.0)
@@ -184,8 +202,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # COMBINE: X = [Kernel, Graph, Q, Meta, MIGs]
     X = np.hstack([X_kernel, X_graph, q_global.reshape(-1, 1), X_meta, X_mig])
     
-    print(f"Solving Archetypal Ridge for {N} samples with {X.shape[1]} features...")
-    model = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 50.0, 100.0], cv=5).fit(X, y)
+    print(f"Solving Archetypal Lasso for {N} samples with {X.shape[1]} features...")
+    model = LassoCV(cv=5, max_iter=10000, selection='random', tol=1e-3).fit(X, y)
     r2_train = model.score(X, y)
     print(f"Model Training R^2: {r2_train:.4f}")
 
@@ -357,7 +375,6 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Associative Tags (Regression on Tags)
     print("Calculating associative tag impacts...")
     # This is a bit heavy, so we subsample or use a simpler model
-    from sklearn.linear_model import LassoCV
     tag_X = np.load(TAG_VECTORS_FILE, mmap_mode='r')[user_indices]
     tag_model = LassoCV(cv=5, alphas=[1e-4, 1e-3, 1e-2, 0.1, 1.0, 10.0]).fit(tag_X, y)
     tag_names = json.load(open(TAG_NAMES_FILE, 'r'))
