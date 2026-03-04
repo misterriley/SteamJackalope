@@ -183,21 +183,25 @@ def calculate_jackalope_kernel(
         identity_match = np.maximum(identity_match, soul_match_mask.astype(np.float32) * 0.35)
 
     # 2. Vibe Signal (The Soul)
-    # 0.57 Restoration: Remove topics and CDF, use raw semantic similarity
-    vibe_sim = sem_sims
-    vibe_shield = (sem_sims > 0.4) # Raw similarity threshold for veto bypass
+    # Re-integrate Topic Signal for consistency
+    topic_sims = np.dot(topic_distributions.astype(np.float32), seed_topic_dist.astype(np.float32))
+    topic_sims = np.clip(topic_sims, 0, 1)
+    
+    # Composite Vibe: Topics act as a multiplier, not a divisor
+    vibe_sim = sem_sims * (1.0 + 0.5 * topic_sims)
+    vibe_shield = (sem_sims > 0.35) | (topic_sims > 0.6)
 
-    # 3. Mechanical Core
-    v_c, v_s = verb_profiles.astype(np.float32) ** 2, seed_verb_profile.astype(np.float32) ** 2
+    # 3. Mechanical Core (Linear Jaccard)
+    v_c, v_s = verb_profiles.astype(np.float32), seed_verb_profile.astype(np.float32)
     tag_sims = np.sum(np.minimum(v_c, v_s), axis=1) / (np.sum(np.maximum(v_c, v_s), axis=1) + 1e-9)
     
     # 4. Oracle Blend
-    id_power = np.where(vibe_shield | soul_match_mask | (identity_match > 0.8) | structural_seed_match, 1.0, 2.5)
+    id_power = np.where(vibe_shield | soul_match_mask | (identity_match > 0.8) | structural_seed_match, 1.0, 2.0)
     kernel = (tag_sims * (identity_match ** id_power)) * vibe_sim * tone_sim * diff_sim
     
-    # 5. Hard Gates
-    effective_floor = np.where(structural_seed_match | (identity_match > 0.8), 0.0, 0.12)
-    kernel = np.where((sem_sims < effective_floor) & ~vibe_shield, 0.01, kernel) 
+    # 5. Hard Gates (Softer Floor)
+    effective_floor = np.where(structural_seed_match | (identity_match > 0.8), 0.0, 0.05)
+    kernel = np.where((sem_sims < effective_floor) & ~vibe_shield, 0.001, kernel) 
     
     if candidate_anchor_masks:
         kernel = apply_kernel_vetoes(kernel, candidate_masks=candidate_anchor_masks, seed_tags=seed_tags, seed_migs=active_seed_migs, is_2d=False, identity_match=identity_match, vibe_shield=vibe_shield, soul_match_mask=soul_match_mask)
