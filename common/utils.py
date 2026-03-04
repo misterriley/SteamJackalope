@@ -5,52 +5,48 @@ from common.constants import (
     KERNEL_VETO_PENALTY, KERNEL_RESCUE_THRESHOLD, KERNEL_SOUL_MATCH_THRESHOLD,
     KERNEL_MOOD_CLASH_PENALTY, KERNEL_CINEMATIC_BOOST, KERNEL_CRPG_BOOST,
     KERNEL_SOFT_GATE_TEMP, HORROR_MARKERS, HARD_ANCHORS, SYMMETRIC_ANCHORS,
-    SERIOUS_TAGS, CUTE_TAGS, SERIOUS_MOOD_TAGS, LIGHT_MOOD_TAGS, NARRATIVE_TAGS
+    SERIOUS_TAGS, CUTE_TAGS, SERIOUS_MOOD_TAGS, LIGHT_MOOD_TAGS, NARRATIVE_TAGS,
+    KERNEL_IDENTITY_POWER, KERNEL_THEMATIC_CLASH_PENALTY,
+    KERNEL_HARD_POLLUTION_PENALTY, KERNEL_SOFT_POLLUTION_PENALTY,
+    KERNEL_STRONG_NSFW_PENALTY, KERNEL_MATURE_NSFW_PENALTY,
+    KERNEL_VR_PENALTY, KERNEL_PERSPECTIVE_PENALTY
 )
 
 # --- Mechanical Identity Groups (MIGs) ---
 MIGS = {
-    "SHOOTER": {"FPS", "Shooter", "Third-Person Shooter", "Arena Shooter", "Hero Shooter", "Looter Shooter", "Extraction Shooter", "Boomer Shooter", "On-Rails Shooter", "Immersive Sim", "Top-Down Shooter", "Twin Stick Shooter", "Battle Royale", "Tactical FPS"},
-    "BULLET_HELL": {"Bullet Hell", "Shoot 'Em Up", "Twin Stick Shooter", "Top-Down Shooter"},
-    "SPATIAL_PUZZLE": {"Puzzle", "Puzzle Platformer", "3D Platformer"},
-    "LOGIC_PUZZLE": {"Logic", "Sokoban", "Abstract", "Minimalist", "Programming", "Coding", "Automation"},
-    "CASUAL_PUZZLE": {"Hidden Object", "Match 3", "Trivia", "Word Game", "Board Game"},
-    "COMPETITIVE": {"PvP", "eSports", "Competitive", "Battle Royale", "Multiplayer"},
-    "STEALTH": {"Stealth", "Assassin", "Immersive Sim"},
-    "WALKING_SIM": {"Walking Simulator"},
-    "NARRATIVE": {"Story Rich", "Choices Matter", "Multiple Endings", "Cinematic", "Dynamic Narration", "Narration", "Emotional", "Interactive Fiction", "Visual Novel", "Dating Sim", "Otome"},
-    "IDLE_CLICKER": {"Idler", "Clicker", "Incremental", "Idle"},
-    "SINGLEPLAYER": {"Singleplayer"},
-    "CASUAL": {"Casual", "Relaxing", "Family Friendly", "Colorful", "Cartoony"},
-    "FAMILY_FRIENDLY": {"Family Friendly"},
-    "PLATFORMER": {"Precision Platformer", "2D Platformer", "3D Platformer", "Platformer", "Runner", "Puzzle Platformer"},
-    "FIGHTING": {"Fighting", "2D Fighter", "3D Fighter", "Boxing", "Wrestling", "Beat 'em up"},
-    "MELEE_ACTION": {"Souls-like", "Spectacle fighter", "Hack and Slash", "Beat 'em up", "Character Action Game", "Musou", "Swordplay", "Action Roguelike", "Action RPG"},
-    "DECKBUILDER": {"Card Battler", "Roguelike Deckbuilder", "Trading Card Game", "Card Game", "Deckbuilding", "Board Game"},
-    "TACTICAL": {"Tactical", "Real Time Tactics", "Turn-Based Tactics", "Turn-Based Strategy", "Tactical RPG", "Strategy RPG", "Wargame", "Tactical FPS"},
-    "GRAND_STRATEGY": {"Grand Strategy", "4X", "Wargame"},
-    "STRATEGY_RT": {"RTS", "Real-Time", "Action RTS", "Tower Defense"},
-    "SURVIVAL": {"Survival", "Survival Horror", "Open World Survival Craft", "Inventory Management", "Resource Management"},
-    "MANAGEMENT": {"Management", "Colony Sim", "City Builder", "Resource Management", "Time Management", "Inventory Management", "Shop Keeper", "Base Building", "Automation", "Farming Sim", "Life Sim", "Economy"},
+    "SHOOTER": {"FPS", "Arena Shooter", "Boomer Shooter", "Hero Shooter", "Tactical FPS", "Third-Person Shooter", "Shooter"},
+    "MELEE_ACTION": {"Souls-like", "Spectacle fighter", "Hack and Slash", "Character Action Game", "Swordplay"},
+    "ACTION_ADVENTURE": {"Action-Adventure", "Action"},
+    "PUZZLE_LOGIC": {"Logic", "Sokoban", "Programming", "Coding", "Automation", "Word Game"},
+    "PUZZLE_SPATIAL": {"Puzzle", "Puzzle Platformer", "3D Platformer", "Hidden Object"},
+    "PLATFORMER": {"Precision Platformer", "Runner", "Platformer"},
+    "STRATEGY": {"Turn-Based Strategy", "Turn-Based Tactics", "RTS", "Real-Time", "Action RTS", "Tower Defense", "4X"},
+    "MANAGEMENT": {"Colony Sim", "City Builder", "Management", "Shop Keeper", "Economy", "Resource Management", "Inventory Management"},
     "BUILDING": {"Building", "Base Building", "Sandbox"},
-    "REALISTIC_SIM": {"Realistic", "Simulation"},
-    "AUTOMATION": {"Automation", "Programming", "Coding"},
-    "EDUCATION": {"Education", "Science", "Math", "Typing", "Spelling"},
-    "CRPG": {"CRPG", "Party-Based RPG", "Tactical RPG", "Strategy RPG", "Dungeon Crawler", "RPG", "Action RPG", "JRPG"},
-    "POINT_AND_CLICK": {"Point & Click", "Hidden Object", "Visual Novel", "Interactive Fiction"},
-    "LIFE_SIM": {"Life Sim", "Farming Sim", "Social Beam", "Dating Sim", "Otome"},
+    "SURVIVAL": {"Survival", "Survival Horror", "Open World Survival Craft"},
+    "ROGUELIKE": {"Roguelike", "Roguelite", "Action Roguelike", "Traditional Roguelike", "Roguelike Deckbuilder"},
+    "NARRATIVE_VN": {"Visual Novel", "Anime", "Otome"},
+    "DATING_SIM": {"Dating Sim"},
+    "NARRATIVE_STORY": {"Story Rich", "Choices Matter", "Multiple Endings", "Cinematic", "Emotional", "Interactive Fiction", "Romance"},
+    "RPG_TRADITIONAL": {"Party-Based RPG", "Dungeon Crawler", "Turn-Based Combat", "Tactical RPG"},
+    "RPG_MODERN": {"Action RPG", "JRPG", "RPG"},
+    "CRPG_IDENTITY": {"CRPG", "Isometric"},
+    "POINT_AND_CLICK": {"Point & Click"},
+    "DETECTIVE": {"Detective", "Investigation", "Mystery"},
+    "CASUAL": {"Casual", "Relaxing", "Family Friendly", "Colorful", "Cartoony"},
+    "HORROR": {"Horror", "Survival Horror", "Psychological Horror", "Dark"},
     "METROIDVANIA": {"Metroidvania", "Roguevania"},
-    "ROGUELIKE": {"Roguelike", "Roguelite", "Action Roguelike", "Traditional Roguelike", "Roguevania", "Roguelike Deckbuilder", "Rogue-like", "Rogue-lite", "Dungeon Crawler"},
-    "BOARD_GAME": {"Board Game", "Trivia", "Chess", "Tabletop", "Solitaire", "Word Game"},
-    "RACING": {"Racing", "Driving", "Automobile Sim", "Combat Racing", "Vehicular Combat"},
-    "FLIGHT_SPACE": {"Flight", "Space Sim", "Space", "Sailing"},
-    "RHYTHM": {"Rhythm", "Music"},
-    "MOBA": {"MOBA", "Hero Shooter"},
-    "HORROR": {"Horror", "Survival Horror", "Psychological Horror"},
-    "TURN_BASED": {"Turn-Based", "Turn-Based Strategy", "Turn-Based Combat", "Turn-Based Tactics", "JRPG", "Turn-Based RPG", "4X", "Board Game"},
-    "SPORTS": {"Sports", "Football", "Soccer", "Basketball", "Golf", "Skating", "Extreme Sports"},
-    "SOULSLIKE": {"Souls-like", "Difficult", "Action RPG"},
-    "VR": {"VR", "VR Only"}
+    "VR": {"VR", "VR Only"},
+    "VEHICLE_SIM": {"Flight Sim", "Space Sim", "Racing", "Automobile Sim", "Flight"},
+    "SIMULATION": {"Simulation", "Life Sim", "Farming Sim", "Medical Sim", "Job Simulator"},
+    "OPEN_WORLD": {"Open World", "Sandbox", "Open World Survival Craft"},
+    "HENTAI": {"Hentai", "NSFW"},
+    "NUDITY": {"Nudity", "Sexual Content"},
+    "FMV": {"FMV", "Live-action"},
+    "SCI_FI": {"Sci-fi", "Futuristic", "Cyberpunk", "Space", "Space Sim"},
+    "FANTASY": {"Fantasy", "Magic", "Medieval", "Dark Fantasy"},
+    "HISTORICAL": {"Historical", "World War II", "World War I", "History"},
+    "SURREAL": {"Surreal", "Psychedelic", "Stylized", "Experimental"}
 }
 
 def to_z(x, ignore_zeros=False):
@@ -138,7 +134,7 @@ def calculate_linear_scores(
         signals = []
         if weights.get('tag_match', 0.0) > 1e-9 and prompt_tag_sim is not None: signals.append(prompt_tag_sim)
         if w_semantic > 1e-9: signals.append(prompt_sem_sim)
-        if w_topic > 1e-9 and prompt_topic_sim is not None: signals.append(prompt_topic_sim)
+        if w_topic > 1e-9: active_weights.append(w_topic)
         
         if signals:
             consensus_sim = softmin_blend(signals, temperature=0.05)
@@ -300,9 +296,6 @@ def soft_gate(signal, threshold, temperature=0.01, mode='high_pass'):
     mode='high_pass': 1.0 above threshold, 0.0 below.
     mode='low_pass': 0.0 above threshold, 1.0 below.
     """
-    # Sigmoid function: 1 / (1 + exp(-x))
-    # We scale by temperature to control the sharpness of the transition
-    # Added clipping to prevent overflow in exp
     val = (signal - threshold) / (temperature + 1e-9)
     if mode == 'high_pass':
         return 1.0 / (1.0 + np.exp(-np.clip(val, -50, 50)))
@@ -318,101 +311,75 @@ def calculate_jackalope_kernel(
     sem_scaling_factor, sem_lambda,
     topic_scaling_factor=0.1,
     # Mature Content Flag (Steam Banner)
-    mature_content_flags=None, # np.ndarray of booleans for candidates
-    seed_mature_content=False, # boolean flag for seed
+    mature_content_flags=None,
+    seed_mature_content=False,
     # Veto/Rescue Metadata
-    seed_migs=None, # Set of MIG group names (e.g. {"SHOOTER", "ROGUELIKE"})
-    seed_tags=None, # Set of specific mechanical tags for hard vetoes (e.g. {"Platformer"})
-    candidate_anchor_masks=None, # dict: tag_name -> boolean mask
+    seed_migs=None,
+    seed_tags=None,
+    candidate_anchor_masks=None,
     active_narrative_seed=None,
     is_cinematic_seed=False,
     is_crpg_seed=False,
-    # PRE-CALCULATED MASKS (Optimization)
-    precalculated_masks=None, # dict: key -> boolean mask
+    # PRE-CALCULATED MASKS
+    precalculated_masks=None,
     # Similarity Dimensions
-    difficulty_z=None, # np.ndarray of Z-scores for candidates
-    seed_difficulty_z=None, # float Z-score for seed
-    tone_z=None, # np.ndarray of Z-scores for candidates
-    seed_tone_z=None, # float Z-score for seed
-    # Temperature (Control discovery vs discipline)
+    difficulty_z=None,
+    seed_difficulty_z=None,
+    tone_z=None,
+    seed_tone_z=None,
     temperature=0.01,
     return_components=False
 ):
     """
-    The Jackalope Kernel: A multi-modal 'Mechanical Identity' measure.
-    Combines Verb Profiles (Soft Jaccard), Semantics, and Topics with structural soft-vetoes.
+    Jackalope Kernel v4.1: Advanced spirit-aware blender with identity-pollution protection.
     """
     import pandas as pd
 
-    # 0. Similarity Dimensions (Gaussian)
-    diff_sim = np.ones(len(verb_profiles), dtype=np.float32)
-    if difficulty_z is not None and seed_difficulty_z is not None:
-        diff_sim = np.exp(-0.5 * (difficulty_z.astype(np.float32) - float(seed_difficulty_z))**2)
-        
-    tone_sim = np.ones(len(verb_profiles), dtype=np.float32)
-    if tone_z is not None and seed_tone_z is not None:
-        # Use Sigma=0.7 for tone to be more selective about "Soul" matches
-        tone_sim = np.exp(-0.5 * ((tone_z.astype(np.float32) - float(seed_tone_z)) / 0.7)**2)
+    # 0. Spirit Dimensions (Gaussian) - Ultra High Sigma (3.0) for discovery
+    diff_sim = np.exp(-0.5 * ((difficulty_z.astype(np.float32) - float(seed_difficulty_z or 0)) / 3.0)**2) if difficulty_z is not None else 1.0
+    tone_sim = np.exp(-0.5 * ((tone_z.astype(np.float32) - float(seed_tone_z or 0)) / 3.0)**2) if tone_z is not None else 1.0
 
-    # 1. Mechanical Identity Groups (MIGs) - First Pass Skill Barrier
-    skill_multiplier = np.ones(len(verb_profiles), dtype=np.float32)
-    skill_jaccard = np.ones(len(verb_profiles), dtype=np.float32)
+    # 1. Identity Overlap Signal (Jaccard on MIGs)
+    active_seed_migs = set(seed_migs or [])
+    identity_match = np.ones(len(verb_profiles), dtype=np.float32)
     
     if candidate_anchor_masks:
-        active_seed_migs = set(seed_migs or [])
-        
-        intersection_count = np.zeros(len(verb_profiles), dtype=np.float32)
-        union_count = np.zeros(len(verb_profiles), dtype=np.float32)
+        intersection = np.zeros(len(verb_profiles), dtype=np.float32)
+        union = np.zeros(len(verb_profiles), dtype=np.float32)
         
         for group, tags in MIGS.items():
-            is_in_seed = group in active_seed_migs
             m = np.zeros(len(verb_profiles), dtype=bool)
             for t in tags:
-                if t in candidate_anchor_masks:
-                    m |= candidate_anchor_masks[t]
+                if t in candidate_anchor_masks: m |= candidate_anchor_masks[t]
             
-            intersection_count += (m & is_in_seed).astype(np.float32)
-            union_count += (m | is_in_seed).astype(np.float32)
+            is_in_seed = group in active_seed_migs
+            m_float = m.astype(np.float32)
+            
+            if is_in_seed:
+                intersection += m_float
+                union += 1.0
+            else:
+                union += m_float
+                
+        identity_match = intersection / (union + 1e-9)
 
-        # Add Artificial "Adult Only" Group (Steam Banner Flag)
-        if mature_content_flags is not None:
-            is_in_seed = bool(seed_mature_content)
-            m = mature_content_flags.astype(bool)
-            intersection_count += (m & is_in_seed).astype(np.float32)
-            union_count += (m | is_in_seed).astype(np.float32)
-
-        valid_union = union_count > 0
-        skill_jaccard[valid_union] = intersection_count[valid_union] / union_count[valid_union]
-        # Skill Jaccard is the differentiable core of mechanical similarity
-        skill_multiplier = 0.2 + 0.8 * skill_jaccard
-
-    # 2. Component Similarities
-    # Mechanical Core (Verb Profiles * Skill Jaccard)
+    # 2. Mechanical Core (Verbs)
     ALPHA = 0.1
     intersection = np.sum(np.minimum(verb_profiles.astype(np.float32), seed_verb_profile.astype(np.float32)), axis=1)
     union = np.sum(np.maximum(verb_profiles.astype(np.float32), seed_verb_profile.astype(np.float32)), axis=1)
-    denominator = intersection + ALPHA * (union - intersection)
+    tag_sims = intersection / (intersection + ALPHA * (union - intersection) + 1e-9)
 
-    tag_sims = np.zeros(len(verb_profiles), dtype=np.float32)
-    mask = denominator > 0
-    tag_sims[mask] = intersection[mask] / denominator[mask]
-    
-    # Refine mechanical match with Skill Jaccard
-    mechanical_match = tag_sims * skill_jaccard
-
-    # Semantics (Double Normalized)
+    # 3. Vibe Similarity
     sem_sims_raw = (np.dot(sem_vectors.astype(np.float32), seed_sem_vec.astype(np.float32)) /
                     (sem_norms + sem_lambda))
     sem_sims = sem_sims_raw / (seed_sem_norm + sem_lambda)
 
-    # Topics (Standardized Cosine)
     fz_unit_seed = (seed_topic_dist.astype(np.float32) - topic_means) / (topic_stds + 1e-9)
     fz_unit_seed[fz_unit_seed < 0.0] = 0
-    fn = np.linalg.norm(fz_unit_seed) + 1e-9
-    fz_unit_seed = fz_unit_seed / fn
+    fz_unit_seed /= (np.linalg.norm(fz_unit_seed) + 1e-9)
 
     topic_sims = np.zeros(len(verb_profiles), dtype=np.float32)
-    batch_size = 100000
+    batch_size = 50000
     for i in range(0, len(verb_profiles), batch_size):
         end = min(i + batch_size, len(verb_profiles))
         bz = (topic_distributions[i:end].astype(np.float32) - topic_means) / (topic_stds + 1e-9)
@@ -420,208 +387,135 @@ def calculate_jackalope_kernel(
         bn = np.linalg.norm(bz, axis=1, keepdims=True) + 1e-9
         topic_sims[i:end] = np.dot(bz / bn, fz_unit_seed)
 
-    # 3. Vibe Sim (Percentile Softmin)
     sem_cdf = pd.Series(sem_sims).rank(pct=True).values.astype(np.float32)
     topic_cdf = pd.Series(topic_sims).rank(pct=True).values.astype(np.float32)
-    vibe_sim = softmin_blend([sem_cdf, topic_cdf], temperature=0.02)
+    vibe_sim = 0.5 * sem_cdf + 0.5 * topic_cdf
 
-    # 4. Total Similarity (Multi-Modal Blend)
-    base_kernel = (0.10 * mechanical_match) + (0.90 * vibe_sim)
-    
-    # Apply Gaussian Spirit Filters (Tone and Difficulty)
-    base_kernel *= tone_sim
-    base_kernel *= diff_sim
-    
-    # 5. Apply Skill Barrier (Primary Gating)
-    kernel = base_kernel * skill_multiplier
+    # 4. Multi-Modal Blend
+    # Kernel = Identity * Vibe * Spirit
+    kernel = (tag_sims * (identity_match ** KERNEL_IDENTITY_POWER)) * vibe_sim * tone_sim * diff_sim
 
-    # 6. Rescues / Penalties
-    if precalculated_masks:
-        if active_narrative_seed and len(active_narrative_seed) >= 2:
-            match_counts = np.zeros(len(kernel), dtype=int)
-            for t in active_narrative_seed:
-                mask_key = t if t in precalculated_masks else f"tag_{t}"
-                if mask_key in precalculated_masks:
-                    match_counts += precalculated_masks[mask_key].astype(int)
-            kernel += np.where(match_counts >= 3, KERNEL_CINEMATIC_BOOST, 0.0)
-            vibe_sim = np.maximum(vibe_sim, np.where(match_counts >= 4, 0.01, 0.0))
-            
-        if is_cinematic_seed:
-            # SOFT CINEMATIC VETO
-            m_cin = candidate_anchor_masks.get("Cinematic", np.zeros(len(kernel), dtype=bool))
-            m_sr = candidate_anchor_masks.get("Story Rich", np.zeros(len(kernel), dtype=bool))
-            m_if = candidate_anchor_masks.get("Interactive Fiction", np.zeros(len(kernel), dtype=bool))
-            
-            # Narrative Strength (0.0 to 1.0 based on tag presence)
-            narr_strength = (m_cin.astype(float) + m_sr.astype(float) + m_if.astype(float)) / 3.0
-            # Smooth penalty that transitions based on narrative presence
-            cin_penalty = 0.05 + 0.95 * soft_gate(narr_strength, threshold=0.1, temperature=KERNEL_SOFT_GATE_TEMP)
-            kernel *= cin_penalty
-            
-            # Boost those that match the cinematic spirit perfectly
-            cinematic_match = precalculated_masks.get("cinematic_resonance", np.zeros(len(kernel), dtype=bool))
-            kernel += np.where(cinematic_match & (kernel > 0.02), KERNEL_CINEMATIC_BOOST, 0.0)
-            
-        if is_crpg_seed:
-            i_mask = precalculated_masks.get("tag_Isometric", np.zeros(len(kernel), dtype=bool))
-            c_mask = precalculated_masks.get("tag_CRPG", np.zeros(len(kernel), dtype=bool))
-            kernel += np.where(i_mask & c_mask, KERNEL_CRPG_BOOST, 0.0)
-
-        # TITLE HIJACK PENALTY (Kept hard as it is a metadata correction)
-        if "title_hijack" in precalculated_masks:
-            hijack_mask = precalculated_masks["title_hijack"]
-            kernel[hijack_mask] *= 0.1
-            vibe_sim[hijack_mask] *= 0.1
-
-    # 7. Soft Vetoes
+    # 5. VETO GATES
     if candidate_anchor_masks:
-        seed_is_horror = any(t in HORROR_MARKERS for t in (seed_tags or [])) or any(t in HORROR_MARKERS for t in (active_narrative_seed or []))
-
-        is_narrative_rescue = (active_narrative_seed is not None and len(active_narrative_seed) >= 2)
-        # Rescue is now a probability weight
-        rescue_weight = soft_gate(topic_sims, threshold=KERNEL_RESCUE_THRESHOLD, temperature=temperature)
-        if is_narrative_rescue:
-            rescue_weight = np.maximum(rescue_weight, 1.0)
+        veto_multiplier = np.ones(len(verb_profiles), dtype=np.float32)
         
-        target_horror_count = np.zeros(len(kernel), dtype=int)
-        for marker in HORROR_MARKERS:
-            m_key = marker if marker in candidate_anchor_masks else f"tag_{marker}"
-            if m_key in candidate_anchor_masks:
-                target_horror_count += candidate_anchor_masks[m_key].astype(int)
+        # A. Perspective Gate
+        perspectives_2d = ["2D", "Side Scroller"]
+        perspectives_3d = ["3D", "Third Person", "First-Person", "Isometric", "Third-Person Shooter", "FPS"]
         
-        # Horror Clash is now a soft penalty
-        horror_clash_prob = soft_gate(target_horror_count.astype(float), threshold=0.5, temperature=0.1) * (1.0 - float(seed_is_horror))
-        rescue_weight *= (1.0 - horror_clash_prob)
+        is_2d_seed = any(p in (seed_tags or []) for p in perspectives_2d)
+        is_3d_seed = any(p in (seed_tags or []) for p in perspectives_3d)
         
-        # Global Veto Mask (Identity Gating)
-        if seed_migs:
-            def calculate_soft_mig_clash(migs, masks):
-                clash_count = np.zeros(len(kernel), dtype=float)
-                for group_name in migs:
-                    if group_name in MIGS:
-                        m = np.zeros(len(kernel), dtype=bool)
-                        for t in MIGS[group_name]:
-                            m_key = t if t in masks else f"tag_{t}"
-                            if m_key in masks: m |= masks[m_key].astype(bool)
-                        clash_count += (~m).astype(float)
-                
-                # ADDITION: Conflicting MIG Veto (Identity Protection)
-                # If seed lacks an 'Active' MIG that the candidate has, it's a clash
-                ACTIVE_MIGS = {"SHOOTER", "FIGHTING", "MELEE_ACTION", "BULLET_HELL", "RACING", "SPORTS", "CASUAL", "HORROR", "REALISTIC_SIM"}
-                for group_name in ACTIVE_MIGS:
-                    if group_name not in migs:
-                        m = np.zeros(len(kernel), dtype=bool)
-                        for t in MIGS[group_name]:
-                            m_key = t if t in masks else f"tag_{t}"
-                            if m_key in masks: m |= masks[m_key].astype(bool)
-                        # Penalty for having a noisy MIG the seed lacks
-                        # Increased to 1.0 (Full Clash) to enforce identity discipline
-                        clash_count += (m.astype(float) * 1.0) 
+        m_2d = np.zeros(len(kernel), dtype=bool)
+        for p in perspectives_2d:
+            if p in candidate_anchor_masks: m_2d |= candidate_anchor_masks[p]
+            
+        m_3d = np.zeros(len(kernel), dtype=bool)
+        for p in perspectives_3d:
+            if p in candidate_anchor_masks: m_3d |= candidate_anchor_masks[p]
+            
+        if is_2d_seed and not is_3d_seed:
+            veto_multiplier *= (KERNEL_PERSPECTIVE_PENALTY + (1.0 - KERNEL_PERSPECTIVE_PENALTY) * m_2d.astype(float))
+        elif is_3d_seed and not is_2d_seed:
+            veto_multiplier *= (KERNEL_PERSPECTIVE_PENALTY + (1.0 - KERNEL_PERSPECTIVE_PENALTY) * m_3d.astype(float))
 
-                return clash_count / len(migs)
+        # B. NSFW Gate (Multi-Tiered Strictness)
+        strong_nsfw_tags = {"Hentai", "Nudity"}
+        seed_has_strong_nsfw = any(t in strong_nsfw_tags for t in (seed_tags or []))
+        
+        if not seed_has_strong_nsfw:
+            # Candidate has strong NSFW but seed doesn't -> Slap hard
+            m_strong = np.zeros(len(kernel), dtype=bool)
+            for t in strong_nsfw_tags:
+                if t in candidate_anchor_masks: m_strong |= candidate_anchor_masks[t]
+            veto_multiplier *= (KERNEL_STRONG_NSFW_PENALTY + (1.0 - KERNEL_STRONG_NSFW_PENALTY) * (~m_strong).astype(float))
+            
+            # If seed also lacks generic sexual content, slap candidates that HAVE it
+            seed_is_nsfw = bool(seed_mature_content) or any(t in {"Mature", "Violent", "Gore", "Sexual Content"} for t in (seed_tags or []))
+            if not seed_is_nsfw:
+                nsfw_mask = np.zeros(len(kernel), dtype=bool)
+                if mature_content_flags is not None: nsfw_mask |= mature_content_flags.astype(bool)
+                for t in {"Sexual Content", "Mature"}:
+                    if t in candidate_anchor_masks: nsfw_mask |= candidate_anchor_masks[t]
+                veto_multiplier *= (KERNEL_MATURE_NSFW_PENALTY + (1.0 - KERNEL_MATURE_NSFW_PENALTY) * (~nsfw_mask).astype(float))
 
-            mig_clash_score = calculate_soft_mig_clash(seed_migs, candidate_anchor_masks)
-            
-            # Hard Anchor Enforcement (Perspective, etc.)
-            hard_clash_score = np.zeros(len(kernel), dtype=float)
-            
-            # A. If candidate LACKS a hard anchor the seed HAS
-            if seed_tags:
-                hard_seed_tags = set(seed_tags) & HARD_ANCHORS
-                if hard_seed_tags:
-                    for t in hard_seed_tags:
-                        m_key = t if t in candidate_anchor_masks else f"tag_{t}"
-                        if m_key in candidate_anchor_masks:
-                            hard_clash_score = np.maximum(hard_clash_score, (~candidate_anchor_masks[m_key].astype(bool)).astype(float))
-            
-            # B. Symmetric: If candidate HAS a hard anchor the seed LACKS
-            # We only do this for perspective and high-level genre anchors
-            for t in SYMMETRIC_ANCHORS:
-                if t not in (seed_tags or []):
-                    m_key = t if t in candidate_anchor_masks else f"tag_{t}"
-                    if m_key in candidate_anchor_masks:
-                        hard_clash_score = np.maximum(hard_clash_score, candidate_anchor_masks[m_key].astype(float))
-            
-            # Combine clashes: 
-            # MIG clashes can be rescued by high thematic similarity
-            # Hard clashes (Perspective, etc.) are IMMUNE to rescue
-            veto_multiplier_mig = KERNEL_VETO_PENALTY + (1.0 - KERNEL_VETO_PENALTY) * (1.0 - mig_clash_score * (1.0 - rescue_weight))
-            veto_multiplier_hard = KERNEL_VETO_PENALTY + (1.0 - KERNEL_VETO_PENALTY) * (1.0 - hard_clash_score)
-            
-            # ADDITION: Un-rescueable Identity Conflict (e.g. Shooter matching Narrative)
-            # If candidate has a 'Violent' MIG that the seed lacks, we enforce it strictly
-            UNRESCUEABLE_MIGS = {"SHOOTER", "FIGHTING", "RACING", "SPORTS", "BULLET_HELL"}
-            for group_name in UNRESCUEABLE_MIGS:
-                if group_name not in seed_migs:
+        # C. VR Gate
+        seed_is_vr = "VR" in active_seed_migs or "VR Only" in (seed_tags or [])
+        if not seed_is_vr:
+            m_vr = candidate_anchor_masks.get("VR", np.zeros(len(kernel), dtype=bool)) | candidate_anchor_masks.get("VR Only", np.zeros(len(kernel), dtype=bool))
+            veto_multiplier *= (KERNEL_VR_PENALTY + (1.0 - KERNEL_VR_PENALTY) * (~m_vr).astype(float))
+
+        kernel *= veto_multiplier
+
+    # 6. IDENTITY POLLUTION PROTECTION (Strict Group Vetoes)
+    # If a seed lacks a noisy mechanical group that the candidate HAS, penalize.
+    if active_seed_migs:
+        # HARD VETO GROUPS - Game-breaking mechanical pivots
+        HARD_POLLUTION = {"VEHICLE_SIM", "SIMULATION", "STRATEGY", "MANAGEMENT", "ROGUELIKE", "VR", "FMV", "POINT_AND_CLICK", "DATING_SIM"}
+        # SOFT VETO GROUPS - Significant but compatible mechanical pivots
+        SOFT_POLLUTION = {"METROIDVANIA", "NARRATIVE_VN", "SURVIVAL", "BUILDING", "SHOOTER", "MELEE_ACTION"}
+        
+        for group in HARD_POLLUTION:
+            if group not in active_seed_migs:
+                seed_has_soul_tag = any(t in (seed_tags or []) for t in MIGS[group])
+                if not seed_has_soul_tag:
                     m = np.zeros(len(kernel), dtype=bool)
-                    for t in MIGS[group_name]:
-                        m_key = t if t in candidate_anchor_masks else f"tag_{t}"
-                        if m_key in candidate_anchor_masks: m |= candidate_anchor_masks[m_key].astype(bool)
-                    # Force strict veto for these groups if seed lacks them
-                    veto_multiplier_hard = np.minimum(veto_multiplier_hard, KERNEL_VETO_PENALTY + (1.0 - KERNEL_VETO_PENALTY) * (~m).astype(float))
+                    for t in MIGS[group]:
+                        if t in candidate_anchor_masks: m |= candidate_anchor_masks[t]
+                    kernel *= (KERNEL_HARD_POLLUTION_PENALTY + (1.0 - KERNEL_HARD_POLLUTION_PENALTY) * (~m).astype(float))
+                    
+        for group in SOFT_POLLUTION:
+            if group not in active_seed_migs:
+                seed_has_soul_tag = any(t in (seed_tags or []) for t in MIGS[group])
+                if not seed_has_soul_tag:
+                    m = np.zeros(len(kernel), dtype=bool)
+                    for t in MIGS[group]:
+                        if t in candidate_anchor_masks: m |= candidate_anchor_masks[t]
+                    kernel *= (KERNEL_SOFT_POLLUTION_PENALTY + (1.0 - KERNEL_SOFT_POLLUTION_PENALTY) * (~m).astype(float))
 
-            # Use the stricter of the two vetoes
-            kernel *= np.minimum(veto_multiplier_mig, veto_multiplier_hard)
-
-    # 8. Identity Intersection Rescues (Soul Matches)
-    if candidate_anchor_masks and tone_z is not None and seed_tone_z is not None:
-        seed_tags_all = set(seed_tags or []) | set(active_narrative_seed or [])
-        seed_has_serious = any(t in SERIOUS_TAGS for t in seed_tags_all)
+    # 7. THEMATIC CLASH PROTECTION
+    if active_seed_migs:
+        # If seed is Sci-fi but candidate is Fantasy (or vice versa), slap it.
+        seed_is_scifi = "SCI_FI" in active_seed_migs
+        seed_is_fantasy = "FANTASY" in active_seed_migs
         
-        if seed_has_serious and seed_tone_z > KERNEL_SOUL_MATCH_THRESHOLD:
-            t_ser = np.zeros(len(kernel), dtype=int)
-            for t in SERIOUS_TAGS:
-                m_key = t if t in candidate_anchor_masks else f"tag_{t}"
-                if m_key in candidate_anchor_masks: t_ser += candidate_anchor_masks[m_key].astype(int)
+        if seed_is_scifi and not seed_is_fantasy:
+            m_fantasy = np.zeros(len(kernel), dtype=bool)
+            for t in MIGS["FANTASY"]:
+                if t in candidate_anchor_masks: m_fantasy |= candidate_anchor_masks[t]
+            kernel *= (KERNEL_THEMATIC_CLASH_PENALTY + (1.0 - KERNEL_THEMATIC_CLASH_PENALTY) * (~m_fantasy).astype(float))
             
-            # Soul match if candidate has serious mechanics AND bizarre tone
-            soul_match_prob = soft_gate(t_ser.astype(float), threshold=0.5) * soft_gate(tone_z, threshold=KERNEL_SOUL_MATCH_THRESHOLD)
-            # Restore base score and apply boost smoothly
-            kernel = kernel * (1.0 - soul_match_prob) + base_kernel * soul_match_prob
-            kernel += soul_match_prob * 0.15
+        if seed_is_fantasy and not seed_is_scifi:
+            m_scifi = np.zeros(len(kernel), dtype=bool)
+            for t in MIGS["SCI_FI"]:
+                if t in candidate_anchor_masks: m_scifi |= candidate_anchor_masks[t]
+            kernel *= (KERNEL_THEMATIC_CLASH_PENALTY + (1.0 - KERNEL_THEMATIC_CLASH_PENALTY) * (~m_scifi).astype(float))
 
-        # C. MOOD CLASH (Serious/Emotional vs Funny/Lighthearted)
-        seed_is_serious = any(t in SERIOUS_MOOD_TAGS for t in seed_tags_all)
-        seed_is_light = any(t in LIGHT_MOOD_TAGS for t in seed_tags_all)
-        
-        # If seed is serious but NOT lighthearted, penalize lighthearted candidates
-        if seed_is_serious and not seed_is_light:
-            t_light = np.zeros(len(kernel), dtype=int)
-            for t in LIGHT_MOOD_TAGS:
-                m_key = t if t in candidate_anchor_masks else f"tag_{t}"
-                if m_key in candidate_anchor_masks: t_light += candidate_anchor_masks[m_key].astype(int)
-            
-            # Penalty for being 'too light' for a serious seed
-            # 0.4x if it has multiple light markers
-            mood_clash_prob = soft_gate(t_light.astype(float), threshold=1.5, temperature=0.1)
-            kernel *= (1.0 - mood_clash_prob * KERNEL_MOOD_CLASH_PENALTY)
+    # 8. SPECIFIC BOOSTS
+    # Puzzle Resonance
+    if any(g in active_seed_migs for g in ["PUZZLE_LOGIC", "PUZZLE_SPATIAL"]):
+        p_mask = np.zeros(len(kernel), dtype=bool)
+        for g in ["PUZZLE_LOGIC", "PUZZLE_SPATIAL"]:
+            for t in MIGS[g]:
+                if t in candidate_anchor_masks: p_mask |= candidate_anchor_masks[t]
+        kernel += np.where(p_mask & (vibe_sim > 0.7), 0.1, 0.0)
 
-        has_cut_seed = any(t in CUTE_TAGS for t in seed_tags_all)
-        has_hor_seed = any(t in HORROR_MARKERS for t in seed_tags_all)
-        
-        if has_cut_seed and has_hor_seed:
-            t_cut = np.zeros(len(kernel), dtype=int)
-            for t in CUTE_TAGS:
-                m_key = t if t in candidate_anchor_masks else f"tag_{t}"
-                if m_key in candidate_anchor_masks: t_cut += candidate_anchor_masks[m_key].astype(int)
-            
-            t_hor = np.zeros(len(kernel), dtype=int)
-            for t in HORROR_MARKERS:
-                m_key = t if t in candidate_anchor_masks else f"tag_{t}"
-                if m_key in candidate_anchor_masks: t_hor += candidate_anchor_masks[m_key].astype(int)
-            
-            soul_match_horror_prob = soft_gate(t_cut.astype(float), threshold=0.5) * soft_gate(t_hor.astype(float), threshold=0.5)
-            kernel = kernel * (1.0 - soul_match_horror_prob) + base_kernel * soul_match_horror_prob
-            kernel += soul_match_horror_prob * 0.15
+    # 8. SEMANTIC RESCUE
+    rescue_boost = np.where(sem_cdf > 0.999, KERNEL_RESCUE_THRESHOLD, 0.0)
+    kernel += rescue_boost
 
-    # 9. Soft Consensus Floor
-    # Replaces hard kernel[vibe_sim < floor] = 0.0
-    floor = 0.001 if (active_narrative_seed and len(active_narrative_seed) >= 2) else 0.005
-    kernel *= soft_gate(vibe_sim, threshold=floor, temperature=0.001)
+    # 9. TITLE HIJACK PROTECTION
+    if precalculated_masks and "title_hijack" in precalculated_masks:
+        hijack_mask = precalculated_masks["title_hijack"]
+        # If mechanical identity is low but name matches, it's likely a hijacker.
+        kernel *= np.where(hijack_mask & (identity_match < 0.4), 0.01, 1.0)
+
+    # 10. Consensus Floor
+    kernel *= soft_gate(vibe_sim, threshold=0.001, temperature=0.001)
     
     final_kernel = np.maximum(kernel, 0.0)
     if return_components:
-        return final_kernel, {'vibe': tag_sims, 'theme': sem_sims, 'cluster': topic_sims, 'combined': vibe_sim, 'difficulty': diff_sim, 'tone': tone_sim}
+        return final_kernel, {'identity': identity_match, 'mechanical': tag_sims, 'vibe': vibe_sim, 'tone': tone_sim, 'difficulty': diff_sim}
     return final_kernel
 
 def fast_jsd_similarity(p, Q_matrix, mean=None, std=None):
@@ -637,7 +531,82 @@ def fast_jsd_similarity(p, Q_matrix, mean=None, std=None):
     term1 = p * np.log(p / m)
     term2 = Q * np.log(Q / m)
     js_div = 0.5 * (np.sum(term1, axis=-1) + np.sum(term2, axis=-1))
-    sim = 1.0 - np.sqrt(np.maximum(js_div, 0))
-    if mean is not None and std is not None:
-        return (sim - mean) / (std if std > 1e-9 else 1.0)
-    return sim
+    return 1.0 - np.sqrt(js_div)
+
+def calculate_jackalope_kernel_2d(
+    verb_profiles, seed_verb_profiles,
+    sem_vectors, sem_norms, seed_sem_vecs, seed_sem_norms,
+    topic_distributions, seed_topic_dists,
+    topic_means, topic_stds,
+    candidate_mig_masks,
+    seed_mig_masks,
+    difficulty_z,
+    seed_difficulty_z,
+    tone_z,
+    seed_tone_z
+):
+    """
+    Fully vectorized 2D Jackalope Kernel.
+    Computes a (N_candidates, M_seeds) matrix in one pass.
+    Used for bulk continuous feature estimation.
+    """
+    import pandas as pd
+    N_cand = len(verb_profiles)
+    M_seed = len(seed_verb_profiles)
+    
+    # 0. Spirit Dimensions
+    diff_sim = np.exp(-0.5 * ((difficulty_z[:, None] - seed_difficulty_z[None, :]) / 3.0)**2)
+    tone_sim = np.exp(-0.5 * ((tone_z[:, None] - seed_tone_z[None, :]) / 3.0)**2)
+    
+    # 1. Identity Overlap Signal (Jaccard on MIGs)
+    C_mig = candidate_mig_masks.astype(np.float32)
+    S_mig = seed_mig_masks.astype(np.float32)
+    
+    inter_count = np.dot(C_mig, S_mig.T)
+    c_sums = np.sum(C_mig, axis=1)
+    s_sums = np.sum(S_mig, axis=1)
+    
+    union_count = c_sums[:, None] + s_sums[None, :] - inter_count
+    identity_match = inter_count / (union_count + 1e-9)
+    
+    # 2. Mechanical Core (Verbs)
+    ALPHA = 0.1
+    tag_sims = np.zeros((N_cand, M_seed), dtype=np.float32)
+    for i in range(M_seed):
+        inter = np.sum(np.minimum(verb_profiles, seed_verb_profiles[i]), axis=1)
+        union = np.sum(np.maximum(verb_profiles, seed_verb_profiles[i]), axis=1)
+        tag_sims[:, i] = inter / (inter + ALPHA * (union - inter) + 1e-9)
+        
+    # 3. Vibe Similarity
+    from common.constants import SEMANTIC_DOT_PRODUCT_LAMBDA
+    sem_dots = np.dot(sem_vectors, seed_sem_vecs.T)
+    sem_sims_raw = sem_dots / (sem_norms[:, None] + SEMANTIC_DOT_PRODUCT_LAMBDA)
+    sem_sims = sem_sims_raw / (seed_sem_norms[None, :] + SEMANTIC_DOT_PRODUCT_LAMBDA)
+    
+    bz = (topic_distributions - topic_means) / (topic_stds + 1e-9)
+    bz = np.maximum(bz, 0.0)
+    bn = np.linalg.norm(bz, axis=1, keepdims=True) + 1e-9
+    bz_norm = bz / bn
+    
+    sz = (seed_topic_dists - topic_means) / (topic_stds + 1e-9)
+    sz = np.maximum(sz, 0.0)
+    sn = np.linalg.norm(sz, axis=1, keepdims=True) + 1e-9
+    sz_norm = sz / sn
+    
+    topic_sims = np.dot(bz_norm, sz_norm.T)
+    
+    sem_cdf = pd.DataFrame(sem_sims).rank(pct=True, axis=0).values.astype(np.float32)
+    topic_cdf = pd.DataFrame(topic_sims).rank(pct=True, axis=0).values.astype(np.float32)
+    vibe_sim = 0.5 * sem_cdf + 0.5 * topic_cdf
+    
+    # 4. Multi-Modal Blend
+    kernel = (tag_sims * (identity_match ** KERNEL_IDENTITY_POWER)) * vibe_sim * tone_sim * diff_sim
+
+    # 5. SEMANTIC RESCUE
+    rescue_boost = np.where(sem_cdf > 0.999, KERNEL_RESCUE_THRESHOLD, 0.0)
+    kernel += rescue_boost
+
+    # 6. Consensus Floor
+    kernel *= soft_gate(vibe_sim, threshold=0.001, temperature=0.001)
+    
+    return np.maximum(kernel, 0.0)

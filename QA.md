@@ -77,7 +77,7 @@ This document serves as the manual verification protocol for human testers and d
 - [ ] **Live Re-ranking**: Adjust the Discovery slider while on the "Rating" list.
     - *Expectation*: The ranking updates in real-time.
 
-## ⚙️ Kernel & Identity Enforcement (Build 50)
+## ⚙️ Kernel & Identity Enforcement (Build 50-51)
 - [ ] **Symmetric Perspective Veto**: Use "Disco Elysium" (Isometric) as a seed. Search results for "Leons Identität" (First-Person) or "Portal 2" (First-Person).
     - *Expectation*: Perspective-clashing games are heavily penalized ($0.001x$) and should not appear in the top 100 results, regardless of vibe similarity.
 - [ ] **RPG Anchor Enforcement**: Use "Mass Effect (2007)" (RPG) as a seed. Search for "Front Mission Evolved" (Shooter, No RPG).
@@ -86,6 +86,18 @@ This document serves as the manual verification protocol for human testers and d
     - *Expectation*: Thematic "rescues" should not match realistic/linear shooters like "Call of Duty" or "Battlefield".
 - [ ] **Mood Clash Mitigation**: Use "Detroit: Become Human" (Emotional, Serious) as a seed.
     - *Expectation*: Funny/Comedy games (e.g., "Suck Up!") are penalized ($0.4x$ - $0.6x$) to maintain atmospheric consistency.
+
+## 🫎 Jackalope Kernel Explorer (Build 51)
+- [ ] **Quick Exemplar Load**: Click "NieR:Automata" or "Cyberpunk 2077" in the Kernel Explorer sidebar.
+    - *Expectation*: Seed info loads instantly; similarity results update.
+- [ ] **Jaccard Structural Alignment**: Use "Cyberpunk 2077" as seed.
+    - *Expectation*: "Mass Effect Legendary Edition" appears as a high-ranking match (shared mechanical foundation); "Hogwarts Legacy" is filtered/penalized (thematic clash).
+- [ ] **Thematic Clash Protection**: Use "Cyberpunk 2077" (Sci-fi) as seed. Manually add "Hogwarts Legacy" (Fantasy) AppID 990080 to ground truth.
+    - *Expectation*: Hogwarts Legacy is penalized (0.5x) due to the Sci-fi vs. Fantasy clash.
+- [ ] **Ground Truth Management**: Click "👍 Pos" or "👎 Neg" on a similarity result.
+    - *Expectation*: Game appears in the "🎯 Ground Truth" section; selection persists across reloads (saved to `kernel_ground_truth.json`).
+- [ ] **Top 1000 Re-sort**: Check the result count for a high-performing seed.
+    - *Expectation*: The system scans the Top 1000 structural matches before applying the Predicted Rating sort, surfacing "vibe rescues" like "Stellar Blade" for Nier.
 
 ## 📐 Documentation & Math
 - [ ] **Math Rendering**: View the Methodology page.

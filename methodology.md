@@ -253,3 +253,19 @@ Build 50 introduced a significant refactoring of the "Taste DNA" solver and reco
 
 - **MIG Refinement**: The 38 Mechanical Identity Groups (MIGs) were refined to require **core verbs** (e.g., `SHOOTER` requires `FPS` or `Shooter`). Broad tags like `Exploration` and `Surreal` were removed from core mechanical definitions and moved to the thematic "Vibe" layer, eliminating identity leaks that previously caused false-positive matches (like matching *Disco Elysium* to a first-person puzzle game).
 
+## 21. Jaccard Identity & Thematic Pollution (Build 51)
+
+Build 51 introduced **Jackalope Kernel v4.2**, a high-precision refinement of the mechanical identity system designed to eliminate false-positive matches from low-quality clones and immersion-breaking genre pivots.
+
+- **Jaccard Mechanical Identity**: The kernel transitioned from simple "feature agreement" to [**Jaccard Similarity (Intersection over Union)**](https://en.wikipedia.org/wiki/Jaccard_index) for Mechanical Identity Groups (MIGs). This solved the **"Shared Vacuum" bug**, where two games would match simply because they both *lacked* a large number of unrelated genres (e.g., matching a Sci-fi RPG to a Brazilian Favela simulator because neither had the "Racing" or "Farming" tags). By calculating similarity as `Intersection / Union`, the model now requires positive evidence of shared mechanics.
+
+- **Identity Match Power (2.0)**: To reward mechanical precision, the identity match signal is squared (`Identity^2.0`) before being blended into the final score. This creates a "precision cliff" where games with a perfect mechanical foundation are significantly boosted, while partial matches (e.g., a "Shooter" matching a "Shooter + RPG") are naturally suppressed unless their "Vibe" similarity is exceptional.
+
+- **Thematic MIGs & Clash Protection**: High-fidelity thematic markers (`SCI_FI`, `FANTASY`, `HISTORICAL`, `SURREAL`) were added to the MIG system. This enables the kernel to detect immersion-breaking pivots. For example, if a seed is strictly Sci-fi but a candidate is Fantasy (or vice versa), a **0.5x Thematic Clash Penalty** is applied, preventing *Cyberpunk 2077* from being "rescued" by *Hogwarts Legacy*.
+
+- **Multi-Tiered Pollution Protection**: We implemented a tiered veto system to handle mechanical "pollution"—where a candidate game possesses a noisy mechanical loop that the seed game explicitly lacks:
+    - **Hard Veto (0.1x)**: Applied to game-breaking pivots like `VR`, `FMV`, `MANAGEMENT`, `STRATEGY`, or `POINT_AND_CLICK`.
+    - **Soft Veto (0.6x)**: Applied to significant but potentially compatible shifts like `SHOOTER`, `SURVIVAL`, or `METROIDVANIA`.
+
+- **Vectorized 2D Kernel Regression**: The Archetypal Solver was updated to utilize a fully vectorized **2D Jackalope Kernel**. This allows the pipeline to calculate the structural alignment between every rated game and the entire 60,000+ game Steam library in a single pass. The resulting **Nadaraya-Watson Estimate** serves as a continuous "Kernel Similarity" feature in the regression model, ensuring that the Taste DNA perfectly captures the user's local clustering preferences with zero drift between the analyzer and the recommender.
+

@@ -21,6 +21,7 @@ For detailed documentation of each directory, see the individual README files:
 - `research/README.md` - Experimental and analytical scripts
 - `tests/README.md` - Automated test suite
 - `tools/README.md` - Debugging and maintenance utilities
+- `tools/kernel_explorer.py` - Advanced diagnostic UI for the Mechanical Identity Group (MIG) similarity kernel. Run with `streamlit run tools/kernel_explorer.py`.
 - `deployment/README.md` - Deployment configurations
 - `data/README.md` - Intermediate data files
 - `user.md` - User profile, technical preferences, and expectations
@@ -90,7 +91,8 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
     - Many data artifacts (`.npy`, `.parquet`) are memory-mapped by the server. If a script fails to update them with a "Permission Denied" or "File in Use" error, the FastAPI server MUST be stopped first.
     - Large files read via `read_file` will be truncated. Use `offset` and `limit` to paginate through long files like `server.py` or large CSVs.
     - `grep_search` and `read_file` need very precise `include` and `file_path` parameters respectively for efficient searching and reading.
-    - `replace` tool requires a very exact `old_string` parameter, including surrounding context (e.g., 3 lines above and below) and precise whitespace/indentation, to ensure accurate modifications.
+    - `replace` tool requires a very exact `old_string` parameter, including surrounding context (e.g., 3 lines above and below) and precise whitespace/indentation, to ensure accurate modifications. **CRITICAL:** Always use `read_file` to verify the exact string, including line endings and indentation, before attempting a multi-line `replace`.
+    - **Windows File Locking**: Many data artifacts (`.npy`, `.parquet`) are memory-mapped by the server and Streamlit UI using `mmap_mode='r'`. On Windows, this creates a mandatory file lock. If a pipeline script fails to update these files with a "Permission Denied" error, both the FastAPI server and any running Streamlit instances (like `kernel_explorer.py`) MUST be stopped.
 - **Memory Footprint Optimization**: The backend server is optimized for efficiency to support standard cloud deployment.
     - **Memory Mapping**: All large NumPy arrays (`embeddings_desc.npy`, `embeddings_structural.npy`, `tag_vectors`, `quality_grid`) now utilize `mmap_mode='r'`. This allows the OS to page data in and out as needed, keeping the active Resident Set Size (RSS) low.
     - **Pre-Normalization**: Semantic embeddings are pre-normalized to unit length.

@@ -2,6 +2,19 @@
 
 All notable changes to the Steam Jackalope project will be documented in this file.
 
+## [51] - 2026-03-03
+### Build 51
+### Version 0.0.1-pre-alpha+build.51
+
+- **Algorithm**: Upgraded to **Jackalope Kernel v4.2**, transitioning from simple feature agreement to **Jaccard Similarity (Intersection over Union)** for Mechanical Identity Groups (MIGs). This eliminates the "Shared Vacuum" bug and ensures recommendations are based on positive evidence of shared mechanics.
+- **Algorithm**: Implemented **Thematic MIGs** (`SCI_FI`, `FANTASY`, `HISTORICAL`, `SURREAL`) and a **0.5x Thematic Clash Penalty** to prevent immersion-breaking genre pivots (e.g., Cyberpunk vs. Hogwarts Legacy).
+- **Algorithm**: Increased **Mechanical Identity Power to 2.0**, creating a "precision cliff" that boosts games with perfect structural alignment and suppresses partial matches.
+- **Algorithm**: Refined **Pollution Vetoes** by adding `POINT_AND_CLICK` and `DATING_SIM` to the Hard Veto list (0.1x), and moving `Romance` to the Narrative Story group to restore high-fidelity RPG matches.
+- **UI/UX**: Launched the **Jackalope Kernel Explorer** diagnostic tool (`tools/kernel_explorer.py`), a specialized Streamlit interface for analyzing game similarity, managing ground truth labels, and verifying model selectivity.
+- **UI/UX**: Implemented **Quick Exemplar Buttons** in the Kernel Explorer sidebar for 25 high-rated games (9+), facilitating rapid kernel verification across diverse genres.
+- **UI/UX**: Enhanced the diagnostic sort logic by fetching the **Top 1000 Raw Matches** before applying the user's Predicted Rating re-sort, ensuring high-quality "vibe rescues" are visible in the UI.
+- **Reliability**: Fully synchronized the **Taste DNA Regression Pipeline** with the new kernel math, expanding the archetypal solver to 41 features and achieving zero drift between analysis and recommendation.
+
 ## [50] - 2026-03-02
 ### Build 50
 ### Version 0.0.1-pre-alpha.50

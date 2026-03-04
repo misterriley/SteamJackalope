@@ -81,13 +81,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
     t_means = np.load(os.path.join(PRODUCTION_DATA_DIR, "topic_means.npy")).astype(np.float32)
     t_stds = np.load(os.path.join(PRODUCTION_DATA_DIR, "topic_stds.npy")).astype(np.float32)
 
-    # 3. Calculate Structural Archetype Features (MIGs, Meta)
-    # Instead of NxN kernel (Overfit), we use alignment with Mechanical Identity Groups
+    # 3. Calculate Structural Archetype Features (MIGs, Meta, Kernel)
     N = len(user_indices)
     
-    # A. MIG Features: Game's binary membership in each MIG
-    X_mig = np.zeros((N, len(MIGS)))
-    mig_names = list(MIGS.keys())
+    # --- KERNEL SIMILARITY FEATURE (Nadaraya-Watson Estimate) ---
+    print("Calculating full NxN Jackalope Kernel feature for regression using all rated games...")
     
     # Pre-calculate anchor masks for the user's rated games (Local pool)
     user_anchor_masks = {}
@@ -101,6 +99,51 @@ def solve_user_taste(ground_truth_path, output_path=None):
     for tag in all_needed_tags:
         pattern = rf"'{re.escape(tag)}':"
         user_anchor_masks[tag] = tag_series.str.contains(pattern, regex=True).values
+
+    K_train = np.zeros((N, N), dtype=np.float32)
+    
+    # Pre-calculate anchor masks for the entire library early so we can use it for 2D candidate arrays
+    print("Pre-calculating anchor masks for full library...")
+    all_anchor_masks = {}
+    tag_series_full = full_metadata['tags'].fillna('').astype(str)
+    for tag in all_needed_tags:
+        pattern = rf"'{re.escape(tag)}':"
+        all_anchor_masks[tag] = tag_series_full.str.contains(pattern, regex=True).values
+
+    # We compute Jackalope from each rated game to all other rated games
+    from common.utils import calculate_jackalope_kernel_2d
+    
+    # Need candidate mig masks (N, G) and seed mig masks (N, G) for 2D computation
+    mig_mask_array = np.zeros((len(full_metadata), len(MIGS)), dtype=bool)
+    for j, (group, tags) in enumerate(MIGS.items()):
+        for t in tags:
+            if t in all_anchor_masks: mig_mask_array[:, j] |= all_anchor_masks[t]
+            
+    user_mig_masks = mig_mask_array[user_indices]
+    
+    # 2D Kernel requires candidate arrays and seed arrays
+    K_train = calculate_jackalope_kernel_2d(
+        verb_profiles=verb_profiles, seed_verb_profiles=verb_profiles,
+        sem_vectors=sem_vectors, sem_norms=sem_norms, seed_sem_vecs=sem_vectors, seed_sem_norms=sem_norms,
+        topic_distributions=topic_dist, seed_topic_dists=topic_dist,
+        topic_means=t_means, topic_stds=t_stds,
+        candidate_mig_masks=user_mig_masks, seed_mig_masks=user_mig_masks,
+        difficulty_z=full_metadata['difficulty_z'].values[user_indices], seed_difficulty_z=full_metadata['difficulty_z'].values[user_indices],
+        tone_z=full_metadata['tone_z'].values[user_indices], seed_tone_z=full_metadata['tone_z'].values[user_indices]
+    )
+
+    # Exponential scaling to punish non-identical matches and favor extreme local clustering
+    K_exp = np.exp(K_train * 5.0)
+    # Zero out diagonal so a game doesn't predict itself
+    np.fill_diagonal(K_exp, 0.0)
+    
+    # Calculate weighted average of neighbors' ratings (deviation from neutral 5.0)
+    y_dev = y - 5.0
+    X_kernel = (np.sum(K_exp * y_dev, axis=1) / (np.sum(K_exp, axis=1) + 1e-9)).reshape(-1, 1)
+
+    # A. MIG Features: Game's binary membership in each MIG
+    X_mig = np.zeros((N, len(MIGS)))
+    mig_names = list(MIGS.keys())
 
     for j, (group, tags) in enumerate(MIGS.items()):
         m = np.zeros(N, dtype=bool)
@@ -117,19 +160,19 @@ def solve_user_taste(ground_truth_path, output_path=None):
     meta_cols = ['date_z', 'pop_z', 'playtime_z', 'difficulty_z', 'price_z', 'tone_z']
     X_meta = np.clip(user_meta_df[meta_cols].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)
     
-    # COMBINE: X = [Q, Meta, MIGs]
-    # We omit NxN kernel to prevent overfitting (R^2 > 0.7 issue)
-    X = np.hstack([q_global.reshape(-1, 1), X_meta, X_mig])
+    # COMBINE: X = [Kernel, Q, Meta, MIGs]
+    X = np.hstack([X_kernel, q_global.reshape(-1, 1), X_meta, X_mig])
     
     print(f"Solving Archetypal Ridge for {N} samples with {X.shape[1]} features...")
-    model = RidgeCV(alphas=[0.1, 1.0, 10.0, 50.0]).fit(X, y)
+    model = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 50.0, 100.0], cv=5).fit(X, y)
     r2_train = model.score(X, y)
     print(f"Model Training R^2: {r2_train:.4f}")
 
     # --- RESULT GENERATION ---
-    q_coeff = model.coef_[0]
-    meta_coeffs = model.coef_[1:7]
-    mig_coeffs = model.coef_[7:]
+    kernel_coeff = model.coef_[0]
+    q_coeff = model.coef_[1]
+    meta_coeffs = model.coef_[2:8]
+    mig_coeffs = model.coef_[8:]
     
     # Map MIG coefficients to meaningful impacts
     active_migs = sorted([{'group': mig_names[i], 'impact': float(mig_coeffs[i])} for i in range(len(mig_names)) if abs(mig_coeffs[i]) > 1e-4], key=lambda x: x['impact'], reverse=True)
@@ -166,36 +209,30 @@ def solve_user_taste(ground_truth_path, output_path=None):
         all_anchor_masks[tag] = tag_series_full.str.contains(pattern, regex=True).values
 
     # Generate Rankings for Preview
-    print("Generating full library rankings for preview...")
-    # Seed = Best Anchor
-    tags_s_str = full_metadata.iloc[best_anchor_idx]['tags']
-    tags_s_dict = ast.literal_eval(tags_s_str)
-    max_s = max(tags_s_dict.values()) if tags_s_dict else 1.0
-    s_tags_strict = {t for t, v in tags_s_dict.items() if v / max_s > 0.25}
-    s_tags_soul = {t for t, v in tags_s_dict.items() if v / max_s > 0.15}
-    s_migs = {group for group, tags in MIGS.items() if any(t in s_tags_strict for t in tags)}
-    s_active_narrative = [t for t in NARRATIVE_TAGS if t in s_tags_soul]
-    is_cinematic_s = "Cinematic" in s_tags_soul
-
-    scores = calculate_jackalope_kernel(
-        verb_profiles=all_verb_profiles, seed_verb_profile=all_verb_profiles[best_anchor_idx],
-        sem_vectors=all_sem_vectors, sem_norms=all_sem_norms, seed_sem_vec=all_sem_vectors[best_anchor_idx], seed_sem_norm=all_sem_norms[best_anchor_idx],
-        topic_distributions=all_topic_dist, seed_topic_dist=all_topic_dist[best_anchor_idx],
+    print("Calculating full library predicted ratings using vectorized NW Kernel...")
+    K_full_2d = calculate_jackalope_kernel_2d(
+        verb_profiles=all_verb_profiles, seed_verb_profiles=verb_profiles,
+        sem_vectors=all_sem_vectors, sem_norms=all_sem_norms, seed_sem_vecs=sem_vectors, seed_sem_norms=sem_norms,
+        topic_distributions=all_topic_dist, seed_topic_dists=topic_dist,
         topic_means=t_means, topic_stds=t_stds,
-        tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR, dot_product_lambda=DOT_PRODUCT_LAMBDA,
-        sem_scaling_factor=SEMANTIC_GLOBAL_SCALING_FACTOR, sem_lambda=SEMANTIC_DOT_PRODUCT_LAMBDA,
-        mature_content_flags=full_metadata['mature_content'].values > 0,
-        seed_mature_content=bool(full_metadata.iloc[best_anchor_idx]['mature_content'] > 0),
-        seed_migs=s_migs, seed_tags=s_tags_soul,
-        candidate_anchor_masks=all_anchor_masks,
-        active_narrative_seed=s_active_narrative,
-        is_cinematic_seed=is_cinematic_s,
-        difficulty_z=all_difficulty_z, seed_difficulty_z=all_difficulty_z[best_anchor_idx],
-        tone_z=all_tone_z, seed_tone_z=all_tone_z[best_anchor_idx]
+        candidate_mig_masks=mig_mask_array, seed_mig_masks=user_mig_masks,
+        difficulty_z=all_difficulty_z, seed_difficulty_z=full_metadata['difficulty_z'].values[user_indices],
+        tone_z=all_tone_z, seed_tone_z=full_metadata['tone_z'].values[user_indices]
     )
+    
+    K_exp_full = np.exp(K_full_2d * 5.0)
+    # Prevent games from predicting themselves. K_exp_full is (N_library, M_seeds). 
+    # The seeds correspond to user_indices.
+    for c, f_idx in enumerate(user_indices):
+        K_exp_full[f_idx, c] = 0.0
+
+    y_dev = y - 5.0
+    sum_weights = np.sum(K_exp_full, axis=1)
+    sum_weighted_y_dev = np.sum(K_exp_full * y_dev, axis=1)
+    X_kernel_full = sum_weighted_y_dev / (sum_weights + 1e-9)
 
     # Apply Metadata Coefficients
-    scores = (scores * 5.0) + model.intercept_
+    scores = (X_kernel_full * kernel_coeff) + model.intercept_
     scores += (np.clip(quality_grid[best_q_idx], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) * q_coeff)
     scores += (np.clip(full_metadata['date_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) * meta_coeffs[0])
     scores += (np.clip(full_metadata['pop_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) * meta_coeffs[1])
@@ -203,6 +240,14 @@ def solve_user_taste(ground_truth_path, output_path=None):
     scores += (np.clip(all_difficulty_z, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) * meta_coeffs[3])
     scores += (np.clip(full_metadata['price_z'].values, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) * meta_coeffs[4])
     scores += (np.clip(all_tone_z, Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX) * meta_coeffs[5])
+    
+    # Apply MIG Coefficients
+    for j, (group, tags) in enumerate(MIGS.items()):
+        if abs(mig_coeffs[j]) > 1e-4:
+            m = np.zeros(len(full_metadata), dtype=bool)
+            for t in tags:
+                if t in all_anchor_masks: m |= all_anchor_masks[t]
+            scores += m.astype(float) * mig_coeffs[j]
 
     # Filters
     mask = np.ones(len(full_metadata), dtype=bool)
@@ -242,6 +287,15 @@ def solve_user_taste(ground_truth_path, output_path=None):
 
     # North Stars (Highest Pure Vibe Alignment)
     # Re-calculate kernel with neutral meta to find pure soulmates
+    tags_s_str = full_metadata.iloc[best_anchor_idx]['tags']
+    tags_s_dict = ast.literal_eval(tags_s_str)
+    max_s = max(tags_s_dict.values()) if tags_s_dict else 1.0
+    s_tags_strict = {t for t, v in tags_s_dict.items() if v / max_s > 0.25}
+    s_tags_soul = {t for t, v in tags_s_dict.items() if v / max_s > 0.15}
+    s_migs = {group for group, tags in MIGS.items() if any(t in s_tags_strict for t in tags)}
+    s_active_narrative = [t for t in NARRATIVE_TAGS if t in s_tags_soul]
+    is_cinematic_s = "Cinematic" in s_tags_soul
+
     vibe_only_scores = calculate_jackalope_kernel(
         verb_profiles=all_verb_profiles, seed_verb_profile=all_verb_profiles[best_anchor_idx],
         sem_vectors=all_sem_vectors, sem_norms=all_sem_norms, seed_sem_vec=all_sem_vectors[best_anchor_idx], seed_sem_norm=all_sem_norms[best_anchor_idx],
@@ -267,9 +321,9 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Associative Tags (Regression on Tags)
     print("Calculating associative tag impacts...")
     # This is a bit heavy, so we subsample or use a simpler model
-    from sklearn.linear_model import Lasso
+    from sklearn.linear_model import LassoCV
     tag_X = np.load(TAG_VECTORS_FILE, mmap_mode='r')[user_indices]
-    tag_model = Lasso(alpha=0.1).fit(tag_X, y)
+    tag_model = LassoCV(cv=5, alphas=[1e-4, 1e-3, 1e-2, 0.1, 1.0, 10.0]).fit(tag_X, y)
     tag_names = json.load(open(TAG_NAMES_FILE, 'r'))
     tag_impacts = sorted([{'tag': tag_names[i], 'impact': float(w)} for i, w in enumerate(tag_model.coef_) if abs(w) > 1e-4], key=lambda x: x['impact'], reverse=True)
     
@@ -317,9 +371,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
     # Prepare Final JSON
     result = {
         'metadata': {
+            'kernel_match': float(kernel_coeff),
             'quality': float(q_coeff), 'age': float(meta_coeffs[0]), 'popularity': float(meta_coeffs[1]), 
             'length': float(meta_coeffs[2]), 'difficulty': float(meta_coeffs[3]), 'price': float(meta_coeffs[4]),
-            'tone': float(meta_coeffs[5]), 'tag_match': 1.0, 'semantic': 1.0, 'topic_match': 0.1
+            'tone': float(meta_coeffs[5]), 'tag_match': 1.0, 'semantic': 1.0, 'topic_match': 0.1,
+            'best_q_idx': int(best_q_idx)
         },
         'kernel_anchors': kernel_anchors[:50], 'r2': float(r2_train), 
         'vibe_vector': (all_tag_vectors[best_anchor_idx] / (all_tag_norms[best_anchor_idx] + 1e-9)).tolist(),
@@ -340,7 +396,9 @@ def solve_user_taste(ground_truth_path, output_path=None):
     }
     
     if output_path:
+        from common.utils import safe_save_npy
         with open(output_path, 'w') as f: json.dump(result, f, indent=4)
+        safe_save_npy(output_path.replace('_taste_profile.json', '_predicted_ratings.npy'), scores.astype(np.float32))
     return result
 
 if __name__ == "__main__":
