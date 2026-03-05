@@ -227,6 +227,16 @@ def solve_user_taste(ground_truth_path, output_path=None):
     top_recommendations = full_metadata.iloc[top_discovery_indices][['appid', 'name']].copy()
     top_recommendations['predicted_rating'] = np.clip(scores[top_discovery_indices], 0, 10)
 
+    # Free Games (Requires positive indicator via 'Free to Play' tag to avoid false positives)
+    tag_series = full_metadata['tags'].fillna('').astype(str)
+    is_free_mask = tag_series.str.contains("'Free to Play':", regex=False)
+    
+    free_scores = discovery_scores.copy()
+    free_scores[~is_free_mask] = -1e12
+    top_free_indices = np.argsort(-free_scores)[:10]
+    free_recommendations = full_metadata.iloc[top_free_indices][['appid', 'name']].copy()
+    free_recommendations['predicted_rating'] = np.clip(scores[top_free_indices], 0, 10)
+
     # Backlog Priority
     backlog_appids = df_gt[df_gt['status'] == 'backlog']['appid'].values
     backlog_indices = [appid_to_idx[aid] for aid in backlog_appids if aid in appid_to_idx]
@@ -316,6 +326,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'library_appids': [int(aid) for aid in discovery_exclude_appids],
         'rated_appids': [int(aid) for aid in user_appids],
         'top_recommendations': top_recommendations.to_dict(orient='records'),
+        'free_recommendations': free_recommendations.to_dict(orient='records'),
         'backlog_recommendations': backlog_recommendations.to_dict(orient='records'),
         'bottom_recommendations': bottom_recommendations.to_dict(orient='records'),
         'north_stars': north_stars.to_dict(orient='records'),

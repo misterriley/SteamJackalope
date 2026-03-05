@@ -423,24 +423,34 @@ def get_storefront_data(app_id, refresh=False, verbose=False):
     if not found_orig:
         if meta_price_val > 0:
             data['price'] = f"${meta_price_str}" if "$" not in meta_price_str else meta_price_str
-        elif "Free To Play" in html_content or "Free to Play" in html_content:
-            data['price'] = "Free To Play"
-        elif "no longer available" in html_content or "no longer available on Steam" in html_content:
-            data['price'] = "Delisted"
-        elif "Coming soon" in html_content or "Coming Soon" in html_content:
-            data['price'] = "Coming Soon"
         else:
-            # Last resort fallback: find the first generic price div
+            # 1. Tags Check for "Free to Play" - strongest positive indicator
+            tags_regex = r'<a[^>]*class="app_tag"[^>]*>\s*([^<]*)\s*</a>'
+            tags = [t.strip() for t in re.findall(tags_regex, html_content)]
+            is_free_tag = "Free to Play" in tags
+            
+            # 2. Check for "Free" in standard purchase boxes
             price_regex = r'<div class="game_purchase_price price"[^>]*>([^<]*)</div>'
             price_match = re.search(price_regex, html_content)
-            if price_match:
-                data['price'] = clean_text(price_match.group(1))
-            else:
-                # Absolute fallback to free ONLY if meta actually said 0.00
-                if meta_match and meta_price_val == 0:
-                    data['price'] = "Free"
+            
+            if is_free_tag:
+                data['price'] = "Free To Play"
+            elif price_match:
+                val = price_match.group(1).strip()
+                if val and "free" in val.lower():
+                    data['price'] = "Free To Play"
+                elif val:
+                    data['price'] = val
                 else:
                     data['price'] = "N/A"
+            elif "no longer available" in html_content or "no longer available on Steam" in html_content:
+                data['price'] = "Delisted"
+            elif "Coming soon" in html_content or "Coming Soon" in html_content:
+                data['price'] = "Coming Soon"
+            elif meta_match and meta_price_val == 0:
+                data['price'] = "Free"
+            else:
+                data['price'] = "N/A"
 
     # 7. Developer / Publisher
     # Capture all developer/publisher links if multiple exist

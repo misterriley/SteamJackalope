@@ -225,13 +225,14 @@ class DataManager:
             available_cols = []
 
         needed_cols = [
-            'appid', 'name', 'release_date', 'parsed_date', 'positive', 'negative', 
+            'appid', 'name', 'release_date', 'parsed_date', 'positive', 'negative',
             'genres', 'tags', 'categories', 'supported_languages',
-            'mature_content', 'price', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z', 'tone_z',
+            'mature_content', 'price', 'date_z', 'pop_z', 'playtime_z', 'difficulty_z', 
             'estimated_playtime', 'difficulty_predicted',
             'is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_delisted', 'is_hollow'
         ]
-        # Only request short_description if it exists
+
+        # Dynamically append columns that might not exist in all versions of the metadata
         if 'short_description' in available_cols:
             needed_cols.insert(2, 'short_description')  # Insert after name
             logger.info("Found short_description in metadata")
@@ -243,6 +244,12 @@ class DataManager:
             logger.info("Found price_z in metadata")
         else:
             logger.warning("price_z NOT found in metadata")
+
+        if 'tone_z' in available_cols:
+            needed_cols.append('tone_z')
+            logger.info("Found tone_z in metadata")
+        else:
+            logger.warning("tone_z NOT found in metadata")
 
         if 'release_year' in available_cols:
             needed_cols.append('release_year')
