@@ -199,8 +199,10 @@ def calculate_jackalope_kernel(
     id_power = np.where(vibe_shield | soul_match_mask | (identity_match > 0.8) | structural_seed_match, 1.0, 2.0)
     kernel = (tag_sims * (identity_match ** id_power)) * vibe_sim * tone_sim * diff_sim
     
-    # 5. Hard Gates (Softer Floor)
-    effective_floor = np.where(structural_seed_match | (identity_match > 0.8), 0.0, 0.05)
+    # 5. Hard Gates (Softer Floor for structural matches)
+    # If verbs are a high match (>0.6), we trust the mechanical signal and lower the semantic floor
+    mechanical_trust = tag_sims > 0.6
+    effective_floor = np.where(structural_seed_match | (identity_match > 0.8) | mechanical_trust, 0.0, 0.05)
     kernel = np.where((sem_sims < effective_floor) & ~vibe_shield, 0.001, kernel) 
     
     if candidate_anchor_masks:
@@ -439,7 +441,9 @@ def calculate_jackalope_kernel_2d(verb_profiles, seed_verb_profiles, sem_vectors
     id_power = np.where(vibe_shield, 1.0, 2.0).astype(np.float32)
     kernel = (tag_sims * (identity_match ** id_power)) * vibe_sim * tone_sim * diff_sim
 
-    # 4. Hard Gates (Softer Floor)
-    kernel = np.where((sem_sims < 0.05) & ~vibe_shield, 0.001, kernel)
+    # 4. Hard Gates (Softer Floor for structural matches)
+    # If verbs are a high match (>0.6), we trust the mechanical signal and lower the semantic floor
+    mechanical_trust = tag_sims > 0.6
+    kernel = np.where((sem_sims < 0.05) & ~vibe_shield & ~mechanical_trust, 0.001, kernel)
     return np.maximum(kernel.astype(np.float32), 0.0)
 
