@@ -1,5 +1,26 @@
 # Changelog
 
+## [2026-03-05] - Taste DNA UI Overhaul & Strict Filtering
+### Added
+- **Taste DNA UI Redesign**:
+    - Overhauled the "Personalization" results with a high-density two-column grid layout.
+    - Expanded **"Games You'll Love"** and **"Backlog Priority"** lists from 10 to 30 items.
+    - Integrated **"Top Free Games"** (10 items) and **"Games You'll Hate"** (10 items) as secondary discovery pillars.
+    - Uniform styling for Love and Backlog lists, including rank numbering and predicted ratings.
+- **Strict Free-to-Play Filtering**:
+    - Implemented a **positive-indicator filter** for free recommendations.
+    - Eliminated "Pharmageddon" false positives by strictly requiring the explicit `'Free to Play'` community tag.
+    - Added automated exclusion of unreleased games ("Coming soon", "TBA") from discovery gems.
+
+### Changed
+- **Dynamic Schema Resilience**:
+    - Backend (`server.py`) and Solver (`solve_user_taste.py`) now dynamically detect missing metadata columns (e.g., `tone_z`) and initialize them gracefully, preventing PyArrow load crashes.
+- **Build System**: Incremented build version to **52**.
+
+### Fixed
+- **Distribution Integrity**: Resolved a pipeline bug where aggressive price regex was wiping out valid price data, restoring the model to its **20.44% OOS R2** peak.
+- **Frontend Build**: Scrubbed unused imports and deprecated state variables to satisfy strict TypeScript compilation on the modern frontend.
+
 ## [2026-03-04] - The v7.1 Discovery Peak (20.44% R2)
 ### Added
 - **"Core 9" Discovery Mode**:

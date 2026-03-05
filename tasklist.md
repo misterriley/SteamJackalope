@@ -7,6 +7,9 @@
 - [ ] Transition `more_like_this.json` to a sparse matrix format for production optimization.
 
 ## ✅ Recently Completed
+- [x] **Taste DNA UI Overhaul**: Redesigned the "Personalization" results with a high-density two-column layout and expanded 30-item Love/Backlog lists.
+- [x] **Strict Free-to-Play Filtering**: Eliminated false positives (unreleased/delisted) from the "Top Free Games" list using a strict positive-tag indicator ('Free to Play').
+- [x] **Dynamic Schema Resilience**: Fixed server/solver crashes by enabling dynamic loading of missing metadata columns (e.g., 'tone_z').
 - [x] **The v7.1 Discovery Peak**: Reached a verified **20.44% OOS R2** ceiling using the optimized "Core 9" feature set (Kernel, Graph, Meta).
 - [x] **Mechanical Trust Kernel (v7.1)**: Implemented structural bypass for high-fidelity mechanical matches (Verb Jaccard > 0.6), restoring critical soul-match bridges (NieR to Stellar Blade).
 - [x] **Analyze Page Synchronization**: Fully populated rich insights (North Stars, Tags, Backlog, Favorites) and fixed frontend `toFixed` crash.

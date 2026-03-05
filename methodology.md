@@ -33,6 +33,7 @@ By focusing on high-signal features, the model's optimal regularization alpha sh
 ### 3. Zero-Drift Synchronization
 The **Taste DNA Solver** and the **Live Recommender** share identical NW Kernel and Graph resonance logic. 
 - **Smoothing Power**: Fixed at **10.0** across all environments to provide sharp, localized discovery planets.
+- **Strict Free-to-Play Selection**: To eliminate unreleased games and "coming soon" placeholders from discovery gems, the system uses a **positive-indicator filter**. A game only appears in the "Top Free Games" list if it carries the explicit `'Free to Play'` community tag, bypassing the ambiguity of HTML storefront price fields.
 - **Quality Refinement**: Recommendations are further prioritized by a Bayesian quality score, effectively "weeding out" low-fidelity clones that mimic mechanics but lack execution.
 
 ## Theoretical Limits & Findings
