@@ -7,6 +7,11 @@
 - [ ] Transition `more_like_this.json` to a sparse matrix format for production optimization.
 
 ## ✅ Recently Completed
+- [x] **The v7.1 Discovery Peak**: Reached a verified **20.44% OOS R2** ceiling using the optimized "Core 9" feature set (Kernel, Graph, Meta).
+- [x] **Mechanical Trust Kernel (v7.1)**: Implemented structural bypass for high-fidelity mechanical matches (Verb Jaccard > 0.6), restoring critical soul-match bridges (NieR to Stellar Blade).
+- [x] **Analyze Page Synchronization**: Fully populated rich insights (North Stars, Tags, Backlog, Favorites) and fixed frontend `toFixed` crash.
+- [x] **Zero-Drift Synchronization**: (v7.1) Unified NW Smoothing power (10.0) across all environments and restored linear verb Jaccard for precision.
+- [x] **Data Quality Cleanup**: Implemented automatic seed name recovery from metadata to fix `nan` titles in user profiles.
 - [x] **Jackalope-GOD v7.0**: Unified **Behavioral Graph** (128-dim latent space) and **Cerebral Bridge** (38 intellectual dimensions) to achieve 94.5% sorting accuracy.
 - [x] **Implicit Feature Learning (v7.0)**: Used the Solver to identify specific "Intellectual Pillars" for personalized weighting, enabling the system to "learn" a mindset.
 - [x] **Zero-Drift Deployment**: Refactored `common/utils.py`, `app/server.py`, and `pipeline/solve_user_taste.py` to share the high-fidelity hybrid kernel logic.

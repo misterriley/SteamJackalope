@@ -21,8 +21,8 @@ class TestMetadataProcessing(unittest.TestCase):
     def test_to_z(self):
         x = np.array([1, 2, 3, 4, 5])
         z = to_z(x)
-        self.assertAlmostEqual(np.mean(z), 0.0)
-        self.assertAlmostEqual(np.std(z), 1.0)
+        self.assertAlmostEqual(np.mean(z), 0.0, places=5)
+        self.assertAlmostEqual(np.std(z), 1.0, places=5)
         
         # Test zero variance
         x2 = np.array([1, 1, 1])

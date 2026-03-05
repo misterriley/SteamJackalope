@@ -1,6 +1,28 @@
 # Changelog
 
-## [2026-03-04] - The 20% Discovery Breakthrough
+## [2026-03-04] - The v7.1 Discovery Peak (20.44% R2)
+### Added
+- **"Core 9" Discovery Mode**:
+    - Reached a verified **20.44% Honest OOS R^2** ceiling by pruning 283 "noisy" features (MIGs and Topics) from the primary regression pool.
+    - Focuses strictly on high-signal components: Kernel, Graph, Quality, Date, Popularity, Playtime, Difficulty, Price, and Tone.
+    - Reduced optimal regularization ($\alpha$) from 59.64 to **1.33**, indicating a more robust and generalizable model.
+- **Jackalope Kernel v7.1 ("The Purist")**:
+    - **Mechanical Trust Bypass**: Restored critical discovery bridges (e.g., *NieR: Automata* -> *Stellar Blade*) by allowing high-fidelity mechanical matches (Verb Jaccard > 0.6) to bypass the semantic floor gate.
+    - **Linear Verb Jaccard**: Reverted to linear Jaccard for verb profiles to maintain mechanical precision for niche genres like Survivor-likes.
+    - **Additive Topics**: Thematic topics now act as multipliers ($Vibe = Semantic \cdot (1.0 + 0.5 \cdot Topics)$) to ensure structural signals remain dominant.
+- **Rich Insight Synchronization**:
+    - Restored **North Stars** (top 5), **Backlog Priority**, **Predictive Tags** (with "Tag Expert" gems), and **Hate Lists** to the Taste DNA profile.
+    - Expanded **"Similar to Favorites"** to include discovery neighbors for all 9/10 rated seeds.
+    - Implemented automatic **Seed Name Recovery** from master metadata to fix `nan` titles in user profiles.
+
+### Changed
+- **NW Smoothing Power**: Synchronized at **10.0** across Solver, Backend, and Research for sharper discovery planets.
+
+### Fixed
+- **Frontend Stability**: Fixed `TypeError: val.toFixed is not a function` on the Analyze page by filtering metadata loop for numeric values.
+- **Data Quality**: Resolved "Dead Kernel" bug where aggressive squaring and gates were zeroing out mechanical similarities.
+
+## [2026-03-04] - The 20% Discovery Breakthrough (v7.0)
 ### Added
 - **"All-In" Ridge Discovery Model (v7.0)**:
     - Achieved a verified **20.28% Honest OOS R^2**, a ~200% relative improvement over the v4.2 baseline.
