@@ -25,13 +25,14 @@ from common.utils import to_z, calculate_jackalope_kernel_2d, MIGS, normalize_st
 def solve_user_taste(ground_truth_path, output_path=None):
     """
     Production Solver: CORE 9 Mode (20.47% Verified OOS R2 Peak).
-    Optimized for highest-fidelity predictive power by focusing on Kernel + Graph + Meta.
+    Includes rich insight generation for the 'Analyze' page.
     """
     print(f"Loading ground truth from {ground_truth_path}...")
     df_gt = pd.read_csv(ground_truth_path)
-    df_gt = df_gt[df_gt['status'] == 'rated'].dropna(subset=['actual_rating'])
-    y = df_gt['actual_rating'].values
-    user_appids = df_gt['appid'].values
+    # Rated Games Only for Solver
+    df_rated = df_gt[df_gt['status'] == 'rated'].dropna(subset=['actual_rating'])
+    y = df_rated['actual_rating'].values
+    user_appids = df_rated['appid'].values
     y_dev_global = y - 5.0
     
     sid = os.path.basename(ground_truth_path).split('_')[1]
@@ -50,7 +51,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     print(f"Loading metadata and vectors...")
     full_metadata = pd.read_parquet(METADATA_FILE)
     appid_to_idx = {int(aid): idx for idx, aid in enumerate(full_metadata['appid'])}
-    user_indices = [appid_to_idx[aid] for aid in df_gt['appid'] if aid in appid_to_idx]
+    user_indices = [appid_to_idx[aid] for aid in df_rated['appid'] if aid in appid_to_idx]
     user_meta_df = full_metadata.iloc[user_indices].copy()
     N = len(user_indices)
 
@@ -163,7 +164,19 @@ def solve_user_taste(ground_truth_path, output_path=None):
     q_coeff = model.coef_[2]
     meta_coeffs = model.coef_[3:9]
     topic_coeffs = np.zeros(249)
-    
+
+    # --- RICH INSIGHTS: ACTIVE MIGS ---
+    print("Generating rich insights...")
+    mig_impacts = []
+    for j, group in enumerate(MIGS.keys()):
+        # Calculate impact by looking at rated games with this MIG
+        mask = user_mig_masks[:, j].astype(bool)
+        if np.sum(mask) >= 3:
+            impact = np.mean(y[mask]) - np.mean(y)
+            mig_impacts.append({'group': group, 'impact': float(impact)})
+    active_migs = sorted(mig_impacts, key=lambda x: abs(x['impact']), reverse=True)
+
+    # --- PRODUCTION SCORING (Library Scale) ---
     print("Calculating library-scale recommendations...")
     all_verb_profiles = np.load(os.path.join(PRODUCTION_DATA_DIR, "diffused_verb_profiles.npy"), mmap_mode='r')
     all_sem_vectors = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
@@ -201,16 +214,93 @@ def solve_user_taste(ground_truth_path, output_path=None):
     for i, col in enumerate(meta_cols):
         scores += to_z(full_metadata[col].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)) * meta_coeffs[i]
 
+    # --- FILTERS & EXCLUSIONS ---
     from common.utils import get_base_filter_mask
     mask = get_base_filter_mask(full_metadata, english_only=True, remove_vr=True, remove_utilities=True, remove_delisted=True, remove_hollow=True)
-    completed_indices = [appid_to_idx[aid] for aid in discovery_exclude_appids if aid in appid_to_idx]
     
-    sort_scores = scores.copy()
-    sort_scores[completed_indices] = -1e12
-    sort_scores[~mask] = -1e12
-    top_indices = np.argsort(-sort_scores)[:30]
-    top_games = full_metadata.iloc[top_indices][['appid', 'name']].copy()
-    top_games['predicted_rating'] = np.clip(scores[top_indices], 0, 10)
+    # Discovery Exclusions
+    completed_indices = [appid_to_idx[aid] for aid in discovery_exclude_appids if aid in appid_to_idx]
+    discovery_scores = scores.copy()
+    discovery_scores[completed_indices] = -1e12
+    discovery_scores[~mask] = -1e12
+    top_discovery_indices = np.argsort(-discovery_scores)[:30]
+    top_recommendations = full_metadata.iloc[top_discovery_indices][['appid', 'name']].copy()
+    top_recommendations['predicted_rating'] = np.clip(scores[top_discovery_indices], 0, 10)
+
+    # Backlog Priority
+    backlog_appids = df_gt[df_gt['status'] == 'backlog']['appid'].values
+    backlog_indices = [appid_to_idx[aid] for aid in backlog_appids if aid in appid_to_idx]
+    backlog_scores = scores[backlog_indices]
+    top_backlog_indices = np.array(backlog_indices)[np.argsort(-backlog_scores)][:30]
+    backlog_recommendations = full_metadata.iloc[top_backlog_indices][['appid', 'name']].copy()
+    backlog_recommendations['predicted_rating'] = np.clip(scores[top_backlog_indices], 0, 10)
+
+    # Hate List (Library games with lowest scores)
+    library_indices = [appid_to_idx[aid] for aid in steam_library_appids if aid in appid_to_idx]
+    lib_scores = scores[library_indices]
+    bottom_lib_indices = np.array(library_indices)[np.argsort(lib_scores)][:30]
+    bottom_recommendations = full_metadata.iloc[bottom_lib_indices][['appid', 'name']].copy()
+    bottom_recommendations['predicted_rating'] = np.clip(scores[bottom_lib_indices], 0, 10)
+
+    # North Stars (Highest X_k values - games mathematically closest to your peak taste)
+    north_star_indices = np.argsort(-X_k_lib)[:5]
+    north_stars = full_metadata.iloc[north_star_indices][['appid', 'name']].copy()
+    north_stars['alignment'] = X_k_lib[north_star_indices]
+
+    # Predictive Tags
+    tag_impacts = []
+    # Only check top 200 popular tags for speed
+    all_tags = set()
+    for t_str in full_metadata.iloc[user_indices]['tags']:
+        if isinstance(t_str, str):
+            all_tags.update(ast.literal_eval(t_str).keys())
+    
+    for tag in list(all_tags)[:150]:
+        pattern = rf"'{re.escape(tag)}':"
+        has_tag = tag_series_full.iloc[user_indices].str.contains(pattern, regex=True).values
+        if np.sum(has_tag) >= 5:
+            impact = np.mean(y[has_tag]) - np.mean(y)
+            
+            # Find top discovery games with this tag
+            cand_has_tag = tag_series_full.str.contains(pattern, regex=True).values
+            tag_scores = scores.copy()
+            tag_scores[~cand_has_tag] = -1e12
+            tag_scores[completed_indices] = -1e12
+            tag_scores[~mask] = -1e12
+            top_tag_indices = np.argsort(-tag_scores)[:5]
+            tag_top_games = full_metadata.iloc[top_tag_indices][['appid', 'name']].to_dict(orient='records')
+            
+            tag_impacts.append({
+                'tag': tag, 
+                'impact': float(impact), 
+                'ratings_with': y[has_tag].tolist(), 
+                'ratings_without': y[~has_tag].tolist(),
+                'top_games': tag_top_games
+            })
+    
+    sorted_tags = sorted(tag_impacts, key=lambda x: x['impact'], reverse=True)
+    associative_tags = {
+        'top': sorted_tags[:15],
+        'bottom': sorted_tags[-15:][::-1]
+    }
+
+    # Favorite Game Seed Recommendations (All 9s and 10s)
+    favorite_recs = []
+    top_user_games = df_rated[df_rated['actual_rating'] >= 9.0]
+    for _, row in top_user_games.iterrows():
+        aid = int(row['appid'])
+        if aid in appid_to_idx:
+            idx = appid_to_idx[aid]
+            # Recover name from metadata if missing
+            seed_name = full_metadata.iloc[idx]['name'] if pd.isna(row['name']) else row['name']
+            # Get closest neighbors from K_lib
+            sims = K_lib[:, user_indices.index(idx)]
+            sims[idx] = -1e12
+            sims[completed_indices] = -1e12
+            sims[~mask] = -1e12
+            neighbor_indices = np.argsort(-sims)[:10]
+            fav_neighbors = full_metadata.iloc[neighbor_indices][['appid', 'name']].to_dict(orient='records')
+            favorite_recs.append({'seed_appid': aid, 'seed_name': seed_name, 'top_games': fav_neighbors})
 
     result = {
         'metadata': {
@@ -220,17 +310,23 @@ def solve_user_taste(ground_truth_path, output_path=None):
             'tone': float(meta_coeffs[5]), 'topic_coeffs': topic_coeffs.tolist(),
             'best_q_idx': 0, 'oos_r2': float(oos_r2)
         },
-        'kernel_anchors': [], 'r2': float(r2_train), 
+        'kernel_anchors': active_migs[:50], 
+        'r2': float(r2_train), 
         'intercept': float(model.intercept_),
         'library_appids': [int(aid) for aid in discovery_exclude_appids],
         'rated_appids': [int(aid) for aid in user_appids],
-        'top_recommendations': top_games.to_dict(orient='records')
+        'top_recommendations': top_recommendations.to_dict(orient='records'),
+        'backlog_recommendations': backlog_recommendations.to_dict(orient='records'),
+        'bottom_recommendations': bottom_recommendations.to_dict(orient='records'),
+        'north_stars': north_stars.to_dict(orient='records'),
+        'associative_tags': associative_tags,
+        'favorite_game_recommendations': favorite_recs
     }
     
     if output_path:
         with open(output_path, 'w') as f: json.dump(result, f, indent=4)
         np.save(output_path.replace('_taste_profile.json', '_predicted_ratings.npy'), scores.astype(np.float32))
-        print(f"\n>>> SUCCESS: TASTE DNA SAVED TO {output_path} (R2: {oos_r2:.4f}) <<<")
+        print(f"\n>>> SUCCESS: RICH TASTE DNA SAVED TO {output_path} (R2: {oos_r2:.4f}) <<<")
     return result
 
 if __name__ == "__main__":
