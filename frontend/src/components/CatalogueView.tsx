@@ -16,13 +16,12 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMetadata, API_BASE_URL } from '../api';
-import { useContextMenu } from '../context/ContextMenuContext';
+import { useContextMenu, ContextMenuProvider } from '../context/ContextMenuContext';
 import { useUser } from '../context/UserContext';
+import { type GameStatus } from '../types';
 
 import GameAddControl from './GameAddControl';
 import GameHeaderImage from './GameHeaderImage';
-
-type GameStatus = 'backlog' | 'played' | 'rated' | 'ignored' | 'wishlist';
 
 interface CatalogueEntry {
   appid: number;
@@ -161,7 +160,7 @@ CatalogueRow.displayName = 'CatalogueRow';
 
 // --- Main View ---
 
-const CatalogueView: React.FC = () => {
+const CatalogueViewContent: React.FC = () => {
   const [steamId] = useState<string>(() => {
     const saved = sessionStorage.getItem('personalization_state');
     if (saved) {
@@ -193,7 +192,8 @@ const CatalogueView: React.FC = () => {
       'wishlist': 1,
       'rated': 2,
       'played': 3,
-      'ignored': 4
+      'ignored': 4,
+      'none': 5
     };
   
     const { showContextMenu } = useContextMenu();
@@ -572,6 +572,14 @@ const CatalogueView: React.FC = () => {
         </AnimatePresence>
       </div>
     </div>
+  );
+};
+
+const CatalogueView: React.FC = () => {
+  return (
+    <ContextMenuProvider>
+      <CatalogueViewContent />
+    </ContextMenuProvider>
   );
 };
 

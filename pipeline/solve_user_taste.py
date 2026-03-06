@@ -216,20 +216,24 @@ def solve_user_taste(ground_truth_path, output_path=None):
 
     # --- FILTERS & EXCLUSIONS ---
     from common.utils import get_base_filter_mask
-    mask = get_base_filter_mask(full_metadata, english_only=True, remove_vr=True, remove_utilities=True, remove_delisted=True, remove_hollow=True)
+    base_mask = get_base_filter_mask(full_metadata, english_only=True, remove_vr=True, remove_utilities=True, remove_delisted=True, remove_hollow=True)
     
+    # Requirement: At least one positive or negative vote (Exclude games with 0 feedback for discovery)
+    has_votes = (full_metadata['positive'] + full_metadata['negative'] > 0).values
+    discovery_mask = base_mask & has_votes
+
     # Discovery Exclusions
     completed_indices = [appid_to_idx[aid] for aid in discovery_exclude_appids if aid in appid_to_idx]
     discovery_scores = scores.copy()
     discovery_scores[completed_indices] = -1e12
-    discovery_scores[~mask] = -1e12
+    discovery_scores[~discovery_mask] = -1e12
     top_discovery_indices = np.argsort(-discovery_scores)[:30]
     top_recommendations = full_metadata.iloc[top_discovery_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
     top_recommendations['predicted_rating'] = np.clip(scores[top_discovery_indices], 0, 10)
 
     # Free Games (Requires positive indicator via 'Free to Play' tag to avoid false positives)
     tag_series = full_metadata['tags'].fillna('').astype(str)
-    is_free_mask = tag_series.str.contains("'Free to Play':", regex=False)
+    is_free_mask = tag_series.str.contains("'Free to Play':", regex=False).values
     
     free_scores = discovery_scores.copy()
     free_scores[~is_free_mask] = -1e12
@@ -256,14 +260,18 @@ def solve_user_taste(ground_truth_path, output_path=None):
                       (full_metadata['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True))
     
     upcoming_scores = scores.copy()
-    upcoming_scores[~is_upcoming_mask] = -1e12
-    upcoming_scores[~mask] = -1e12 # Still apply base filters (no hollow, utilities, etc.)
+    upcoming_scores[~is_upcoming_mask.values] = -1e12
+    upcoming_scores[~base_mask] = -1e12 # Still apply base filters (no hollow, utilities, etc.)
     top_upcoming_indices = np.argsort(-upcoming_scores)[:30]
     upcoming_recommendations = full_metadata.iloc[top_upcoming_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
     upcoming_recommendations['predicted_rating'] = np.clip(scores[top_upcoming_indices], 0, 10)
 
     # North Stars (Highest X_k values - games mathematically closest to your peak taste)
-    north_star_indices = np.argsort(-X_k_lib)[:5]
+    # Apply base discovery filter to North Stars to avoid unreleased/utility clutter
+    ns_scores = X_k_lib.copy()
+    ns_scores[~discovery_mask] = -1e12
+    ns_scores[completed_indices] = -1e12
+    north_star_indices = np.argsort(-ns_scores)[:5]
     north_stars = full_metadata.iloc[north_star_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
     north_stars['alignment'] = X_k_lib[north_star_indices]
 
@@ -286,7 +294,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
             tag_scores = scores.copy()
             tag_scores[~cand_has_tag] = -1e12
             tag_scores[completed_indices] = -1e12
-            tag_scores[~mask] = -1e12
+            tag_scores[~discovery_mask] = -1e12
             top_tag_indices = np.argsort(-tag_scores)[:5]
             tag_top_games = full_metadata.iloc[top_tag_indices][['appid', 'name', 'header_image', 'is_nsfw']].to_dict(orient='records')
             
@@ -319,7 +327,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
             sims = K_lib[:, user_indices.index(idx)]
             sims[idx] = -1e12
             sims[completed_indices] = -1e12
-            sims[~mask] = -1e12
+            sims[~discovery_mask] = -1e12
             neighbor_indices = np.argsort(-sims)[:10]
             fav_neighbors = full_metadata.iloc[neighbor_indices][['appid', 'name', 'header_image', 'is_nsfw']].to_dict(orient='records')
             favorite_recs.append({

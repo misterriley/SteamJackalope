@@ -1,3 +1,5 @@
+export type GameStatus = 'ignored' | 'backlog' | 'played' | 'rated' | 'wishlist' | 'none';
+
 export interface GameMetadata {
   appid: number;
   name: string;

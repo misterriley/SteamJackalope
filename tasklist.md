@@ -7,6 +7,10 @@
 - [ ] Transition `more_like_this.json` to a sparse matrix format for production optimization.
 
 ## ✅ Recently Completed
+- [x] **Context-Menu Categorization**: Integrated a checkmark-enabled right-click menu across Solve, Catalogue, and Recommender pages for real-time status updates and live UI list removal.
+- [x] **Robust Art Rendering (Build 70)**: Implemented multi-stage fallback (Shared Akamai -> Fastly -> Legacy -> Cloudflare) with metadata-hashed URL support for unreleased/new games.
+- [x] **Verified Discovery Threshold**: Implemented a mandatory 1-vote minimum (Positive or Negative) for discovery lists (Love, Free, Tags) to ensure recommended games have existing feedback.
+- [x] **Circular Dependency Fix**: Decoupled `GameStatus` types into `frontend/src/types.ts` to resolve Vite/TypeScript import cycles between Context and Components.
 - [x] **Taste DNA UI Overhaul**: Redesigned the "Personalization" results with a high-density two-column layout and expanded 30-item Love/Backlog lists.
 - [x] **Strict Free-to-Play Filtering**: Eliminated false positives (unreleased/delisted) from the "Top Free Games" list using a strict positive-tag indicator ('Free to Play').
 - [x] **Dynamic Schema Resilience**: Fixed server/solver crashes by enabling dynamic loading of missing metadata columns (e.g., 'tone_z').

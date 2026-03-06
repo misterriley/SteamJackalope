@@ -3,7 +3,7 @@ import type { GameMetadata } from '../types';
 import { Star, Clock, Trophy, ExternalLink, Bug, AlertTriangle, Sparkles } from 'lucide-react';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { useUser } from '../context/UserContext';
-import type { GameStatus } from './ContextMenu';
+import type { GameStatus } from '../types';
 
 import GameHeaderImage from './GameHeaderImage';
 

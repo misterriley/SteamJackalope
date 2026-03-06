@@ -8,7 +8,7 @@ import GenreSelector from './GenreSelector';
 import TagSelector from './TagSelector';
 import { Search, RotateCcw, AlertCircle, Dices, Sparkles, TrendingUp, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { GameStatus } from './ContextMenu';
+import type { GameStatus } from '../types';
 
 
 const DEFAULT_GENRES = [

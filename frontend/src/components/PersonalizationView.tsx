@@ -26,6 +26,9 @@ import { getMetadata, getTermLinks, API_BASE_URL } from '../api';
 import ExplainabilityChart from './ExplainabilityChart';
 import ViolinPlot from './ViolinPlot';
 
+import { useContextMenu } from '../context/ContextMenuContext';
+import { type GameStatus } from '../types';
+
 import GameAddControl from './GameAddControl';
 import GameHeaderImage from './GameHeaderImage';
 
@@ -41,6 +44,7 @@ interface GameVerification {
   status: string;
   is_manual?: boolean;
   is_nsfw?: boolean;
+  header_image?: string;
 }
 
 interface PersonalizationViewProps {
@@ -65,6 +69,7 @@ const VerificationRow = React.memo(({ game, blurNSFW, showPlaytime, onRatingChan
         <a href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80 transition-opacity">
           <GameHeaderImage 
             appid={game.appid} 
+            header_image={game.header_image}
             isNSFW={game.is_nsfw}
             blurNSFW={blurNSFW}
             className="w-16 h-8 object-cover rounded shadow-sm border border-border/50"
@@ -194,11 +199,68 @@ const VerificationTable = ({
 // --- Main View ---
 
 const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) => {
+  const { showContextMenu } = useContextMenu();
   const [termLinks, setTermLinks] = useState<Record<string, string>>({});
   const [hoveredWeight, setHoveredWeight] = useState<string | null>(null);
   const [hoveredDimension, setHoveredDimension] = useState<string | null>(null);
   const [hoveredSemanticDimension, setHoveredSemanticDimension] = useState<string | null>(null);
   const [hoveredTag, setHoveredTag] = useState<string | null>(null);
+
+  const handleContextMenu = (e: React.MouseEvent, appid: number, currentList: string) => {
+    e.preventDefault();
+    
+    // Determine the likely current status based on the list it's in
+    let statusHint: GameStatus = 'none';
+    if (currentList === 'backlog') statusHint = 'backlog';
+    else if (currentList === 'top' || currentList === 'upcoming' || currentList === 'free' || currentList === 'tag' || currentList === 'fav') statusHint = 'none';
+
+    showContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      appid,
+      steamId,
+      currentStatus: statusHint,
+      onUpdate: (aid: number, status: GameStatus) => {
+        // If status is changed to anything other than what would keep it in the current list, remove it.
+        setInsights((prev: any) => {
+          if (!prev) return prev;
+          const next = { ...prev };
+          
+          // Discovery lists show 'none' status. Anything else is a removal.
+          // Backlog list shows 'backlog' status. Anything else is a removal.
+          const isDiscoveryList = ['top', 'upcoming', 'free', 'tag', 'fav'].includes(currentList);
+          const isRemovalStatus = isDiscoveryList 
+            ? (status !== 'none') 
+            : (status !== 'backlog');
+          
+          if (currentList === 'top' && isRemovalStatus) {
+            next.top_recommendations = next.top_recommendations?.filter((g: any) => g.appid !== aid);
+          } else if (currentList === 'upcoming' && isRemovalStatus) {
+            next.upcoming_recommendations = next.upcoming_recommendations?.filter((g: any) => g.appid !== aid);
+            next.bottom_recommendations = next.bottom_recommendations?.filter((g: any) => g.appid !== aid);
+          } else if (currentList === 'backlog' && isRemovalStatus) {
+            next.backlog_recommendations = next.backlog_recommendations?.filter((g: any) => g.appid !== aid);
+          } else if (currentList === 'free' && isRemovalStatus) {
+            next.free_recommendations = next.free_recommendations?.filter((g: any) => g.appid !== aid);
+          } else if (currentList === 'tag' && isRemovalStatus) {
+            if (next.associative_tags?.top) {
+              next.associative_tags.top = next.associative_tags.top.map((t: any) => ({
+                ...t,
+                top_games: t.top_games?.filter((g: any) => g.appid !== aid)
+              }));
+            }
+          } else if (currentList === 'fav' && isRemovalStatus) {
+            next.favorite_game_recommendations = next.favorite_game_recommendations?.map((f: any) => ({
+              ...f,
+              top_games: f.top_games?.filter((g: any) => g.appid !== aid)
+            }));
+          }
+          
+          return next;
+        });
+      }
+    });
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -596,6 +658,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                     {insights.top_recommendations?.slice(0, 30).map((game: any, idx: number) => (      
                       <a
                         key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
+                        onContextMenu={(e) => handleContextMenu(e, game.appid, 'top')}
                         className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-blue-500/30 transition-colors group"
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-blue-500/10 rounded-full text-[10px] font-bold text-blue-500 shrink-0">{idx + 1}</div>
@@ -624,6 +687,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                     {(insights.upcoming_recommendations || insights.bottom_recommendations)?.slice(0, 10).map((game: any, idx: number) => (   
                       <a
                         key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
+                        onContextMenu={(e) => handleContextMenu(e, game.appid, 'upcoming')}
                         className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-purple-500/30 transition-colors group"
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-purple-500/10 rounded-full text-[10px] font-bold text-purple-500 shrink-0">{idx + 1}</div>
@@ -823,6 +887,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                     {(insights.backlog_recommendations || []).slice(0, 30).map((game: any, idx: number) => (      
                       <a
                         key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
+                        onContextMenu={(e) => handleContextMenu(e, game.appid, 'backlog')}
                         className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-primary/30 transition-colors group"
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
@@ -851,6 +916,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                     {(insights.free_recommendations || []).slice(0, 10).map((game: any, idx: number) => (      
                       <a
                         key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
+                        onContextMenu={(e) => handleContextMenu(e, game.appid, 'free')}
                         className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-green-500/30 transition-colors group"
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-green-500/10 rounded-full text-[10px] font-bold text-green-500 shrink-0">{idx + 1}</div>
@@ -877,10 +943,14 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <p className="text-xs text-muted-foreground italic">Games that perfectly match your solved Vibe DNA (ignoring age/quality/price).</p>
                   <div className="grid grid-cols-1 gap-4">
                     {(insights.north_stars || []).map((game: any) => (
-                      <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="bg-secondary/30 border border-border/50 rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all group">
+                      <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" 
+                        onContextMenu={(e) => handleContextMenu(e, game.appid, 'top')}
+                        className="bg-secondary/30 border border-border/50 rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all group"
+                      >
                         <div className="w-24 h-12 rounded overflow-hidden shrink-0">
                           <GameHeaderImage 
                             appid={game.appid} 
+                            header_image={game.header_image}
                             isNSFW={game.is_nsfw}
                             blurNSFW={blurNSFW}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
@@ -932,6 +1002,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                                   href={`https://store.steampowered.com/app/${game.appid}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
+                                  onContextMenu={(e) => handleContextMenu(e, game.appid, 'tag')}
                                   className="flex-shrink-0 w-32 group/tag-game"
                                 >
                                   <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/tag-game:border-primary/50 transition-colors">
@@ -984,6 +1055,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                                 href={`https://store.steampowered.com/app/${game.appid}`} 
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onContextMenu={(e) => handleContextMenu(e, game.appid, 'fav')}
                                 className="flex-shrink-0 w-32 group/fav-game"
                               >
                                 <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/fav-game:border-primary/50 transition-colors"> 

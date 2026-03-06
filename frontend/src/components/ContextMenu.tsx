@@ -5,22 +5,23 @@ import {
   Star, 
   XCircle,
   ChevronRight,
-  Clock
+  Clock,
+  Heart
 } from 'lucide-react';
 import { updateUserVerify } from '../api';
-
-export type GameStatus = 'ignored' | 'backlog' | 'played' | 'rated' | 'none';
+import { type GameStatus } from '../types';
 
 interface ContextMenuProps {
   x: number;
   y: number;
   appid: number;
   steamId: string;
+  currentStatus?: GameStatus;
   onClose: () => void;
   onUpdate?: (appid: number, status: GameStatus, rating?: number) => void;
 }
 
-const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, appid, steamId, onClose, onUpdate }) => {
+const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, appid, steamId, currentStatus, onClose, onUpdate }) => {
   const [showRatingSubmenu, setShowRatingSubmenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -48,8 +49,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, appid, steamId, onClose
   };
 
   const menuItems = [
+    { id: 'backlog', label: 'Add to Backlog', icon: <Clock size={14} />, color: 'text-primary' },
+    { id: 'wishlist', label: 'Add to Wishlist', icon: <Heart size={14} />, color: 'text-pink-500' },
     { id: 'played', label: 'Mark as Played', icon: <CheckCircle size={14} />, color: 'text-green-500' },
-    { id: 'backlog', label: 'Add to Backlog', icon: <Clock size={14} />, color: 'text-blue-500' },
     { id: 'ignored', label: 'Ignore Game', icon: <XCircle size={14} />, color: 'text-red-500' },
   ];
 
@@ -77,16 +79,22 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, appid, steamId, onClose
         </div>
       ) : (
         <>
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => handleStatusChange(item.id as GameStatus)}
-              className="w-full px-3 py-2 flex items-center gap-2.5 text-xs font-medium hover:bg-primary/10 transition-colors text-foreground"
-            >
-              <span className={item.color}>{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
+          {menuItems.map((item) => {
+            const isActive = currentStatus === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleStatusChange(item.id as GameStatus)}
+                className={`w-full px-3 py-2 flex items-center justify-between text-xs font-medium hover:bg-primary/10 transition-colors ${isActive ? 'bg-primary/5 text-primary' : 'text-foreground'}`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className={isActive ? 'text-primary' : item.color}>{item.icon}</span>
+                  {item.label}
+                </div>
+                {isActive && <CheckCircle size={12} className="text-primary" />}
+              </button>
+            );
+          })}
 
           <div className="h-px bg-border my-1" />
 
@@ -96,13 +104,16 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, appid, steamId, onClose
             onMouseLeave={() => setShowRatingSubmenu(false)}
           >
             <button
-              className={`w-full px-3 py-2 flex items-center justify-between text-xs font-medium transition-colors text-foreground ${showRatingSubmenu ? 'bg-primary/10' : 'hover:bg-primary/10'}`}
+              className={`w-full px-3 py-2 flex items-center justify-between text-xs font-medium transition-colors ${showRatingSubmenu || currentStatus === 'rated' ? 'bg-primary/10' : 'hover:bg-primary/10'} ${currentStatus === 'rated' ? 'text-primary' : 'text-foreground'}`}
             >
               <div className="flex items-center gap-2.5">
-                <Star size={14} className="text-yellow-500" />
+                <Star size={14} className={currentStatus === 'rated' ? 'text-primary' : 'text-yellow-500'} />
                 <span>Rate Game</span>
               </div>
-              <ChevronRight size={14} className={`opacity-40 transition-transform ${showRatingSubmenu ? 'rotate-90' : ''}`} />
+              <div className="flex items-center gap-1.5">
+                {currentStatus === 'rated' && <CheckCircle size={12} className="text-primary" />}
+                <ChevronRight size={14} className={`opacity-40 transition-transform ${showRatingSubmenu ? 'rotate-90' : ''}`} />
+              </div>
             </button>
 
             <AnimatePresence>
