@@ -601,6 +601,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div className="w-6 h-6 flex items-center justify-center bg-blue-500/10 rounded-full text-[10px] font-bold text-blue-500 shrink-0">{idx + 1}</div>
                         <GameHeaderImage
                           appid={game.appid}
+                          header_image={game.header_image}
                           isNSFW={game.is_nsfw}
                           blurNSFW={blurNSFW}
                           className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform"
@@ -628,6 +629,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div className="w-6 h-6 flex items-center justify-center bg-purple-500/10 rounded-full text-[10px] font-bold text-purple-500 shrink-0">{idx + 1}</div>
                         <GameHeaderImage
                           appid={game.appid}
+                          header_image={game.header_image}
                           isNSFW={game.is_nsfw}
                           blurNSFW={blurNSFW}
                           className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform"
@@ -826,6 +828,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
                         <GameHeaderImage
                           appid={game.appid}
+                          header_image={game.header_image}
                           isNSFW={game.is_nsfw}
                           blurNSFW={blurNSFW}
                           className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform"
@@ -853,6 +856,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div className="w-6 h-6 flex items-center justify-center bg-green-500/10 rounded-full text-[10px] font-bold text-green-500 shrink-0">{idx + 1}</div>
                         <GameHeaderImage
                           appid={game.appid}
+                          header_image={game.header_image}
                           isNSFW={game.is_nsfw}
                           blurNSFW={blurNSFW}
                           className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform"
@@ -933,6 +937,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                                   <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/tag-game:border-primary/50 transition-colors">
                                     <GameHeaderImage
                                       appid={game.appid}
+                                      header_image={game.header_image}
                                       isNSFW={game.is_nsfw}
                                       blurNSFW={blurNSFW}
                                       className="w-full h-full object-cover group-hover/tag-game:scale-105 transition-transform"     
@@ -964,6 +969,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                             <div className="flex items-center gap-2 min-w-0">
                               <GameHeaderImage
                                 appid={fav.seed_appid}
+                                header_image={fav.seed_header}
                                 className="w-10 h-5 object-cover rounded shadow-sm border border-border/50 shrink-0"
                               />
                               <div className="text-[10px] font-bold truncate text-muted-foreground uppercase tracking-wider">{fav.seed_name}</div>
@@ -983,6 +989,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                                 <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/fav-game:border-primary/50 transition-colors"> 
                                   <GameHeaderImage
                                     appid={game.appid}
+                                    header_image={game.header_image}
                                     isNSFW={game.is_nsfw}
                                     blurNSFW={blurNSFW}
                                     className="w-full h-full object-cover group-hover/fav-game:scale-105 transition-transform"       
