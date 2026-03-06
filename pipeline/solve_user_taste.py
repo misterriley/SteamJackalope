@@ -224,7 +224,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     discovery_scores[completed_indices] = -1e12
     discovery_scores[~mask] = -1e12
     top_discovery_indices = np.argsort(-discovery_scores)[:30]
-    top_recommendations = full_metadata.iloc[top_discovery_indices][['appid', 'name']].copy()
+    top_recommendations = full_metadata.iloc[top_discovery_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
     top_recommendations['predicted_rating'] = np.clip(scores[top_discovery_indices], 0, 10)
 
     # Free Games (Requires positive indicator via 'Free to Play' tag to avoid false positives)
@@ -234,7 +234,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
     free_scores = discovery_scores.copy()
     free_scores[~is_free_mask] = -1e12
     top_free_indices = np.argsort(-free_scores)[:10]
-    free_recommendations = full_metadata.iloc[top_free_indices][['appid', 'name']].copy()
+    free_recommendations = full_metadata.iloc[top_free_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
     free_recommendations['predicted_rating'] = np.clip(scores[top_free_indices], 0, 10)
 
     # Backlog Priority
@@ -243,10 +243,10 @@ def solve_user_taste(ground_truth_path, output_path=None):
     if backlog_indices:
         backlog_scores = scores[backlog_indices]
         top_backlog_indices = np.array(backlog_indices)[np.argsort(-backlog_scores)][:30]
-        backlog_recommendations = full_metadata.iloc[top_backlog_indices][['appid', 'name']].copy()
+        backlog_recommendations = full_metadata.iloc[top_backlog_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
         backlog_recommendations['predicted_rating'] = np.clip(scores[top_backlog_indices], 0, 10)
     else:
-        backlog_recommendations = pd.DataFrame(columns=['appid', 'name', 'predicted_rating'])
+        backlog_recommendations = pd.DataFrame(columns=['appid', 'name', 'predicted_rating', 'header_image', 'is_nsfw'])
 
     # Upcoming Games (Coming soon or released in the future)
     now = pd.Timestamp.now().normalize()
@@ -259,12 +259,12 @@ def solve_user_taste(ground_truth_path, output_path=None):
     upcoming_scores[~is_upcoming_mask] = -1e12
     upcoming_scores[~mask] = -1e12 # Still apply base filters (no hollow, utilities, etc.)
     top_upcoming_indices = np.argsort(-upcoming_scores)[:30]
-    upcoming_recommendations = full_metadata.iloc[top_upcoming_indices][['appid', 'name']].copy()
+    upcoming_recommendations = full_metadata.iloc[top_upcoming_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
     upcoming_recommendations['predicted_rating'] = np.clip(scores[top_upcoming_indices], 0, 10)
 
     # North Stars (Highest X_k values - games mathematically closest to your peak taste)
     north_star_indices = np.argsort(-X_k_lib)[:5]
-    north_stars = full_metadata.iloc[north_star_indices][['appid', 'name']].copy()
+    north_stars = full_metadata.iloc[north_star_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
     north_stars['alignment'] = X_k_lib[north_star_indices]
 
     # Predictive Tags
@@ -288,7 +288,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
             tag_scores[completed_indices] = -1e12
             tag_scores[~mask] = -1e12
             top_tag_indices = np.argsort(-tag_scores)[:5]
-            tag_top_games = full_metadata.iloc[top_tag_indices][['appid', 'name']].to_dict(orient='records')
+            tag_top_games = full_metadata.iloc[top_tag_indices][['appid', 'name', 'header_image', 'is_nsfw']].to_dict(orient='records')
             
             tag_impacts.append({
                 'tag': tag, 
@@ -319,7 +319,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
             sims[completed_indices] = -1e12
             sims[~mask] = -1e12
             neighbor_indices = np.argsort(-sims)[:10]
-            fav_neighbors = full_metadata.iloc[neighbor_indices][['appid', 'name']].to_dict(orient='records')
+            fav_neighbors = full_metadata.iloc[neighbor_indices][['appid', 'name', 'header_image', 'is_nsfw']].to_dict(orient='records')
             favorite_recs.append({'seed_appid': aid, 'seed_name': seed_name, 'top_games': fav_neighbors})
 
     result = {
