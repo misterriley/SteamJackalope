@@ -591,24 +591,24 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
               <div className="space-y-8">
                 {/* LOVE LIST */}
                 <div className="bg-card border border-border rounded-2xl p-6 space-y-6">  
-                  <h3 className="text-lg font-bold flex items-center gap-2 text-primary"><ThumbsUp size={18} />Games You'll Love</h3>
+                  <h3 className="text-lg font-bold flex items-center gap-2 text-blue-500"><ThumbsUp size={18} />Games You'll Love</h3>
                   <div className="space-y-3">
                     {insights.top_recommendations?.slice(0, 30).map((game: any, idx: number) => (      
                       <a
                         key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-primary/30 transition-colors group"
+                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-blue-500/30 transition-colors group"
                       >
-                        <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
+                        <div className="w-6 h-6 flex items-center justify-center bg-blue-500/10 rounded-full text-[10px] font-bold text-blue-500 shrink-0">{idx + 1}</div>
                         <img
                           src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
                           className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
                           onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
                         />
                         <div className="flex-grow min-w-0">
-                          <div className="font-bold text-[11px] truncate group-hover:text-primary transition-colors">{game.name}</div>
+                          <div className="font-bold text-[11px] truncate group-hover:text-blue-500 transition-colors">{game.name}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px] font-bold text-primary">{Math.round(game.predicted_rating)}</div>
+                          <div className="text-[10px] font-bold text-blue-500">{Math.round(game.predicted_rating)}</div>
                         </div>
                       </a>
                     ))}
