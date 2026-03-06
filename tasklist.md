@@ -7,6 +7,8 @@
 - [ ] Transition `more_like_this.json` to a sparse matrix format for production optimization.
 
 ## ✅ Recently Completed
+- [x] **High-Fidelity Similarity Function**: Built an optimized weighted similarity algorithm (Desc: 0.445, Verbs: 0.233, Tags: 0.174, Graph: 0.148) with strict quality/review filters to guarantee top-tier recommendations.
+- [x] **Puzzle Subgenre Firewall**: Implemented a structural penalty system based on Steam tags to prevent cross-contamination between distinct puzzle subgenres (Spatial, Automation, Sokoban/Grid, Hidden Object).
 - [x] **Context-Menu Categorization**: Integrated a checkmark-enabled right-click menu across Solve, Catalogue, and Recommender pages for real-time status updates and live UI list removal.
 - [x] **Robust Art Rendering (Build 70)**: Implemented multi-stage fallback (Shared Akamai -> Fastly -> Legacy -> Cloudflare) with metadata-hashed URL support for unreleased/new games.
 - [x] **Verified Discovery Threshold**: Implemented a mandatory 1-vote minimum (Positive or Negative) for discovery lists (Love, Free, Tags) to ensure recommended games have existing feedback.

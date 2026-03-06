@@ -1,5 +1,15 @@
 # Changelog
 
+## [2026-03-06] - High-Fidelity Similarity & Puzzle Firewall (Research)
+### Added
+- **Optimized Similarity Function**:
+    - Created an evolutionary script (`auto_optimizer.py`) to determine the optimal weights for the 4 core similarity metrics: Descriptions (0.445), Verbs (0.233), Tags (0.174), and Graph Links (0.148).
+    - Reduced popularity bias by heavily discounting Graph Similarity based on `pop_z` score.
+    - Implemented a robust "shovelware" filter requiring at least 63 reviews and >= 65% positive ratio, blocking asset flips and abandoned projects from polluting top results.
+- **Puzzle Subgenre Firewall**:
+    - Addressed severe semantic bleed in the puzzle genre where 3D spatial games were recommended alongside 2D grid/sokoban games due to pure semantic similarity.
+    - Created `test_similarity_firewall.py` in `/research` with a structural penalty loop mapping games to mutually exclusive types: Hidden Object, Sokoban/Grid, Automation, and Spatial/3D.
+
 ## [2026-03-05] - Right-Click Categorization & Robust Art
 ### Added
 - **Integrated Context Menu**:
