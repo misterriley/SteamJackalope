@@ -22,14 +22,10 @@ const GameCard: React.FC<GameCardProps> = ({
   termLinks = {},
   onStatusUpdate 
 }) => {
-  const [imgError, setImgError] = useState(false);
   const { showContextMenu } = useContextMenu();
   const { steamId } = useUser();
   const steamUrl = `https://store.steampowered.com/app/${game.appid}/`;
   
-  // Use header_image from metadata if available, otherwise fall back to standard CDN path
-  const headerUrl = game.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`;
-
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     showContextMenu({

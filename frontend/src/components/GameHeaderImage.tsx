@@ -12,7 +12,7 @@ const GameHeaderImage: React.FC<GameHeaderImageProps> = ({
   appid, isNSFW, blurNSFW, className, alt = "Game" 
 }) => {
   const [src, setSrc] = useState<string>(`https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`);
-  const [retryCount, setRetryCount] = useState(0);
+  const [_retryCount, setRetryCount] = useState(0);
   const [failedAll, setFailedAll] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 

@@ -15,7 +15,6 @@ import {
   Download,
   RotateCcw,
   ThumbsUp,
-  ThumbsDown,
   Hash,
   Compass,
   Anchor,
