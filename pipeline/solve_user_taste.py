@@ -237,6 +237,17 @@ def solve_user_taste(ground_truth_path, output_path=None):
     free_recommendations = full_metadata.iloc[top_free_indices][['appid', 'name']].copy()
     free_recommendations['predicted_rating'] = np.clip(scores[top_free_indices], 0, 10)
 
+    # Backlog Priority
+    backlog_appids = df_gt[df_gt['status'] == 'backlog']['appid'].values
+    backlog_indices = [appid_to_idx[aid] for aid in backlog_appids if aid in appid_to_idx]
+    if backlog_indices:
+        backlog_scores = scores[backlog_indices]
+        top_backlog_indices = np.array(backlog_indices)[np.argsort(-backlog_scores)][:30]
+        backlog_recommendations = full_metadata.iloc[top_backlog_indices][['appid', 'name']].copy()
+        backlog_recommendations['predicted_rating'] = np.clip(scores[top_backlog_indices], 0, 10)
+    else:
+        backlog_recommendations = pd.DataFrame(columns=['appid', 'name', 'predicted_rating'])
+
     # Upcoming Games (Coming soon or released in the future)
     if os.path.exists(METADATA_FILE):
         build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s')
