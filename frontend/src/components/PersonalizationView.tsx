@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   User, 
   Search, 
@@ -13,7 +13,6 @@ import {
   AlertCircle,
   CheckCircle2,
   Download,
-  Plus,
   RotateCcw,
   ThumbsUp,
   ThumbsDown,
@@ -24,9 +23,11 @@ import {
   Library
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { searchGames, getMetadata, getTermLinks, API_BASE_URL } from '../api';
+import { getMetadata, getTermLinks, API_BASE_URL } from '../api';
 import ExplainabilityChart from './ExplainabilityChart';
 import ViolinPlot from './ViolinPlot';
+
+import GameAddControl from './GameAddControl';
 
 interface GameVerification {
   appid: number;
@@ -189,101 +190,6 @@ const VerificationTable = ({
     </div>
   </div>
 );
-
-interface VerificationManualAddProps {
-  onAdd: (gameName: string) => Promise<void>;
-}
-
-const VerificationManualAdd = ({ onAdd }: VerificationManualAddProps) => {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<string[]>([]);
-  const [showResults, setShowResults] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setShowResults(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (activeIndex >= 0 && resultsRef.current) {
-      const activeItem = resultsRef.current.children[activeIndex] as HTMLElement;
-      if (activeItem) activeItem.scrollIntoView({ block: 'nearest' });
-    }
-  }, [activeIndex]);
-
-  const handleSearch = (val: string) => {
-    setQuery(val);
-    setActiveIndex(-1);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (val.length > 1) {
-      timeoutRef.current = setTimeout(async () => {
-        const res = await searchGames(val);
-        setResults(res);
-        setShowResults(true);
-      }, 300);
-    } else {
-      setResults([]);
-      setShowResults(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showResults || results.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveIndex(prev => (prev + 1) % results.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveIndex(prev => (prev - 1 + results.length) % results.length);
-    } else if (e.key === 'Enter' && activeIndex >= 0) {
-      e.preventDefault();
-      onAdd(results[activeIndex]);
-      setQuery('');
-      setShowResults(false);
-    } else if (e.key === 'Escape') setShowResults(false);
-  };
-
-  return (
-    <div className="relative max-w-md" ref={containerRef}>
-      <div className="relative">
-        <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-        <input 
-          type="text" placeholder="Add a game manually (e.g. Elden Ring)"
-          className="w-full bg-card border border-border rounded-lg pl-10 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-          value={query} onChange={(e) => handleSearch(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => query.length > 1 && setShowResults(true)}
-        />
-      </div>
-      <AnimatePresence>
-        {showResults && results.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            ref={resultsRef}
-            className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-2xl max-h-60 overflow-y-auto"
-          >
-            {results.map((res, idx) => (
-              <button 
-                key={res} onClick={() => { onAdd(res); setQuery(''); setShowResults(false); }}
-                className={`w-full text-left px-4 py-2 text-sm transition-colors border-b border-border/50 last:border-0 ${
-                  idx === activeIndex ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary'
-                }`}
-              >
-                {res}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
 
 // --- Main View ---
 
@@ -632,7 +538,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <h2 className="text-2xl font-bold">Verify Your Ratings</h2>
                   <p className="text-sm text-muted-foreground italic">Correct the predicted ratings where needed. Add games manually if you want to broaden the training set.</p>
                 </div>
-                <VerificationManualAdd onAdd={handleManualAdd} />
+                <GameAddControl onAdd={handleManualAdd} placeholder="Add a game manually (e.g. Elden Ring)" />
               </div>
               <div className="flex flex-col items-end gap-3">
                 <button onClick={handleSaveAndSolve} disabled={loading || games.length < 10} className="bg-primary text-primary-foreground px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-primary/20 disabled:opacity-50 disabled:scale-100">

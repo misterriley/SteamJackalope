@@ -616,7 +616,7 @@ def search_games(q: str = "", limit: int = 50):
     if not q or len(q) < 2:
         return []
         
-    query_norm = data_manager.normalize_string(q)
+    query_norm = normalize_string(q)
     # 1. Get all matches using normalized names
     mask = data_manager.metadata['normalized_name'].str.contains(re.escape(query_norm), case=False, na=False)
     matches_df = data_manager.metadata[mask][['name', 'normalized_name', 'pop_z']].copy()

@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Search, 
   ChevronDown,
   Trash2,
-  Plus,
   RefreshCcw,
   ExternalLink,
   Save,
@@ -16,9 +15,11 @@ import {
   ArrowUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { searchGames, getMetadata, API_BASE_URL } from '../api';
+import { getMetadata, API_BASE_URL } from '../api';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { useUser } from '../context/UserContext';
+
+import GameAddControl from './GameAddControl';
 
 type GameStatus = 'backlog' | 'played' | 'rated' | 'ignored' | 'wishlist';
 
@@ -155,106 +156,6 @@ const CatalogueRow = React.memo(({ entry, blurNSFW, onStatusChange, onRatingChan
 
 CatalogueRow.displayName = 'CatalogueRow';
 
-interface ManualAddControlProps {
-  onAdd: (gameName: string) => Promise<void>;
-}
-
-const ManualAddControl = ({ onAdd }: ManualAddControlProps) => {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<string[]>([]);
-  const [showResults, setShowResults] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<any>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setShowResults(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (activeIndex >= 0 && resultsRef.current) {
-      const activeItem = resultsRef.current.children[activeIndex] as HTMLElement;
-      if (activeItem) activeItem.scrollIntoView({ block: 'nearest' });
-    }
-  }, [activeIndex]);
-
-  const handleSearch = (val: string) => {
-    setQuery(val);
-    setActiveIndex(-1);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (val.length > 1) {
-      timeoutRef.current = setTimeout(async () => {
-        const res = await searchGames(val);
-        setResults(res);
-        setShowResults(true);
-      }, 300);
-    } else {
-      setResults([]);
-      setShowResults(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showResults || results.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveIndex(prev => (prev + 1) % results.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveIndex(prev => (prev - 1 + results.length) % results.length);
-    } else if (e.key === 'Enter' && activeIndex >= 0) {
-      e.preventDefault();
-      onAdd(results[activeIndex]);
-      setQuery('');
-      setShowResults(false);
-    } else if (e.key === 'Escape') {
-      setShowResults(false);
-    }
-  };
-
-  return (
-    <div className="relative max-w-xs" ref={containerRef}>
-      <div className="relative">
-        <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-        <input 
-          type="text" placeholder="Add any game..."
-          className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-          value={query} onChange={(e) => handleSearch(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => query.length > 1 && setShowResults(true)}
-        />
-      </div>
-      <AnimatePresence>
-        {showResults && results.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            ref={resultsRef}
-            className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-2xl max-h-60 overflow-y-auto"
-          >
-            {results.map((res, idx) => (
-              <button 
-                key={res} 
-                onClick={() => { onAdd(res); setQuery(''); setShowResults(false); }}
-                className={`w-full text-left px-4 py-2 text-sm transition-colors border-b border-border/50 last:border-0 ${
-                  idx === activeIndex ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary'
-                }`}
-              >
-                {res}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
 // --- Main View ---
 
 const CatalogueView: React.FC = () => {
@@ -278,10 +179,11 @@ const CatalogueView: React.FC = () => {
     const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
     const [isSaving, setIsSaving] = useState(false);
     const [blurNSFW, setBlurNSFW] = useState(true);
-    const [sortConfig, setSortConfig] = useState<{ key: keyof CatalogueEntry; direction: 'asc' | 'desc' }>({
+    const [sortConfig, setSortConfig] = useState<{ key: keyof CatalogueEntry; direction: 'asc' | 'desc'; statusPriority?: GameStatus }>({
       key: 'status',
       direction: 'asc'
     });
+    const [showStatusMenu, setShowStatusMenu] = useState(false);
   
     const STATUS_PRIORITY: Record<GameStatus, number> = {
       'backlog': 0,
@@ -383,10 +285,12 @@ const CatalogueView: React.FC = () => {
       }
     };
   
-    const handleSort = (key: keyof CatalogueEntry) => {
+    const handleSort = (key: keyof CatalogueEntry, priority?: GameStatus) => {
       let direction: 'asc' | 'desc' = 'asc';
-      if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
-      setSortConfig({ key, direction });
+      if (sortConfig.key === key && sortConfig.direction === 'asc' && !priority) direction = 'desc';
+      
+      const newConfig = { key, direction, statusPriority: priority || (key === 'status' ? sortConfig.statusPriority : undefined) };
+      setSortConfig(newConfig);
   
       const sorted = [...entries].sort((a, b) => {
         let valA = a[key];
@@ -394,6 +298,11 @@ const CatalogueView: React.FC = () => {
   
         // Handle status priority sorting
         if (key === 'status') {
+          const activePriority = newConfig.statusPriority;
+          if (activePriority) {
+            if (valA === activePriority && valB !== activePriority) return -1;
+            if (valB === activePriority && valA !== activePriority) return 1;
+          }
           const pA = STATUS_PRIORITY[valA as GameStatus] ?? 99;
           const pB = STATUS_PRIORITY[valB as GameStatus] ?? 99;
           if (pA === pB) return a.name.localeCompare(b.name);
@@ -512,7 +421,7 @@ const CatalogueView: React.FC = () => {
                   value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <ManualAddControl onAdd={handleManualAdd} />
+              <GameAddControl onAdd={handleManualAdd} className="max-w-xs" />
             </div>
           </div>
           <div className="flex gap-3">
@@ -545,13 +454,63 @@ const CatalogueView: React.FC = () => {
             <thead className="bg-secondary/50 border-b border-border">
               <tr>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground w-20">Img</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground cursor-pointer hover:bg-secondary" onClick={() => handleSort('name')}>
-                  <div className="flex items-center gap-2">Game {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />)}</div>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground relative">
+                  <div className="flex items-center gap-2">
+                    <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('name')}>Game</span>
+                    {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />)}
+                  </div>
                 </th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground cursor-pointer hover:bg-secondary" onClick={() => handleSort('status')}>
-                  <div className="flex items-center gap-2">Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />)}</div>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground relative">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('status')}>
+                      Status {sortConfig.key === 'status' && !sortConfig.statusPriority && (sortConfig.direction === 'asc' ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />)}
+                      {sortConfig.key === 'status' && sortConfig.statusPriority && (
+                        <span className="flex items-center gap-1 bg-primary/20 text-primary px-1.5 py-0.5 rounded text-[8px]">
+                          {sortConfig.statusPriority} first
+                        </span>
+                      )}
+                    </div>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setShowStatusMenu(!showStatusMenu); }}
+                      className={`p-1 rounded hover:bg-secondary transition-colors ${showStatusMenu ? 'bg-secondary text-primary' : ''}`}
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </div>
+
+                  <AnimatePresence>
+                    {showStatusMenu && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowStatusMenu(false)} />
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                          className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden"
+                        >
+                          <div className="p-2 border-b border-border bg-secondary/30 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Sort to Top</div>
+                          {(['backlog', 'wishlist', 'rated', 'played', 'ignored'] as GameStatus[]).map(s => (
+                            <button
+                              key={s}
+                              onClick={() => { handleSort('status', s); setShowStatusMenu(false); }}
+                              className={`w-full text-left px-4 py-2.5 text-xs flex items-center gap-3 hover:bg-secondary transition-colors ${sortConfig.statusPriority === s ? 'text-primary bg-primary/5 font-bold' : ''}`}
+                            >
+                              {getStatusIcon(s)}
+                              <span className="capitalize">{s}</span>
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => { handleSort('status'); setShowStatusMenu(false); }}
+                            className="w-full text-left px-4 py-2.5 text-[10px] font-bold uppercase tracking-tighter text-muted-foreground hover:bg-secondary border-t border-border/50"
+                          >
+                            Reset to Default Priority
+                          </button>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Rating</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground cursor-pointer hover:bg-secondary" onClick={() => handleSort('actual_rating')}>
+                  <div className="flex items-center gap-2">Rating {sortConfig.key === 'actual_rating' && (sortConfig.direction === 'asc' ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />)}</div>
+                </th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-center">Action</th>
               </tr>
             </thead>
