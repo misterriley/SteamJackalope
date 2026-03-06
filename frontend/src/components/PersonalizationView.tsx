@@ -29,6 +29,42 @@ import ViolinPlot from './ViolinPlot';
 
 import GameAddControl from './GameAddControl';
 
+interface GameHeaderImageProps {
+  appid: number;
+  isNSFW?: boolean;
+  blurNSFW?: boolean;
+  className?: string;
+}
+
+const GameHeaderImage: React.FC<GameHeaderImageProps> = ({ appid, isNSFW, blurNSFW, className }) => {
+  const [src, setSrc] = useState(`https://cdn.akamai.steamstatic.com/steam/apps/${appid}/header.jpg`);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const handleError = () => {
+    if (retryCount === 0) {
+      // Try capsule image if header fails
+      setSrc(`https://cdn.akamai.steamstatic.com/steam/apps/${appid}/capsule_231x87.jpg`);
+      setRetryCount(1);
+    } else if (retryCount === 1) {
+      // Try another capsule format
+      setSrc(`https://cdn.akamai.steamstatic.com/steam/apps/${appid}/capsule_184x69.jpg`);
+      setRetryCount(2);
+    } else {
+      // Final fallback to placeholder
+      setSrc('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E');
+    }
+  };
+
+  return (
+    <img
+      src={src}
+      className={`${className} ${isNSFW && blurNSFW ? 'blur-sm scale-110' : ''}`}
+      onError={handleError}
+      alt="Game Header"
+    />
+  );
+};
+
 interface GameVerification {
   appid: number;
   name: string;
@@ -63,11 +99,11 @@ const VerificationRow = React.memo(({ game, blurNSFW, showPlaytime, onRatingChan
     <tr className={`hover:bg-secondary/30 transition-colors ${game.ignore ? 'opacity-40' : ''}`}>
       <td className="px-6 py-3">
         <a href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80 transition-opacity">
-          <img 
-            src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`} 
-            alt={game.name} 
-            className={`w-16 h-8 object-cover rounded shadow-sm border border-border/50 ${game.is_nsfw && blurNSFW ? 'blur-sm scale-110' : ''}`}
-            onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+          <GameHeaderImage 
+            appid={game.appid} 
+            isNSFW={game.is_nsfw}
+            blurNSFW={blurNSFW}
+            className="w-16 h-8 object-cover rounded shadow-sm border border-border/50"
           />
         </a>
       </td>
@@ -599,10 +635,11 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-blue-500/30 transition-colors group"
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-blue-500/10 rounded-full text-[10px] font-bold text-blue-500 shrink-0">{idx + 1}</div>
-                        <img
-                          src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
-                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
-                          onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                        <GameHeaderImage
+                          appid={game.appid}
+                          isNSFW={game.is_nsfw}
+                          blurNSFW={blurNSFW}
+                          className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform"
                         />
                         <div className="flex-grow min-w-0">
                           <div className="font-bold text-[11px] truncate group-hover:text-blue-500 transition-colors">{game.name}</div>
@@ -625,10 +662,11 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-purple-500/30 transition-colors group"
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-purple-500/10 rounded-full text-[10px] font-bold text-purple-500 shrink-0">{idx + 1}</div>
-                        <img
-                          src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
-                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
-                          onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                        <GameHeaderImage
+                          appid={game.appid}
+                          isNSFW={game.is_nsfw}
+                          blurNSFW={blurNSFW}
+                          className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform"
                         />
                         <div className="flex-grow min-w-0">
                           <div className="font-bold text-[11px] truncate group-hover:text-purple-500 transition-colors">{game.name}</div>
@@ -822,10 +860,11 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-primary/30 transition-colors group"
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
-                        <img
-                          src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
-                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
-                          onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                        <GameHeaderImage
+                          appid={game.appid}
+                          isNSFW={game.is_nsfw}
+                          blurNSFW={blurNSFW}
+                          className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform"
                         />
                         <div className="flex-grow min-w-0">
                           <div className="font-bold text-[11px] truncate group-hover:text-primary transition-colors">{game.name}</div>
@@ -848,10 +887,11 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-green-500/30 transition-colors group"
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-green-500/10 rounded-full text-[10px] font-bold text-green-500 shrink-0">{idx + 1}</div>
-                        <img
-                          src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
-                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
-                          onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                        <GameHeaderImage
+                          appid={game.appid}
+                          isNSFW={game.is_nsfw}
+                          blurNSFW={blurNSFW}
+                          className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform"
                         />
                         <div className="flex-grow min-w-0">
                           <div className="font-bold text-[11px] truncate group-hover:text-green-500 transition-colors">{game.name}</div>
@@ -870,7 +910,14 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <div className="grid grid-cols-1 gap-4">
                     {(insights.north_stars || []).map((game: any) => (
                       <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="bg-secondary/30 border border-border/50 rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all group">
-                        <div className="w-24 h-12 rounded overflow-hidden shrink-0"><img src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/capsule_184x69.jpg`} alt={game.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" /></div>
+                        <div className="w-24 h-12 rounded overflow-hidden shrink-0">
+                          <GameHeaderImage 
+                            appid={game.appid} 
+                            isNSFW={game.is_nsfw}
+                            blurNSFW={blurNSFW}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                          />
+                        </div>
                         <div className="flex-grow min-w-0"><div className="font-bold text-sm truncate group-hover:text-primary transition-colors">{game.name}</div><div className="text-[10px] text-muted-foreground uppercase tracking-widest">Match Score: {game.alignment?.toFixed(2)}</div></div>
                         <ExternalLink size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
                       </a>
@@ -920,10 +967,11 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                                   className="flex-shrink-0 w-32 group/tag-game"
                                 >
                                   <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/tag-game:border-primary/50 transition-colors">
-                                    <img
-                                      src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
-                                      className={`w-full h-full object-cover group-hover/tag-game:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}     
-                                      onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                                    <GameHeaderImage
+                                      appid={game.appid}
+                                      isNSFW={game.is_nsfw}
+                                      blurNSFW={blurNSFW}
+                                      className="w-full h-full object-cover group-hover/tag-game:scale-105 transition-transform"     
                                     />
                                   </div>
                                   <div className="mt-1.5 px-0.5">
@@ -950,10 +998,9 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div key={fav.seed_appid} className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm hover:shadow-md transition-shadow">
                           <div className="flex items-center justify-between gap-4">       
                             <div className="flex items-center gap-2 min-w-0">
-                              <img
-                                src={`https://cdn.akamai.steamstatic.com/steam/apps/${fav.seed_appid}/header.jpg`}
+                              <GameHeaderImage
+                                appid={fav.seed_appid}
                                 className="w-10 h-5 object-cover rounded shadow-sm border border-border/50 shrink-0"
-                                onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
                               />
                               <div className="text-[10px] font-bold truncate text-muted-foreground uppercase tracking-wider">{fav.seed_name}</div>
                             </div>
@@ -970,10 +1017,11 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                                 className="flex-shrink-0 w-32 group/fav-game"
                               >
                                 <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/fav-game:border-primary/50 transition-colors"> 
-                                  <img
-                                    src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
-                                    className={`w-full h-full object-cover group-hover/fav-game:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}       
-                                    onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/csv" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                                  <GameHeaderImage
+                                    appid={game.appid}
+                                    isNSFW={game.is_nsfw}
+                                    blurNSFW={blurNSFW}
+                                    className="w-full h-full object-cover group-hover/fav-game:scale-105 transition-transform"       
                                   />
                                 </div>
                                 <div className="mt-1.5 px-0.5">
