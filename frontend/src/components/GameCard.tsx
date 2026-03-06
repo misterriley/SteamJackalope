@@ -5,6 +5,8 @@ import { useContextMenu } from '../context/ContextMenuContext';
 import { useUser } from '../context/UserContext';
 import type { GameStatus } from './ContextMenu';
 
+import GameHeaderImage from './GameHeaderImage';
+
 interface GameCardProps {
   game: GameMetadata;
   hideNSFW?: boolean;
@@ -173,23 +175,13 @@ const GameCard: React.FC<GameCardProps> = ({
     >
       {/* Image Container */}
       <div className="relative aspect-video overflow-hidden bg-secondary/30">
-        {!imgError ? (
-          <img 
-            src={headerUrl} 
-            alt={game.name} 
-            className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${shouldBlur ? 'blur-2xl scale-110' : ''}`}
-            onError={() => {
-              console.error(`[ERROR] Failed to load image for ${game.name} (${game.appid}). URL: ${headerUrl}`);
-              setImgError(true);
-            }}
-          />
-        ) : (
-          <div className={`w-full h-full flex flex-col items-center justify-center p-4 text-center bg-secondary/80 ${shouldBlur ? 'blur-xl' : ''}`}>
-            <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider line-clamp-2 px-2">
-              {game.name}
-            </span>
-          </div>
-        )}
+        <GameHeaderImage 
+          appid={game.appid} 
+          isNSFW={isNSFW}
+          blurNSFW={hideNSFW}
+          className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
+          alt={game.name}
+        />
         
         {/* Release Year Label */}
         <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-primary border border-primary/30 z-10">

@@ -20,6 +20,7 @@ import { useContextMenu } from '../context/ContextMenuContext';
 import { useUser } from '../context/UserContext';
 
 import GameAddControl from './GameAddControl';
+import GameHeaderImage from './GameHeaderImage';
 
 type GameStatus = 'backlog' | 'played' | 'rated' | 'ignored' | 'wishlist';
 
@@ -72,11 +73,12 @@ const CatalogueRow = React.memo(({ entry, blurNSFW, onStatusChange, onRatingChan
     >
       <td className="px-6 py-3">
         <a href={`https://store.steampowered.com/app/${entry.appid}`} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80 transition-opacity relative">
-          <img 
-            src={entry.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${entry.appid}/header.jpg`} 
-            alt={entry.name} 
-            className={`w-16 h-8 object-cover rounded shadow-sm border border-border/50 ${entry.is_nsfw && blurNSFW ? 'blur-sm scale-110' : ''}`}
-            onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+          <GameHeaderImage 
+            appid={entry.appid} 
+            isNSFW={entry.is_nsfw}
+            blurNSFW={blurNSFW}
+            className="w-16 h-8 object-cover rounded shadow-sm border border-border/50"
+            alt={entry.name}
           />
           {(entry.is_free || (entry.price && (entry.price.toLowerCase().includes("free") || entry.price === ""))) && (
             <div className="absolute top-0 left-0 px-1 py-0.5 bg-green-500 text-[6px] font-black text-white rounded-br-md shadow-lg uppercase tracking-tighter z-10">

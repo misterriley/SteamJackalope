@@ -28,42 +28,7 @@ import ExplainabilityChart from './ExplainabilityChart';
 import ViolinPlot from './ViolinPlot';
 
 import GameAddControl from './GameAddControl';
-
-interface GameHeaderImageProps {
-  appid: number;
-  isNSFW?: boolean;
-  blurNSFW?: boolean;
-  className?: string;
-}
-
-const GameHeaderImage: React.FC<GameHeaderImageProps> = ({ appid, isNSFW, blurNSFW, className }) => {
-  const [src, setSrc] = useState(`https://cdn.akamai.steamstatic.com/steam/apps/${appid}/header.jpg`);
-  const [retryCount, setRetryCount] = useState(0);
-
-  const handleError = () => {
-    if (retryCount === 0) {
-      // Try capsule image if header fails
-      setSrc(`https://cdn.akamai.steamstatic.com/steam/apps/${appid}/capsule_231x87.jpg`);
-      setRetryCount(1);
-    } else if (retryCount === 1) {
-      // Try another capsule format
-      setSrc(`https://cdn.akamai.steamstatic.com/steam/apps/${appid}/capsule_184x69.jpg`);
-      setRetryCount(2);
-    } else {
-      // Final fallback to placeholder
-      setSrc('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E');
-    }
-  };
-
-  return (
-    <img
-      src={src}
-      className={`${className} ${isNSFW && blurNSFW ? 'blur-sm scale-110' : ''}`}
-      onError={handleError}
-      alt="Game Header"
-    />
-  );
-};
+import GameHeaderImage from './GameHeaderImage';
 
 interface GameVerification {
   appid: number;
