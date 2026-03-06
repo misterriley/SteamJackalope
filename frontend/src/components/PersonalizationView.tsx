@@ -614,31 +614,31 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   </div>
                 </div>
 
-                {/* HATE LIST */}
-                                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">  
-                                  <h3 className="text-lg font-bold flex items-center gap-2 text-red-500"><ThumbsDown size={18} />Games You'll Hate</h3>
-                                  <div className="space-y-3">
-                                    {insights.bottom_recommendations?.slice(0, 10).map((game: any, idx: number) => (   
-                                      <a
-                                        key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
-                                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-red-500/30 transition-colors group"
-                                      >
-                                        <div className="w-6 h-6 flex items-center justify-center bg-red-500/10 rounded-full text-[10px] font-bold text-red-500 shrink-0">{idx + 1}</div>
-                                        <img
-                                          src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
-                                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
-                                          onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
-                                        />
-                                        <div className="flex-grow min-w-0">
-                                          <div className="font-bold text-[11px] truncate group-hover:text-red-500 transition-colors">{game.name}</div>
-                                        </div>
-                                        <div className="text-right">
-                                          <div className="text-[10px] font-bold text-red-500">{Math.round(game.predicted_rating)}</div>
-                                        </div>
-                                      </a>
-                                    ))}
-                                  </div>
-                                </div>
+                {/* UPCOMING GAMES */}
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">  
+                  <h3 className="text-lg font-bold flex items-center gap-2 text-primary"><Sparkles size={18} />Upcoming Games</h3>
+                  <div className="space-y-3">
+                    {(insights.upcoming_recommendations || insights.bottom_recommendations)?.slice(0, 10).map((game: any, idx: number) => (   
+                      <a
+                        key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-primary/30 transition-colors group"
+                      >
+                        <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
+                        <img
+                          src={`https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`}
+                          className={`w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform ${game.is_nsfw && blurNSFW ? 'blur-sm' : ''}`}
+                          onError={(e) => (e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E')}
+                        />
+                        <div className="flex-grow min-w-0">
+                          <div className="font-bold text-[11px] truncate group-hover:text-primary transition-colors">{game.name}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] font-bold text-primary">{Math.round(game.predicted_rating)}</div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
 
                 <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative">
                   <h3 className="text-lg font-bold flex items-center gap-2"><LineChart size={18} className="text-primary" />Metadata Weights</h3>

@@ -237,20 +237,22 @@ def solve_user_taste(ground_truth_path, output_path=None):
     free_recommendations = full_metadata.iloc[top_free_indices][['appid', 'name']].copy()
     free_recommendations['predicted_rating'] = np.clip(scores[top_free_indices], 0, 10)
 
-    # Backlog Priority
-    backlog_appids = df_gt[df_gt['status'] == 'backlog']['appid'].values
-    backlog_indices = [appid_to_idx[aid] for aid in backlog_appids if aid in appid_to_idx]
-    backlog_scores = scores[backlog_indices]
-    top_backlog_indices = np.array(backlog_indices)[np.argsort(-backlog_scores)][:30]
-    backlog_recommendations = full_metadata.iloc[top_backlog_indices][['appid', 'name']].copy()
-    backlog_recommendations['predicted_rating'] = np.clip(scores[top_backlog_indices], 0, 10)
-
-    # Hate List (Library games with lowest scores)
-    library_indices = [appid_to_idx[aid] for aid in steam_library_appids if aid in appid_to_idx]
-    lib_scores = scores[library_indices]
-    bottom_lib_indices = np.array(library_indices)[np.argsort(lib_scores)][:30]
-    bottom_recommendations = full_metadata.iloc[bottom_lib_indices][['appid', 'name']].copy()
-    bottom_recommendations['predicted_rating'] = np.clip(scores[bottom_lib_indices], 0, 10)
+    # Upcoming Games (Coming soon or released in the future)
+    if os.path.exists(METADATA_FILE):
+        build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s')
+    else:
+        build_time = pd.Timestamp.now()
+    
+    placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
+    is_upcoming_mask = (full_metadata['parsed_date'] > build_time) | \
+                      (full_metadata['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True))
+    
+    upcoming_scores = scores.copy()
+    upcoming_scores[~is_upcoming_mask] = -1e12
+    upcoming_scores[~mask] = -1e12 # Still apply base filters (no hollow, utilities, etc.)
+    top_upcoming_indices = np.argsort(-upcoming_scores)[:30]
+    upcoming_recommendations = full_metadata.iloc[top_upcoming_indices][['appid', 'name']].copy()
+    upcoming_recommendations['predicted_rating'] = np.clip(scores[top_upcoming_indices], 0, 10)
 
     # North Stars (Highest X_k values - games mathematically closest to your peak taste)
     north_star_indices = np.argsort(-X_k_lib)[:5]
@@ -328,7 +330,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'top_recommendations': top_recommendations.to_dict(orient='records'),
         'free_recommendations': free_recommendations.to_dict(orient='records'),
         'backlog_recommendations': backlog_recommendations.to_dict(orient='records'),
-        'bottom_recommendations': bottom_recommendations.to_dict(orient='records'),
+        'upcoming_recommendations': upcoming_recommendations.to_dict(orient='records'),
         'north_stars': north_stars.to_dict(orient='records'),
         'associative_tags': associative_tags,
         'favorite_game_recommendations': favorite_recs
