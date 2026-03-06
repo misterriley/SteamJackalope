@@ -9,44 +9,71 @@ interface GameHeaderImageProps {
 }
 
 const GameHeaderImage: React.FC<GameHeaderImageProps> = ({ 
-  appid, isNSFW, blurNSFW, className, alt = "Game Header" 
+  appid, isNSFW, blurNSFW, className, alt = "Game" 
 }) => {
-  const [src, setSrc] = useState(`https://cdn.akamai.steamstatic.com/steam/apps/${appid}/header.jpg`);
+  const [src, setSrc] = useState<string>(`https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`);
   const [retryCount, setRetryCount] = useState(0);
+  const [failedAll, setFailedAll] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    setSrc(`https://cdn.akamai.steamstatic.com/steam/apps/${appid}/header.jpg`);
+    setSrc(`https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`);
     setRetryCount(0);
+    setFailedAll(false);
+    setIsLoaded(false);
   }, [appid]);
 
   const handleError = () => {
-    if (retryCount === 0) {
-      // Try Fastly CDN (often more reliable for newer games)
-      setSrc(`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`);
-      setRetryCount(1);
-    } else if (retryCount === 1) {
-      // Try capsule image
-      setSrc(`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${appid}/capsule_616x353.jpg`);
-      setRetryCount(2);
-    } else if (retryCount === 2) {
-      setSrc(`https://cdn.akamai.steamstatic.com/steam/apps/${appid}/capsule_231x87.jpg`);
-      setRetryCount(3);
-    } else if (retryCount === 3) {
-      setSrc(`https://cdn.akamai.steamstatic.com/steam/apps/${appid}/capsule_184x69.jpg`);
-      setRetryCount(4);
-    } else {
-      // Final fallback to placeholder
-      setSrc('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23262626"/%3E%3C/svg%3E');
-    }
+    setRetryCount(prev => {
+      const nextCount = prev + 1;
+      
+      const fallbacks = [
+        `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`,
+        `https://cdn.akamai.steamstatic.com/steam/apps/${appid}/header.jpg`,
+        `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/library_capsule.jpg`,
+        `https://cdn.cloudflare.steamstatic.com/steam/apps/${appid}/header.jpg`
+      ];
+
+      if (nextCount <= fallbacks.length) {
+        console.warn(`[IMAGE_RETRY] AppID ${appid} attempt ${nextCount}: ${fallbacks[nextCount-1]}`);
+        setSrc(fallbacks[nextCount - 1]);
+      } else {
+        console.error(`[IMAGE_FAILED] AppID ${appid} - all fallbacks failed.`);
+        setFailedAll(true);
+      }
+      return nextCount;
+    });
   };
 
+  const placeholder = (
+    <div className={`${className} bg-secondary flex flex-col items-center justify-center p-2 text-center border border-border/50 relative overflow-hidden`}>
+      <div className="absolute inset-0 opacity-10 flex items-center justify-center font-black text-4xl select-none uppercase tracking-tighter italic">
+        {appid % 1000}
+      </div>
+      <span className="relative z-10 text-[8px] font-black text-muted-foreground/60 uppercase tracking-widest leading-tight line-clamp-3 px-1">
+        {alt}
+      </span>
+    </div>
+  );
+
+  if (failedAll) return placeholder;
+
   return (
-    <img
-      src={src}
-      className={`${className} ${isNSFW && blurNSFW ? 'blur-2xl scale-110' : ''}`}
-      onError={handleError}
-      alt={alt}
-    />
+    <div className={`${className} relative bg-secondary/20 overflow-hidden`}>
+      {!isLoaded && (
+        <div className="absolute inset-0 z-0">
+          {placeholder}
+        </div>
+      )}
+      <img
+        src={src}
+        className={`w-full h-full object-cover transition-opacity duration-500 z-10 relative ${isLoaded ? 'opacity-100' : 'opacity-0'} ${isNSFW && blurNSFW ? 'blur-2xl scale-110' : ''}`}
+        onLoad={() => setIsLoaded(true)}
+        onError={handleError}
+        alt={alt}
+        loading="lazy"
+      />
+    </div>
   );
 };
 
