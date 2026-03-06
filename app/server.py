@@ -847,11 +847,11 @@ def get_verification_data(steam_id: str):
         df_sl = df_sl.merge(metadata[['appid', 'is_nsfw', 'parsed_date', 'release_date']], on='appid', how='left')
         
         # FILTER: Only show games with playtime in the verification UI and that are already released
-        build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s') if os.path.exists(METADATA_FILE) else pd.Timestamp.now()
+        now = pd.Timestamp.now().normalize()
         placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
         
         # Better: use the merged metadata columns
-        df_sl_visible = df_sl[(df_sl['has_playtime'] == True) & (df_sl['parsed_date'] <= build_time)].copy()
+        df_sl_visible = df_sl[(df_sl['has_playtime'] == True) & (df_sl['parsed_date'] <= now)].copy()
         # Add placeholder check to merged df
         is_placeholder_merged = df_sl_visible['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True)
         df_sl_visible = df_sl_visible[~is_placeholder_merged].copy()

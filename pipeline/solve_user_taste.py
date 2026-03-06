@@ -249,13 +249,10 @@ def solve_user_taste(ground_truth_path, output_path=None):
         backlog_recommendations = pd.DataFrame(columns=['appid', 'name', 'predicted_rating'])
 
     # Upcoming Games (Coming soon or released in the future)
-    if os.path.exists(METADATA_FILE):
-        build_time = pd.Timestamp(os.path.getmtime(METADATA_FILE), unit='s')
-    else:
-        build_time = pd.Timestamp.now()
+    now = pd.Timestamp.now().normalize()
     
     placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
-    is_upcoming_mask = (full_metadata['parsed_date'] > build_time) | \
+    is_upcoming_mask = (full_metadata['parsed_date'] > now) | \
                       (full_metadata['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True))
     
     upcoming_scores = scores.copy()
