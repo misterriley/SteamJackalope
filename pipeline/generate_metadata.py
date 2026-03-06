@@ -338,8 +338,9 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
         'appid', 'name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 
         'final_release_date', 'parsed_date', 'positive', 'negative', 'mature_content', 'price', 
         'date_z', 'pop_z', 'median_playtime', 'playtime_z', 'estimated_playtime', 'release_year', 
-        'difficulty_predicted', 'difficulty_z', 'price_z', 'intercept', 'difficulty_predicted_raw',
-        'is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_delisted', 'is_hollow'
+        'difficulty_predicted', 'difficulty_z', 'price_z',
+        'is_vr_only', 'is_english', 'is_utility', 'is_nsfw', 'is_delisted', 'is_hollow', 'header_image',
+        'tone_z'
     ]
     # Add contribution columns if they exist
     contrib_cols = [c for c in df.columns if c.startswith('contrib_')]
@@ -349,7 +350,7 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
     metadata_df = df[available_cols].copy()
     
     # Ensure string columns are actually strings (preventing 'double' inference for empty columns)
-    string_cols = ['name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 'price', 'final_release_date']
+    string_cols = ['name', 'short_description', 'genres', 'tags', 'categories', 'supported_languages', 'price', 'final_release_date', 'header_image']
     for col in string_cols:
         if col in metadata_df.columns:
             metadata_df[col] = metadata_df[col].fillna('').astype(str)

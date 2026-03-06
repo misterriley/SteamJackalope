@@ -1,6 +1,11 @@
 import pandas as pd
 import numpy as np
 import os
+import sys
+
+# Add parent directory to sys.path so we can import common
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from common.constants import METADATA_FILE, EMBEDDINGS_DESC_FILE, PRODUCTION_DATA_DIR
 
 def generate_tone_model():

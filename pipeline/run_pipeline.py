@@ -175,6 +175,11 @@ def main():
     metadata_path = config.get("metadata_file", "metadata.parquet")
     run_script(os.path.join(SCRIPT_DIR, "generate_metadata.py"), [args.games, args.reviews, "--output", metadata_path])
 
+    # 3.1 Generate Tone Model
+    # Projects games onto a Serious-Absurd axis based on semantic embeddings
+    # MUST run after generate_metadata.py as it updates the parquet file
+    run_script(os.path.join(SCRIPT_DIR, "generate_tone_model.py"), [])
+
     # 4. Generate Quality Scores Grid
     # This takes the metadata.parquet produced in step 3
     quality_grid_path = config.get("quality_grid_file", "quality_scores_grid.npy")
