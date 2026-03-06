@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { GameMetadata } from '../types';
 import { Star, Clock, Trophy, ExternalLink, Bug, AlertTriangle, Sparkles } from 'lucide-react';
 import { useContextMenu } from '../context/ContextMenuContext';
@@ -173,6 +173,7 @@ const GameCard: React.FC<GameCardProps> = ({
       <div className="relative aspect-video overflow-hidden bg-secondary/30">
         <GameHeaderImage 
           appid={game.appid} 
+          header_image={game.header_image}
           isNSFW={isNSFW}
           blurNSFW={hideNSFW}
           className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"

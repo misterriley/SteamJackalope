@@ -75,6 +75,7 @@ const CatalogueRow = React.memo(({ entry, blurNSFW, onStatusChange, onRatingChan
         <a href={`https://store.steampowered.com/app/${entry.appid}`} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80 transition-opacity relative">
           <GameHeaderImage 
             appid={entry.appid} 
+            header_image={entry.header_image}
             isNSFW={entry.is_nsfw}
             blurNSFW={blurNSFW}
             className="w-16 h-8 object-cover rounded shadow-sm border border-border/50"

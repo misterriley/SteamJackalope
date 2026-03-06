@@ -313,6 +313,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
             idx = appid_to_idx[aid]
             # Recover name from metadata if missing
             seed_name = full_metadata.iloc[idx]['name'] if pd.isna(row['name']) else row['name']
+            seed_header = full_metadata.iloc[idx]['header_image']
+            seed_nsfw = bool(full_metadata.iloc[idx]['is_nsfw'])
             # Get closest neighbors from K_lib
             sims = K_lib[:, user_indices.index(idx)]
             sims[idx] = -1e12
@@ -320,7 +322,13 @@ def solve_user_taste(ground_truth_path, output_path=None):
             sims[~mask] = -1e12
             neighbor_indices = np.argsort(-sims)[:10]
             fav_neighbors = full_metadata.iloc[neighbor_indices][['appid', 'name', 'header_image', 'is_nsfw']].to_dict(orient='records')
-            favorite_recs.append({'seed_appid': aid, 'seed_name': seed_name, 'top_games': fav_neighbors})
+            favorite_recs.append({
+                'seed_appid': aid, 
+                'seed_name': seed_name, 
+                'seed_header': seed_header,
+                'seed_is_nsfw': seed_nsfw,
+                'top_games': fav_neighbors
+            })
 
     result = {
         'metadata': {
