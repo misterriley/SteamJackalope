@@ -608,7 +608,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                           <div className="font-bold text-[11px] truncate group-hover:text-blue-500 transition-colors">{game.name}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px] font-bold text-blue-500">{Math.round(game.predicted_rating)}</div>
+                          <div className="text-[10px] font-bold text-blue-500">{game.predicted_rating?.toFixed(1)}</div>
                         </div>
                       </a>
                     ))}
@@ -634,7 +634,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                           <div className="font-bold text-[11px] truncate group-hover:text-purple-500 transition-colors">{game.name}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px] font-bold text-purple-500">{Math.round(game.predicted_rating)}</div>
+                          <div className="text-[10px] font-bold text-purple-500">{game.predicted_rating?.toFixed(1)}</div>
                         </div>
                       </a>
                     ))}
@@ -831,7 +831,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                           <div className="font-bold text-[11px] truncate group-hover:text-primary transition-colors">{game.name}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px] font-bold text-primary">{Math.round(game.predicted_rating)}</div>
+                          <div className="text-[10px] font-bold text-primary">{game.predicted_rating?.toFixed(1)}</div>
                         </div>
                       </a>
                     ))}
@@ -857,7 +857,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                           <div className="font-bold text-[11px] truncate group-hover:text-green-500 transition-colors">{game.name}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px] font-bold text-green-500">{Math.round(game.predicted_rating)}</div>
+                          <div className="text-[10px] font-bold text-green-500">{game.predicted_rating?.toFixed(1)}</div>
                         </div>
                       </a>
                     ))}
