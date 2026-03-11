@@ -148,7 +148,7 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **Avg Rating Without:** 5.44
 - **P-Value:** 0.0034
 
-**Top 10 Unowned Games with `Philosophical`:**
+**Top 10 Games with `Philosophical`:**
   1. KARMA: The Dark World (Proj: 7.77)
   2. Neyasnoe (Proj: 7.53)
   3. The Talos Principle VR (Proj: 7.49)
@@ -166,7 +166,7 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **Avg Rating Without:** 5.46
 - **P-Value:** 0.0336
 
-**Top 10 Unowned Games with `Science`:**
+**Top 10 Games with `Science`:**
   1. MOLEK-SYNTEZ (Proj: 8.18)
   2. Little Rocket Lab (Proj: 7.91)
   3. Lightmatter (Proj: 7.76)
@@ -184,7 +184,7 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **Avg Rating Without:** 5.46
 - **P-Value:** 0.0190
 
-**Top 10 Unowned Games with `Lovecraftian`:**
+**Top 10 Games with `Lovecraftian`:**
   1. Still Wakes the Deep (Proj: 7.64)
   2. The Room VR: A Dark Matter (Proj: 7.34)
   3. Strange Antiquities (Proj: 7.34)
@@ -202,7 +202,7 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **Avg Rating Without:** 5.47
 - **P-Value:** 0.0428
 
-**Top 10 Unowned Games with `Escape Room`:**
+**Top 10 Games with `Escape Room`:**
   1. Boxes: Lost Fragments (Proj: 7.81)
   2. POOLS (Proj: 7.50)
   3. The House of Da Vinci 3 (Proj: 7.41)
@@ -220,7 +220,7 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **Avg Rating Without:** 5.37
 - **P-Value:** 0.0001
 
-**Top 10 Unowned Games with `Multiple Endings`:**
+**Top 10 Games with `Multiple Endings`:**
   1. The Walking Dead: The Telltale Definitive Series (Proj: 9.44)
   2. Persona 3 Reload (Proj: 8.48)
   3. Stellar Blade™ (Proj: 8.41)
@@ -238,7 +238,7 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **Avg Rating Without:** 5.44
 - **P-Value:** 0.0025
 
-**Top 10 Unowned Games with `Detective`:**
+**Top 10 Games with `Detective`:**
   1. Persona 3 Reload (Proj: 8.48)
   2. Persona 4 Golden (Proj: 8.40)
   3. The Thaumaturge (Proj: 7.44)
@@ -256,7 +256,7 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **Avg Rating Without:** 5.31
 - **P-Value:** 0.0000
 
-**Top 10 Unowned Games with `Mystery`:**
+**Top 10 Games with `Mystery`:**
   1. Persona 3 Reload (Proj: 8.48)
   2. Persona 4 Golden (Proj: 8.40)
   3. Goodnight Universe (Proj: 8.20)
@@ -274,7 +274,7 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **Avg Rating Without:** 5.47
 - **P-Value:** 0.0157
 
-**Top 10 Unowned Games with `Investigation`:**
+**Top 10 Games with `Investigation`:**
   1. The Thaumaturge (Proj: 7.44)
   2. The House of Da Vinci 3 (Proj: 7.41)
   3. The Haunting of Joni Evers (Proj: 7.37)
@@ -292,7 +292,7 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **Avg Rating Without:** 5.46
 - **P-Value:** 0.0286
 
-**Top 10 Unowned Games with `Narrative`:**
+**Top 10 Games with `Narrative`:**
   1. Goodnight Universe (Proj: 8.20)
   2. Still Wakes the Deep (Proj: 7.64)
   3. Suzerain (Proj: 7.63)
@@ -310,7 +310,7 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **Avg Rating Without:** 4.99
 - **P-Value:** 0.0000
 
-**Top 10 Unowned Games with `Story Rich`:**
+**Top 10 Games with `Story Rich`:**
   1. Subnautica: Below Zero (Proj: 9.63)
   2. The Walking Dead: The Telltale Definitive Series (Proj: 9.44)
   3. The Walking Dead: Season Two (Proj: 8.60)
