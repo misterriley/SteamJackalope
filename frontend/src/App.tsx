@@ -38,7 +38,13 @@ function App() {
 
   useEffect(() => {
     if (appliedProfile) {
-      localStorage.setItem('appliedProfile', JSON.stringify(appliedProfile));
+      try {
+        // Remove the massive interactive_pool before saving to localStorage to prevent QuotaExceededError
+        const { interactive_pool, ...profileToSave } = appliedProfile;
+        localStorage.setItem('appliedProfile', JSON.stringify(profileToSave));
+      } catch (e) {
+        console.error("Failed to save appliedProfile to localStorage", e);
+      }
     } else {
       localStorage.removeItem('appliedProfile');
     }
