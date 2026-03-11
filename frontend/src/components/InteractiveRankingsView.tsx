@@ -2,11 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useUser } from '../context/UserContext';
 import { API_BASE_URL } from '../api';
 import { Sliders, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import GameHeaderImage from './GameHeaderImage';
 
 interface InteractiveGame {
   appid: number;
   name: string;
   header_image: string;
+  is_nsfw?: boolean;
   projected_rating: number;
   features: { [key: string]: number };
   kernel_residual: number;
@@ -23,9 +25,20 @@ export default function InteractiveRankingsView() {
   const [profile, setProfile] = useState<TasteProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [blurNSFW, setBlurNSFW] = useState(true);
 
   // Sliders state
   const [weights, setWeights] = useState<{ [key: string]: number }>({});
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem('recommendations_filters');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.remove_nsfw !== undefined) setBlurNSFW(parsed.remove_nsfw);
+      } catch (e) {}
+    }
+  }, []);
 
   useEffect(() => {
     if (!steamId) return;
@@ -186,27 +199,34 @@ export default function InteractiveRankingsView() {
           
           <div className="grid grid-cols-1 gap-3">
             {rankedGames.map((game, index) => (
-              <div key={game.appid} className="flex items-center gap-4 bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm hover:border-primary/50 transition-colors group">
+              <a 
+                key={game.appid} 
+                href={`https://store.steampowered.com/app/${game.appid}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-4 bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm hover:border-primary/50 transition-colors group"
+              >
                 <div className="w-12 text-center font-bold text-muted-foreground group-hover:text-primary transition-colors">
                   #{index + 1}
                 </div>
-                <img 
-                  src={game.header_image} 
-                  alt={game.name} 
-                  className="w-32 h-[4.5rem] object-cover"
-                  loading="lazy"
+                <GameHeaderImage 
+                  appid={game.appid} 
+                  header_image={game.header_image}
+                  isNSFW={game.is_nsfw}
+                  blurNSFW={blurNSFW}
+                  className="w-32 h-[4.5rem] object-cover rounded shadow-sm border border-border/50 group-hover:scale-105 transition-transform"
                 />
                 <div className="flex-grow py-2">
                   <h4 className="font-bold text-lg leading-tight truncate max-w-[200px] sm:max-w-sm md:max-w-md lg:max-w-lg" title={game.name}>
                     {game.name}
                   </h4>
                 </div>
-                <div className="px-6 flex flex-col items-end">
+                <div className="px-6 flex flex-col items-end shrink-0">
                   <div className="text-2xl font-black text-primary">
                     {game.current_score.toFixed(2)}
                   </div>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         </div>

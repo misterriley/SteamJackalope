@@ -417,6 +417,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
             'appid': int(game['appid']),
             'name': str(game['name']),
             'header_image': str(game['header_image']),
+            'is_nsfw': bool(game['is_nsfw']),
             'projected_rating': float(game['projected_rating']),
             'features': features,
             'kernel_residual': float(target_residual_pred[idx])
