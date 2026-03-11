@@ -255,16 +255,26 @@ def solve_user_taste(ground_truth_path, output_path=None):
 
     best_power = golden_section_search(objective_function, 0, 20, tol=0.1)
     
-    print("Computing out-of-sample similarities...")
+    print("Computing out-of-sample similarities (Aggressive Multithreading)...")
     sim_matrix_all = np.zeros((N_all, len(src_idxs)), dtype=np.float32)
     batch_size = 20000
-    for i in range(0, N_all, batch_size):
-        end = min(i + batch_size, N_all)
-        s_tags = np.dot(f_tags[i:end], f_tags[src_idxs].T)
-        s_desc = np.dot(f_desc[i:end], f_desc[src_idxs].T)
-        s_verbs = np.dot(f_verbs[i:end], f_verbs[src_idxs].T)
-        s_graph = np.dot(f_graph[i:end], f_graph[src_idxs].T) * pop_discount[i:end, None]
-        sim_matrix_all[i:end] = (weights['tags'] * s_tags + weights['desc'] * s_desc + weights['verbs'] * s_verbs + weights['graph'] * s_graph)
+    
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def compute_batch(start_idx):
+        end = min(start_idx + batch_size, N_all)
+        s_tags = np.dot(f_tags[start_idx:end], f_tags[src_idxs].T)
+        s_desc = np.dot(f_desc[start_idx:end], f_desc[src_idxs].T)
+        s_verbs = np.dot(f_verbs[start_idx:end], f_verbs[src_idxs].T)
+        s_graph = np.dot(f_graph[start_idx:end], f_graph[src_idxs].T) * pop_discount[start_idx:end, None]
+        res = (weights['tags'] * s_tags + weights['desc'] * s_desc + weights['verbs'] * s_verbs + weights['graph'] * s_graph)
+        return start_idx, end, res
+
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(compute_batch, i) for i in range(0, N_all, batch_size)]
+        for future in futures:
+            start, end, res = future.result()
+            sim_matrix_all[start:end] = res
         
     for j in range(len(src_idxs)):
         src_subg = subgenres_src[j]
