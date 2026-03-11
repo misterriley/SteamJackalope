@@ -421,17 +421,27 @@ def get_storefront_data(app_id, refresh=False, verbose=False):
             break
 
     if not found_orig:
+        # 1. Focus on the main purchase area to avoid leakage from recommendations
+        purchase_section_match = re.search(r'<div id="game_area_purchase"(.*?)<div id="game_area_purchase_section_add_to_cart"', html_content, re.DOTALL)
+        if not purchase_section_match:
+            # Fallback to a broader search if the specific end-marker isn't found
+            purchase_section_match = re.search(r'<div id="game_area_purchase"(.*?)<div id="column_right"', html_content, re.DOTALL)
+        
+        purchase_html = purchase_section_match.group(1) if purchase_section_match else html_content
+
         if meta_price_val > 0:
             data['price'] = f"${meta_price_str}" if "$" not in meta_price_str else meta_price_str
         else:
             # 1. Tags Check for "Free to Play" - strongest positive indicator
-            tags_regex = r'<a[^>]*class="app_tag"[^>]*>\s*([^<]*)\s*</a>'
-            tags = [t.strip() for t in re.findall(tags_regex, html_content)]
-            is_free_tag = "Free to Play" in tags
+            # Restrict to the top app tags section
+            tags_section = re.search(r'InitAppTagModal\(\s*\d+,\s*\[(.*?)\]', html_content, re.DOTALL)
+            is_free_tag = False
+            if tags_section:
+                is_free_tag = "Free to Play" in tags_section.group(1)
             
-            # 2. Check for "Free" in standard purchase boxes
+            # 2. Check for "Free" in standard purchase boxes (restricted to purchase area)
             price_regex = r'<div class="game_purchase_price price"[^>]*>([^<]*)</div>'
-            price_match = re.search(price_regex, html_content)
+            price_match = re.search(price_regex, purchase_html)
             
             if is_free_tag:
                 data['price'] = "Free To Play"
@@ -451,6 +461,14 @@ def get_storefront_data(app_id, refresh=False, verbose=False):
                 data['price'] = "Free"
             else:
                 data['price'] = "N/A"
+
+    # Final check: If there are NO action buttons (Add to Cart, Play Game, Add to Library), 
+    # and it's not a future game, it's likely delisted or unpurchasable.
+    has_action_button = any(btn in html_content for btn in ['btn_add_to_cart', 'btn_play_game', 'btn_add_to_library'])
+    if not has_action_button and data['price'] not in ["Coming Soon", "Delisted"]:
+        # Double check it's not just a demo-only page or something weird
+        if "Download Demo" not in html_content:
+            data['price'] = "Delisted"
 
     # 7. Developer / Publisher
     # Capture all developer/publisher links if multiple exist

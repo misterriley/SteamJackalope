@@ -321,13 +321,28 @@ def generate_metadata(games_path, reviews_path=None, output_path=None):
         (df['tags'].fillna('').astype(str).str.contains(nsfw_tags_pattern, regex=True, case=False))
     ).values
     
+    # A game is delisted if it says so in price, name, OR if our HTML check found no purchase buttons.
     df['is_delisted'] = (
         df['price'].fillna('').astype(str).str.contains('delisted', case=False) |
         df['name'].fillna('').astype(str).str.contains('DELISTED', case=False)
     ).values
-    
-    df['is_hollow'] = (
-        (df['short_description'].fillna('').str.len() < 10) & 
+
+    # Supplemental check from storefront HTML results if available
+    checks_file = 'data/delisted_checks.csv'
+    if os.path.exists(checks_file):
+        print(f"Applying supplemental delisting checks from {checks_file}...")
+        checks = pd.read_csv(checks_file)
+        # Delisted if NO action button AND not coming soon
+        # Also delisted if keyword found
+        should_delist_ids = set(checks[
+            ((~checks['has_action_button']) & (~checks['is_coming_soon'])) | 
+            (checks['is_delisted_kw'] == True)
+        ]['appid'])
+        df['is_delisted'] = df['is_delisted'] | df['appid'].isin(should_delist_ids)
+        # Update price column to be consistent
+        df.loc[df['appid'].isin(should_delist_ids), 'price'] = 'Delisted'
+
+    df['is_hollow'] = (        (df['short_description'].fillna('').str.len() < 10) & 
         (df['tags'].fillna('') == '{}') &
         (df['genres'].fillna('') == '')
     ).values
