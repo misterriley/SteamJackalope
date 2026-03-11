@@ -153,11 +153,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
                 
     tag_stats.sort(key=lambda x: x['diff'], reverse=True)
     
-    print("Loading feature matrices...")
-    f_tags = normalize(np.load(os.path.join(PRODUCTION_DATA_DIR, 'steam_tag_vectors.npy'), mmap_mode='r'))
-    f_desc = normalize(np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r'))
-    f_verbs = normalize(np.load(os.path.join(PRODUCTION_DATA_DIR, 'diffused_verb_profiles.npy'), mmap_mode='r').astype(np.float32))
-    f_graph = normalize(np.load(os.path.join(PRODUCTION_DATA_DIR, 'embeddings_graph.npy'), mmap_mode='r'))
+    print("Loading feature matrices into RAM for faster parallel processing...")
+    f_tags = normalize(np.load(os.path.join(PRODUCTION_DATA_DIR, 'steam_tag_vectors.npy')))
+    f_desc = normalize(np.load(EMBEDDINGS_DESC_FILE))
+    f_verbs = normalize(np.load(os.path.join(PRODUCTION_DATA_DIR, 'diffused_verb_profiles.npy')).astype(np.float32))
+    f_graph = normalize(np.load(os.path.join(PRODUCTION_DATA_DIR, 'embeddings_graph.npy')))
     
     pop_z = df['pop_z'].fillna(0).values
     pop_discount = np.where(pop_z > 0, np.exp(-0.15 * pop_z), 1.0)
@@ -257,7 +257,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
     
     print("Computing out-of-sample similarities (Aggressive Multithreading)...")
     sim_matrix_all = np.zeros((N_all, len(src_idxs)), dtype=np.float32)
-    batch_size = 20000
+    
+    # Calculate a dynamic batch size to ensure enough tasks are created to feed all CPU threads
+    import multiprocessing
+    cpu_cores = multiprocessing.cpu_count()
+    batch_size = max(1000, N_all // (cpu_cores * 4))
     
     from concurrent.futures import ThreadPoolExecutor
     
@@ -270,7 +274,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         res = (weights['tags'] * s_tags + weights['desc'] * s_desc + weights['verbs'] * s_verbs + weights['graph'] * s_graph)
         return start_idx, end, res
 
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=cpu_cores) as executor:
         futures = [executor.submit(compute_batch, i) for i in range(0, N_all, batch_size)]
         for future in futures:
             start, end, res = future.result()
@@ -286,7 +290,18 @@ def solve_user_taste(ground_truth_path, output_path=None):
             joint_probs = np.sqrt(src_prob * subv_probs_all)
             sim_matrix_all[:, j] += (0.45 * joint_probs)
 
-    weight_matrix = np.sign(sim_matrix_all) * (np.abs(sim_matrix_all) ** best_power)
+    print("Computing residual smoothing...")
+    weight_matrix = np.zeros_like(sim_matrix_all)
+    def compute_weight_batch(start_idx):
+        end = min(start_idx + batch_size, N_all)
+        weight_matrix[start_idx:end] = np.sign(sim_matrix_all[start_idx:end]) * (np.abs(sim_matrix_all[start_idx:end]) ** best_power)
+        return start_idx, end
+
+    with ThreadPoolExecutor(max_workers=cpu_cores) as executor:
+        futures = [executor.submit(compute_weight_batch, i) for i in range(0, N_all, batch_size)]
+        for future in futures:
+            future.result()
+
     for j, idx in enumerate(src_idxs): weight_matrix[idx, j] = 0.0
         
     sum_abs_w = np.sum(np.abs(weight_matrix), axis=1)

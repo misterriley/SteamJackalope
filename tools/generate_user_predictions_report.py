@@ -159,11 +159,11 @@ def main():
     # ---------------------------------------------------------
     # STEP 2: LOAD FEATURES
     # ---------------------------------------------------------
-    print("Loading feature matrices...")
-    f_tags = normalize(np.load('data/production/steam_tag_vectors.npy', mmap_mode='r'))
-    f_desc = normalize(np.load('data/production/embeddings_desc.npy', mmap_mode='r'))
-    f_verbs = normalize(np.load('data/production/diffused_verb_profiles.npy', mmap_mode='r').astype(np.float32))
-    f_graph = normalize(np.load('data/production/embeddings_graph.npy', mmap_mode='r'))
+    print("Loading feature matrices into RAM for faster parallel processing...")
+    f_tags = normalize(np.load('data/production/steam_tag_vectors.npy'))
+    f_desc = normalize(np.load('data/production/embeddings_desc.npy'))
+    f_verbs = normalize(np.load('data/production/diffused_verb_profiles.npy').astype(np.float32))
+    f_graph = normalize(np.load('data/production/embeddings_graph.npy'))
     
     pop_z = df['pop_z'].fillna(0).values
     pop_discount = np.where(pop_z > 0, np.exp(-0.15 * pop_z), 1.0)
