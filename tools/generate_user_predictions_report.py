@@ -390,8 +390,9 @@ def main():
 
     add_list("Top 30 Recommended Games (Unowned)", valid_game_mask & (~df['appid'].isin(all_gt_appids)))
     add_list("Top 30 Priority Backlog Games", df['appid'].isin(backlog_appids))
-    
-    is_free = df['tags'].apply(lambda x: 'Free to Play' in get_list(x))
+
+    # A game is truly free if its price string says "Free" or it has a very low price_z
+    is_free = (df['price_z'] < -1.0) | (df['price'].fillna('').str.lower().str.contains('free', na=False))
     add_list("Top 30 Free To Play Games", valid_game_mask & (~df['appid'].isin(all_gt_appids)) & is_free)
     add_list("Top 30 Highly Anticipated Upcoming Games", upcoming_mask & (~df['appid'].isin(all_gt_appids)))
     

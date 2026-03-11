@@ -356,7 +356,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
     upcoming_mask = (is_future_exact | is_future_text) & (total_reviews < 50) & (~df['is_hollow'].fillna(False)) & (~df['is_nsfw'].fillna(False))
     
     discovery_mask = base_mask & (~df['appid'].isin(all_gt_appids))
-    is_free = df['tags'].apply(lambda x: 'Free to Play' in get_list(x))
+    # A game is truly free if its price string says "Free" or it has a very low price_z
+    is_free = (df['price_z'] < -1.0) | (df['price'].fillna('').str.lower().str.contains('free', na=False))
     
     # 1. Top Recs
     top_discovery = df[discovery_mask].sort_values('projected_rating', ascending=False).head(30)
