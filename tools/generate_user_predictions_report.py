@@ -31,15 +31,45 @@ def identify_puzzle_subgenre(tags_set):
     if 'Puzzle' in tags_set and ('First-Person' in tags_set or '3D Platformer' in tags_set or 'Open World' in tags_set): return 'Spatial/3D'
     return 'Generic/Other'
 
-def calculate_subversion_score(tags_set):
-    meta_tags = {'Psychological Horror', 'Fourth Wall', 'Surreal', 'Satire', 'Parody', 'Illuminati', 'Mind-Bending'}
+def calculate_subversion_probability(tags_set):
+    """
+    Returns a probability (0.0 to 1.0) that a game is a structural subversion 
+    based on the interaction of specific tags.
+    """
+    prob = 0.0
+    has_psych_horror = 'Psychological Horror' in tags_set
+    has_surreal = 'Surreal' in tags_set
+    has_satire = 'Satire' in tags_set
+    
     innocent_tags = {'Cute', 'Education', 'Dating Sim', 'Family Friendly', 'Farming Sim', 'Typing', 'Math', 'Software', 'Game Development'}
-    meta_count = len(tags_set.intersection(meta_tags))
-    innocent_count = len(tags_set.intersection(innocent_tags))
-    if meta_count >= 1 and innocent_count >= 1: return 3.0
-    elif meta_count >= 2: return 2.0
-    elif meta_count == 1: return 1.0
-    return 0.0
+    intersecting_innocent = tags_set.intersection(innocent_tags)
+    
+    if len(intersecting_innocent) > 0:
+        # High Probability triggers
+        if has_psych_horror:
+            if 'Dating Sim' in intersecting_innocent:
+                prob = max(prob, 0.95)
+            elif 'Cute' in intersecting_innocent or 'Family Friendly' in intersecting_innocent:
+                prob = max(prob, 0.85)
+            else:
+                prob = max(prob, 0.60)
+        
+        # Medium Probability triggers
+        if has_satire:
+            if 'Farming Sim' in intersecting_innocent or 'Game Development' in intersecting_innocent:
+                prob = max(prob, 0.40)
+            else:
+                prob = max(prob, 0.25)
+                
+        # Low Probability triggers
+        if has_surreal:
+            # Surreal + Cute is often just a normal indie game, not a subversion
+            if 'Education' in intersecting_innocent or 'Math' in intersecting_innocent:
+                prob = max(prob, 0.30)
+            else:
+                prob = max(prob, 0.15)
+                
+    return prob
 
 def main():
     print("Loading data...")
@@ -138,26 +168,21 @@ def main():
     
     tags_list_all = [set(get_list(x)) for x in df['tags']]
     subgenres_all = np.array([identify_puzzle_subgenre(t) for t in tags_list_all])
-    subv_scores_all = np.array([calculate_subversion_score(t) for t in tags_list_all])
+    subv_probs_all = np.array([calculate_subversion_probability(t) for t in tags_list_all])
     
     subgenres_src = subgenres_all[src_idxs]
-    subv_scores_src = subv_scores_all[src_idxs]
+    subv_probs_src = subv_probs_all[src_idxs]
     
     for j in range(len(src_idxs)):
         src_subg = subgenres_src[j]
-        src_subv = subv_scores_src[j]
+        src_prob = subv_probs_src[j]
         if src_subg != 'Generic/Other':
             mask = (subgenres_all != 'Generic/Other') & (subgenres_all != src_subg)
             sim_matrix[mask, j] -= 0.3
-        if src_subv >= 3.0:
-            sim_matrix[subv_scores_all >= 3.0, j] += 0.45
-            sim_matrix[subv_scores_all == 2.0, j] += 0.25
-            sim_matrix[subv_scores_all < 2.0, j] -= 0.30
-        elif src_subv >= 2.0:
-            sim_matrix[subv_scores_all >= 2.0, j] += 0.25
-            sim_matrix[subv_scores_all < 2.0, j] -= 0.20
-        elif src_subv == 0.0:
-            sim_matrix[subv_scores_all >= 2.0, j] -= 0.30
+        
+        if src_prob > 0:
+            joint_probs = np.sqrt(src_prob * subv_probs_all)
+            sim_matrix[:, j] += (0.45 * joint_probs)
 
     print("Computing residual smoothing...")
     weight_matrix = np.sign(sim_matrix) * (np.abs(sim_matrix) ** 10.0)
@@ -262,23 +287,17 @@ def main():
         sim_total = (0.174 * sim_t) + (0.445 * sim_d) + (0.233 * sim_v) + (0.148 * sim_g)
         
         src_subg = subgenres_all[idx]
-        src_subv = subv_scores_all[idx]
+        src_prob = subv_probs_all[idx]
         v_subgenres = subgenres_all[valid_indices]
-        v_subv_scores = subv_scores_all[valid_indices]
+        v_subv_probs = subv_probs_all[valid_indices]
         
         if src_subg != 'Generic/Other':
             mask = (v_subgenres != 'Generic/Other') & (v_subgenres != src_subg)
             sim_total[mask] -= 0.3
             
-        if src_subv >= 3.0:
-            sim_total[v_subv_scores >= 3.0] += 0.45
-            sim_total[v_subv_scores == 2.0] += 0.25
-            sim_total[v_subv_scores < 2.0] -= 0.30
-        elif src_subv >= 2.0:
-            sim_total[v_subv_scores >= 2.0] += 0.25
-            sim_total[v_subv_scores < 2.0] -= 0.20
-        elif src_subv == 0.0:
-            sim_total[v_subv_scores >= 2.0] -= 0.30
+        if src_prob > 0:
+            joint_probs = np.sqrt(src_prob * v_subv_probs)
+            sim_total += (0.45 * joint_probs)
             
         top_100_idx = np.argsort(sim_total)[-100:][::-1]
         top_100_valid = valid_indices[top_100_idx]
