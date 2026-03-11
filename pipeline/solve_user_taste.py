@@ -347,10 +347,13 @@ def solve_user_taste(ground_truth_path, output_path=None):
     north_stars = df.iloc[top_ns_idx][['appid', 'name', 'header_image', 'is_nsfw']].copy()
     north_stars['alignment'] = ns_scores[top_ns_idx]
 
-    # 6. Interactive Pool (Top ~1000 games + features) for snappy frontend slider
-    # First, gather ALL valid unowned + backlog games, no ignored ones
-    interactive_mask = base_mask & (~df['appid'].isin(ignored_appids))
-    top_interactive = df[interactive_mask].sort_values('projected_rating', ascending=False).head(1000).copy()
+    # 6. Interactive Pool (All valid games + features) for snappy frontend slider
+    # First, gather ALL valid unowned + backlog games, excluding ignored, rated, and played
+    exclude_statuses = ['ignored', 'rated', 'played']
+    excluded_interactive_appids = set(gt[gt['status'].isin(exclude_statuses)]['appid'].tolist())
+    
+    interactive_mask = base_mask & (~df['appid'].isin(excluded_interactive_appids))
+    top_interactive = df[interactive_mask].copy()
     
     interactive_pool = []
     # Intercept is beta[0], quality is beta[1], diff is beta[2] etc. based on selected_features
