@@ -488,6 +488,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
 
     # Prepare final JSON
     result = {
+        'steam_id': str(sid),
         'metadata': {
             'quality': float(coef_map.get('quality', 0.0)), 
             'age': float(coef_map.get('age', 0.0)), 

@@ -653,7 +653,13 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                 <h2 className="text-4xl font-bold">Taste DNA Solved</h2>
                 <p className="text-muted-foreground italic text-lg max-w-2xl">We've identified the underlying patterns that drive your enjoyment. Your profile is now optimized with an R² of {insights.r2?.toFixed(2) || '0.55'}.</p>
                 <div className="flex flex-wrap gap-4">
-                  <button onClick={() => { if (onApply) onApply(insights); }} className="bg-primary text-primary-foreground px-8 py-3 rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-primary/20">Apply to Recommender</button>
+                  <button onClick={() => { 
+                    if (onApply) {
+                      // Ensure steam_id is attached to insights for global state management
+                      const finalInsights = { ...insights, steam_id: steamId };
+                      onApply(finalInsights); 
+                    }
+                  }} className="bg-primary text-primary-foreground px-8 py-3 rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-primary/20">Apply to Recommender</button>
                   <button onClick={() => setStep(2)} className="bg-secondary text-foreground px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-secondary/80 border border-border/50">
                     <TableIcon size={18} />
                     Back to Verify

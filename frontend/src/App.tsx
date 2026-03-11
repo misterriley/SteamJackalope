@@ -177,8 +177,9 @@ function App() {
       sessionStorage.setItem('recommendations_filters', JSON.stringify(newFilters));
       
       // 5. Update global state and switch tab
-      if (profile.steam_id) {
-        globalSetSteamId(profile.steam_id);
+      const effectiveSteamId = profile.steam_id || profile.steamId || currentFilters.steamId;
+      if (effectiveSteamId) {
+        globalSetSteamId(effectiveSteamId);
       }
       setAppliedProfile(profile);
       setActiveTab('recommend');
