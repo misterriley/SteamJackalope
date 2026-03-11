@@ -346,9 +346,30 @@ def main():
         (~df['is_nsfw'].fillna(False))
     )
     
+    now = pd.Timestamp.now()
+    parsed_dt = pd.to_datetime(df['parsed_date'], errors='coerce')
+    is_future_exact = parsed_dt > now
+    
     rel_date_str = df['release_date'].astype(str).str.lower()
+    is_tba = rel_date_str.str.contains('coming|tba|tbd|announced|soon', na=False)
+    
+    curr_yr = now.year
+    future_yrs = '|'.join([str(curr_yr + i) for i in range(1, 6)])
+    is_future_year = rel_date_str.str.contains(future_yrs, na=False)
+    
+    q_str = ''
+    if now.month <= 3: q_str = r'q[234]'
+    elif now.month <= 6: q_str = r'q[34]'
+    elif now.month <= 9: q_str = r'q4'
+    else: q_str = r'q_none'
+    
+    is_q_future = rel_date_str.str.contains(f'{q_str}\\s*{curr_yr}', regex=True, na=False)
+    is_just_current_year = rel_date_str == str(curr_yr)
+    
+    is_future_text = is_tba | is_future_year | is_q_future | is_just_current_year
+    
     upcoming_mask = (
-        rel_date_str.str.contains('coming|tba|tbd|announced|2025|2026|soon') & 
+        (is_future_exact | is_future_text) & 
         (total_reviews < 50) & 
         (~df['is_hollow'].fillna(False)) & 
         (~df['is_nsfw'].fillna(False))
