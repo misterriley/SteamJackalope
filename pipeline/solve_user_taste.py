@@ -409,7 +409,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
     for idx in top_interactive.index:
         game = df.iloc[idx]
         features = {}
-        for feature in selected_feature_names:
+        # Include ALL features for interactive tweaking, not just the ones selected by AICc
+        for feature in global_features.keys():
             features[feature.lower()] = float(global_features[feature][idx])
         
         interactive_pool.append({
