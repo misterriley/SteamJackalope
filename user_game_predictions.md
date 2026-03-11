@@ -167,16 +167,16 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **P-Value:** 0.0336
 
 **Top 10 Unowned Games with `Science`:**
-  1. Little Rocket Lab (Proj: 7.91)
-  2. Virtual Circuit Board (Proj: 7.64)
-  3. Abiotic Factor (Proj: 7.47)
-  4. Learning Factory (Proj: 7.00)
-  5. Prime Mover (Proj: 6.95)
-  6. WolfQuest: Anniversary Edition (Proj: 6.82)
-  7. Growing My Grandpa! (Proj: 6.75)
-  8. Ambrosia Sky: Act One (Proj: 6.68)
-  9. The Alters (Proj: 6.68)
-  10. Lab Rat (Proj: 6.64)
+  1. MOLEK-SYNTEZ (Proj: 8.18)
+  2. Little Rocket Lab (Proj: 7.91)
+  3. Lightmatter (Proj: 7.76)
+  4. Virtual Circuit Board (Proj: 7.64)
+  5. Abiotic Factor (Proj: 7.47)
+  6. Botany Manor (Proj: 7.02)
+  7. Learning Factory (Proj: 7.00)
+  8. Prime Mover (Proj: 6.95)
+  9. WolfQuest: Anniversary Edition (Proj: 6.82)
+  10. Growing My Grandpa! (Proj: 6.75)
 
 
 ### Tag: `Lovecraftian`
@@ -191,10 +191,10 @@ The following tags appear in your library and have passed a two-sided t-test (p 
   4. EMOTIONLESS : The Last Ticket (Proj: 7.18)
   5. Eclipsium (Proj: 7.16)
   6. The Tartarus Key (Proj: 7.11)
-  7. Sam & Max: The Devil's Playhouse (Proj: 7.04)
-  8. Witchy Business (Proj: 6.93)
-  9. Rusty Lake: Roots (Proj: 6.90)
-  10. Sucker for Love: First Date (Proj: 6.80)
+  7. Call of the Sea (Proj: 7.05)
+  8. Sam & Max: The Devil's Playhouse (Proj: 7.04)
+  9. Witchy Business (Proj: 6.93)
+  10. Rusty Lake: Roots (Proj: 6.90)
 
 
 ### Tag: `Escape Room`
@@ -207,12 +207,12 @@ The following tags appear in your library and have passed a two-sided t-test (p 
   2. POOLS (Proj: 7.50)
   3. The House of Da Vinci 3 (Proj: 7.41)
   4. The Room VR: A Dark Matter (Proj: 7.34)
-  5. The Tartarus Key (Proj: 7.11)
-  6. Dreamcore (Proj: 7.11)
-  7. Creepy Redneck Dinosaur Mansion 3 (Proj: 7.04)
-  8. Riddlewood Manor (Proj: 7.04)
-  9. Secrets of Blackrock Manor - Escape Room (Proj: 7.01)
-  10. Escape From Mystwood Mansion (Proj: 6.99)
+  5. Cube Escape Collection (Proj: 7.26)
+  6. The Tartarus Key (Proj: 7.11)
+  7. Dreamcore (Proj: 7.11)
+  8. Creepy Redneck Dinosaur Mansion 3 (Proj: 7.04)
+  9. Riddlewood Manor (Proj: 7.04)
+  10. Secrets of Blackrock Manor - Escape Room (Proj: 7.01)
 
 
 ### Tag: `Multiple Endings`
@@ -224,13 +224,13 @@ The following tags appear in your library and have passed a two-sided t-test (p 
   1. The Walking Dead: The Telltale Definitive Series (Proj: 9.44)
   2. Persona 3 Reload (Proj: 8.48)
   3. Stellar Blade™ (Proj: 8.41)
-  4. No, I'm not a Human (Proj: 7.46)
-  5. The Thaumaturge (Proj: 7.44)
-  6. Until Then (Proj: 7.34)
-  7. Strange Antiquities (Proj: 7.34)
-  8. Five Hearts Under One Roof (Proj: 7.34)
-  9. Five Hearts Under One Roof season2 (Proj: 7.33)
-  10. Little Goody Two Shoes (Proj: 7.28)
+  4. Persona 4 Golden (Proj: 8.40)
+  5. Suzerain (Proj: 7.63)
+  6. No, I'm not a Human (Proj: 7.46)
+  7. The Thaumaturge (Proj: 7.44)
+  8. Until Then (Proj: 7.34)
+  9. Strange Antiquities (Proj: 7.34)
+  10. Five Hearts Under One Roof (Proj: 7.34)
 
 
 ### Tag: `Detective`
@@ -240,15 +240,15 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 
 **Top 10 Unowned Games with `Detective`:**
   1. Persona 3 Reload (Proj: 8.48)
-  2. The Thaumaturge (Proj: 7.44)
-  3. The House of Da Vinci 3 (Proj: 7.41)
-  4. Strange Antiquities (Proj: 7.34)
-  5. Ghost Town (Proj: 7.32)
-  6. CARIMARA: Beneath the forlorn limbs (Proj: 7.23)
-  7. Radiolight (Proj: 7.20)
-  8. Expelled! (Proj: 7.19)
-  9. Duck Detective: The Ghost of Glamping (Proj: 7.18)
-  10. Lost Judgment (Proj: 7.16)
+  2. Persona 4 Golden (Proj: 8.40)
+  3. The Thaumaturge (Proj: 7.44)
+  4. The House of Da Vinci 3 (Proj: 7.41)
+  5. Strange Antiquities (Proj: 7.34)
+  6. Ghost Town (Proj: 7.32)
+  7. Cube Escape Collection (Proj: 7.26)
+  8. CARIMARA: Beneath the forlorn limbs (Proj: 7.23)
+  9. Radiolight (Proj: 7.20)
+  10. Expelled! (Proj: 7.19)
 
 
 ### Tag: `Mystery`
@@ -258,15 +258,15 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 
 **Top 10 Unowned Games with `Mystery`:**
   1. Persona 3 Reload (Proj: 8.48)
-  2. Goodnight Universe (Proj: 8.20)
-  3. Boxes: Lost Fragments (Proj: 7.81)
-  4. The Berlin Apartment (Proj: 7.57)
-  5. As Long As You're Here (Proj: 7.56)
-  6. POOLS (Proj: 7.50)
-  7. No, I'm not a Human (Proj: 7.46)
-  8. The Thaumaturge (Proj: 7.44)
-  9. Mouthwashing (Proj: 7.42)
-  10. The House of Da Vinci 3 (Proj: 7.41)
+  2. Persona 4 Golden (Proj: 8.40)
+  3. Goodnight Universe (Proj: 8.20)
+  4. Boxes: Lost Fragments (Proj: 7.81)
+  5. The Berlin Apartment (Proj: 7.57)
+  6. As Long As You're Here (Proj: 7.56)
+  7. POOLS (Proj: 7.50)
+  8. No, I'm not a Human (Proj: 7.46)
+  9. The Thaumaturge (Proj: 7.44)
+  10. Mouthwashing (Proj: 7.42)
 
 
 ### Tag: `Investigation`
@@ -281,10 +281,10 @@ The following tags appear in your library and have passed a two-sided t-test (p 
   4. The Room VR: A Dark Matter (Proj: 7.34)
   5. Strange Antiquities (Proj: 7.34)
   6. Ghost Town (Proj: 7.32)
-  7. Radiolight (Proj: 7.20)
-  8. Bugsnax (Proj: 7.20)
-  9. Expelled! (Proj: 7.19)
-  10. Duck Detective: The Ghost of Glamping (Proj: 7.18)
+  7. Tales From Off-Peak City Vol. 1 (Proj: 7.28)
+  8. Radiolight (Proj: 7.20)
+  9. Bugsnax (Proj: 7.20)
+  10. Expelled! (Proj: 7.19)
 
 
 ### Tag: `Narrative`
@@ -295,14 +295,14 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 **Top 10 Unowned Games with `Narrative`:**
   1. Goodnight Universe (Proj: 8.20)
   2. Still Wakes the Deep (Proj: 7.64)
-  3. As Long As You're Here (Proj: 7.56)
-  4. No, I'm not a Human (Proj: 7.46)
-  5. The Thaumaturge (Proj: 7.44)
-  6. Mouthwashing (Proj: 7.42)
-  7. Fears to Fathom - Ironbark Lookout (Proj: 7.40)
-  8. SEASON: A letter to the future (Proj: 7.38)
-  9. Radiolight (Proj: 7.20)
-  10. Été (Proj: 7.16)
+  3. Suzerain (Proj: 7.63)
+  4. As Long As You're Here (Proj: 7.56)
+  5. No, I'm not a Human (Proj: 7.46)
+  6. The Thaumaturge (Proj: 7.44)
+  7. Mouthwashing (Proj: 7.42)
+  8. Fears to Fathom - Ironbark Lookout (Proj: 7.40)
+  9. SEASON: A letter to the future (Proj: 7.38)
+  10. Life is Strange: True Colors (Proj: 7.25)
 
 
 ### Tag: `Story Rich`
@@ -311,65 +311,65 @@ The following tags appear in your library and have passed a two-sided t-test (p 
 - **P-Value:** 0.0000
 
 **Top 10 Unowned Games with `Story Rich`:**
-  1. The Walking Dead: The Telltale Definitive Series (Proj: 9.44)
-  2. God of War Ragnarök (Proj: 8.56)
-  3. Persona 3 Reload (Proj: 8.48)
-  4. Stellar Blade™ (Proj: 8.41)
-  5. Goodnight Universe (Proj: 8.20)
-  6. The Walking Dead: The Final Season (Proj: 8.11)
-  7. Little Rocket Lab (Proj: 7.91)
-  8. Boxes: Lost Fragments (Proj: 7.81)
-  9. KARMA: The Dark World (Proj: 7.77)
-  10. Still Wakes the Deep (Proj: 7.64)
+  1. Subnautica: Below Zero (Proj: 9.63)
+  2. The Walking Dead: The Telltale Definitive Series (Proj: 9.44)
+  3. The Walking Dead: Season Two (Proj: 8.60)
+  4. God of War Ragnarök (Proj: 8.56)
+  5. Persona 3 Reload (Proj: 8.48)
+  6. Stellar Blade™ (Proj: 8.41)
+  7. Persona 4 Golden (Proj: 8.40)
+  8. Goodnight Universe (Proj: 8.20)
+  9. Metaphor: ReFantazio (Proj: 8.13)
+  10. The Walking Dead: The Final Season (Proj: 8.11)
 
 
 ## 🏘️ Neighborhood Recommendations for Your Favorites
 For each game you rated 9.0 or higher, here are the top 10 best games selected from its 100 closest structural neighbors.
 
 ### ★ Factorio (You rated: 10.0)
-1. **Little Rocket Lab** - Proj: 7.91
-2. **Alchemy Factory** - Proj: 7.86
-3. **AutoForge** - Proj: 7.74
-4. **Abiotic Factor** - Proj: 7.47
-5. **Starground** - Proj: 7.40
-6. **MineMogul** - Proj: 7.24
-7. **Tower Factory** - Proj: 7.01
-8. **Learning Factory** - Proj: 7.00
-9. **Scorchlands** - Proj: 6.92
-10. **Bone's Cafe** - Proj: 6.89
+1. **Satisfactory** - Proj: 9.08
+2. **Little Rocket Lab** - Proj: 7.91
+3. **Alchemy Factory** - Proj: 7.86
+4. **AutoForge** - Proj: 7.74
+5. **Abiotic Factor** - Proj: 7.47
+6. **Factory Town** - Proj: 7.43
+7. **Starground** - Proj: 7.40
+8. **MineMogul** - Proj: 7.24
+9. **Tower Factory** - Proj: 7.01
+10. **Learning Factory** - Proj: 7.00
 
 
 ### ★ Disco Elysium - The Final Cut (You rated: 10.0)
 1. **The Walking Dead: The Telltale Definitive Series** - Proj: 9.44
 2. **Persona 3 Reload** - Proj: 8.48
-3. **Dispatch** - Proj: 7.62
-4. **The Thaumaturge** - Proj: 7.44
-5. **Duskpunk** - Proj: 7.22
-6. **Duck Detective: The Ghost of Glamping** - Proj: 7.18
+3. **Suzerain** - Proj: 7.63
+4. **Dispatch** - Proj: 7.62
+5. **The Thaumaturge** - Proj: 7.44
+6. **Duskpunk** - Proj: 7.22
 7. **House Party** - Proj: 7.04
-8. **Sigh of the Abyss** - Proj: 7.03
-9. **Final Profit: A Shop RPG** - Proj: 6.94
-10. **The Rise of the Golden Idol** - Proj: 6.93
+8. **Beyond: Two Souls** - Proj: 7.03
+9. **Sigh of the Abyss** - Proj: 7.03
+10. **Final Profit: A Shop RPG** - Proj: 6.94
 
 
 ### ★ Detroit: Become Human (You rated: 10.0)
 1. **The Walking Dead: The Telltale Definitive Series** - Proj: 9.44
-2. **Goodnight Universe** - Proj: 8.20
-3. **Dispatch** - Proj: 7.62
-4. **No, I'm not a Human** - Proj: 7.46
-5. **Until Then** - Proj: 7.34
-6. **SILENT HILL 2** - Proj: 7.17
-7. **The Walking Dead: Michonne - A Telltale Miniseries** - Proj: 7.15
-8. **DRAMAtical Murder** - Proj: 6.99
-9. **Stella of The End** - Proj: 6.96
-10. **As Dusk Falls** - Proj: 6.88
+2. **The Walking Dead: Season Two** - Proj: 8.60
+3. **Goodnight Universe** - Proj: 8.20
+4. **Dispatch** - Proj: 7.62
+5. **No, I'm not a Human** - Proj: 7.46
+6. **Until Then** - Proj: 7.34
+7. **Life is Strange: True Colors** - Proj: 7.25
+8. **SILENT HILL 2** - Proj: 7.17
+9. **The Walking Dead: Michonne - A Telltale Miniseries** - Proj: 7.15
+10. **Beyond: Two Souls** - Proj: 7.03
 
 
 ### ★ The Elder Scrolls V: Skyrim Special Edition (You rated: 10.0)
 1. **God of War Ragnarök** - Proj: 8.56
 2. **Red Dead Redemption** - Proj: 7.21
-3. **Kingdom Come: Deliverance II** - Proj: 7.10
-4. **Sigh of the Abyss** - Proj: 7.03
+3. **Borderlands 3** - Proj: 7.11
+4. **Kingdom Come: Deliverance II** - Proj: 7.10
 5. **Tainted Grail: The Fall of Avalon** - Proj: 6.88
 6. **Horizon Zero Dawn™ Remastered** - Proj: 6.86
 7. **Judero** - Proj: 6.85
@@ -381,27 +381,27 @@ For each game you rated 9.0 or higher, here are the top 10 best games selected f
 ### ★ Mass Effect™ Legendary Edition (You rated: 10.0)
 1. **M.A.S.S. Builder** - Proj: 7.45
 2. **SCARLET NEXUS** - Proj: 7.44
-3. **Red Dead Redemption** - Proj: 7.21
-4. **Kingdom Come: Deliverance II** - Proj: 7.10
-5. **KINGDOM HEARTS -HD 1.5+2.5 ReMIX-** - Proj: 7.06
-6. **REMNANT II®** - Proj: 6.97
-7. **Tainted Grail: The Fall of Avalon** - Proj: 6.88
-8. **Horizon Zero Dawn™ Remastered** - Proj: 6.86
-9. **Terminator: Resistance** - Proj: 6.83
-10. **Kotama and Academy Citadel** - Proj: 6.79
+3. **DAEMON X MACHINA** - Proj: 7.24
+4. **Red Dead Redemption** - Proj: 7.21
+5. **Kingdom Come: Deliverance II** - Proj: 7.10
+6. **KINGDOM HEARTS -HD 1.5+2.5 ReMIX-** - Proj: 7.06
+7. **REMNANT II®** - Proj: 6.97
+8. **Borderlands: The Pre-Sequel** - Proj: 6.90
+9. **Horizon Zero Dawn™ Remastered** - Proj: 6.86
+10. **Terminator: Resistance** - Proj: 6.83
 
 
 ### ★ The Witcher 3: Wild Hunt (You rated: 10.0)
-1. **God of War Ragnarök** - Proj: 8.56
-2. **Stellar Blade™** - Proj: 8.41
-3. **The Walking Dead: The Final Season** - Proj: 8.11
-4. **Red Dead Redemption** - Proj: 7.21
-5. **Tales of ARISE** - Proj: 6.90
-6. **Tainted Grail: The Fall of Avalon** - Proj: 6.88
-7. **My Time at Sandrock** - Proj: 6.87
-8. **Judero** - Proj: 6.85
-9. **Sacred Fire: A Role Playing Game** - Proj: 6.80
-10. **Afterplace** - Proj: 6.70
+1. **Stellar Blade™** - Proj: 8.41
+2. **The Walking Dead: The Final Season** - Proj: 8.11
+3. **Red Dead Redemption** - Proj: 7.21
+4. **Tales of ARISE** - Proj: 6.90
+5. **Tainted Grail: The Fall of Avalon** - Proj: 6.88
+6. **My Time at Sandrock** - Proj: 6.87
+7. **Judero** - Proj: 6.85
+8. **Sacred Fire: A Role Playing Game** - Proj: 6.80
+9. **Afterplace** - Proj: 6.70
+10. **Lies of P** - Proj: 6.64
 
 
 ### ★ NieR:Automata™ (You rated: 10.0)
@@ -409,9 +409,9 @@ For each game you rated 9.0 or higher, here are the top 10 best games selected f
 2. **Stellar Blade™** - Proj: 8.41
 3. **SCARLET NEXUS** - Proj: 7.44
 4. **KINGDOM HEARTS III + Re Mind (DLC)** - Proj: 7.31
-5. **KINGDOM HEARTS -HD 1.5+2.5 ReMIX-** - Proj: 7.06
-6. **Clair Obscur: Expedition 33** - Proj: 7.00
-7. **ENDER LILIES: Quietus of the Knights** - Proj: 6.92
+5. **Devil May Cry 5** - Proj: 7.15
+6. **KINGDOM HEARTS -HD 1.5+2.5 ReMIX-** - Proj: 7.06
+7. **Clair Obscur: Expedition 33** - Proj: 7.00
 8. **Tales of ARISE** - Proj: 6.90
 9. **NanoApostle** - Proj: 6.90
 10. **Horizon Zero Dawn™ Remastered** - Proj: 6.86
@@ -425,13 +425,13 @@ For each game you rated 9.0 or higher, here are the top 10 best games selected f
 5. **Fears to Fathom - Ironbark Lookout** - Proj: 7.40
 6. **EMOTIONLESS : The Last Ticket** - Proj: 7.18
 7. **Sorry We're Closed** - Proj: 7.18
-8. **SILENT HILL 2** - Proj: 7.17
-9. **Eclipsium** - Proj: 7.16
-10. **For Sale** - Proj: 7.14
+8. **1000xRESIST** - Proj: 7.18
+9. **SILENT HILL 2** - Proj: 7.17
+10. **Eclipsium** - Proj: 7.16
 
 
 ### ★ Portal 2 (You rated: 10.0)
-1. **My Little Puppy** - Proj: 7.56
+1. **Lightmatter** - Proj: 7.76
 2. **Split Fiction** - Proj: 7.19
 3. **Moss: Book II** - Proj: 7.03
 4. **Bridge Constructor Portal** - Proj: 6.99
@@ -440,7 +440,7 @@ For each game you rated 9.0 or higher, here are the top 10 best games selected f
 7. **We Escaped a Twisted Game** - Proj: 6.79
 8. **SpongeBob SquarePants: Titans of the Tide** - Proj: 6.70
 9. **Escape Simulator** - Proj: 6.66
-10. **Sonic Frontiers** - Proj: 6.58
+10. **It Takes Two** - Proj: 6.60
 
 
 ### ★ Grand Theft Auto V Enhanced (You rated: 10.0)
@@ -448,47 +448,47 @@ For each game you rated 9.0 or higher, here are the top 10 best games selected f
 2. **Red Dead Redemption** - Proj: 7.21
 3. **Grand Theft Auto IV: The Complete Edition** - Proj: 7.19
 4. **The Long Drive** - Proj: 7.14
-5. **Grand Theft Auto: San Andreas - The Definitive Edition** - Proj: 6.71
-6. **Grandpa High on Retro** - Proj: 6.70
-7. **Warhammer 40,000: Space Marine 2** - Proj: 6.67
-8. **Grand Theft Auto: Vice City - The Definitive Edition** - Proj: 6.48
-9. **Need for Speed™ Hot Pursuit Remastered** - Proj: 6.44
-10. **Call of Duty®: Black Ops III** - Proj: 6.40
+5. **Borderlands 3** - Proj: 7.11
+6. **Red Dead Redemption 2** - Proj: 6.78
+7. **Grand Theft Auto: San Andreas - The Definitive Edition** - Proj: 6.71
+8. **Grandpa High on Retro** - Proj: 6.70
+9. **Warhammer 40,000: Space Marine 2** - Proj: 6.67
+10. **Grand Theft Auto: Vice City - The Definitive Edition** - Proj: 6.48
 
 
 ### ★ Subnautica (You rated: 10.0)
-1. **Abiotic Factor** - Proj: 7.47
-2. **Subside** - Proj: 7.19
-3. **Saleblazers** - Proj: 7.12
-4. **Crash Dive 2** - Proj: 6.94
-5. **Barotrauma** - Proj: 6.86
-6. **The Last Caretaker** - Proj: 6.82
-7. **The Planet Crafter** - Proj: 6.71
-8. **Iron Lung** - Proj: 6.70
-9. **The Alters** - Proj: 6.68
-10. **Murky Divers** - Proj: 6.66
+1. **Subnautica: Below Zero** - Proj: 9.63
+2. **Abiotic Factor** - Proj: 7.47
+3. **Subside** - Proj: 7.19
+4. **Saleblazers** - Proj: 7.12
+5. **Crash Dive 2** - Proj: 6.94
+6. **Barotrauma** - Proj: 6.86
+7. **The Last Caretaker** - Proj: 6.82
+8. **The Planet Crafter** - Proj: 6.71
+9. **Raft** - Proj: 6.69
+10. **The Alters** - Proj: 6.68
 
 
 ### ★ Mass Effect 2 (2010) Edition (You rated: 10.0)
-1. **The Walking Dead: The Final Season** - Proj: 8.11
-2. **MOBILE SUIT GUNDAM SEED BATTLE DESTINY REMASTERED** - Proj: 7.61
-3. **M.A.S.S. Builder** - Proj: 7.45
+1. **MOBILE SUIT GUNDAM SEED BATTLE DESTINY REMASTERED** - Proj: 7.61
+2. **M.A.S.S. Builder** - Proj: 7.45
+3. **Marvel's Guardians of the Galaxy** - Proj: 7.27
 4. **REMNANT II®** - Proj: 6.97
 5. **Terminator: Resistance** - Proj: 6.83
 6. **Horizon Forbidden West™ Complete Edition** - Proj: 6.71
 7. **The Walking Dead: A New Frontier** - Proj: 6.71
 8. **AI Olympius** - Proj: 6.70
-9. **Ambrosia Sky: Act One** - Proj: 6.68
-10. **Banishers: Ghosts of New Eden** - Proj: 6.62
+9. **Banishers: Ghosts of New Eden** - Proj: 6.62
+10. **STAR WARS™ Knights of the Old Republic™** - Proj: 6.45
 
 
 ### ★ Before Your Eyes (You rated: 9.0)
 1. **Goodnight Universe** - Proj: 8.20
 2. **As Long As You're Here** - Proj: 7.56
 3. **Until Then** - Proj: 7.34
-4. **DATE A LIVE: Rio Reincarnation** - Proj: 7.10
-5. **Yet Another Killing Game** - Proj: 7.06
-6. **Great God Grove** - Proj: 7.03
+4. **The Stanley Parable: Ultra Deluxe** - Proj: 7.25
+5. **DATE A LIVE: Rio Reincarnation** - Proj: 7.10
+6. **Yet Another Killing Game** - Proj: 7.06
 7. **Stella of The End** - Proj: 6.96
 8. **Smile For Me** - Proj: 6.95
 9. **I Hate My Waifu Streamer** - Proj: 6.91
@@ -503,43 +503,43 @@ For each game you rated 9.0 or higher, here are the top 10 best games selected f
 5. **EMOTIONLESS : The Last Ticket** - Proj: 7.18
 6. **Sorry We're Closed** - Proj: 7.18
 7. **SILENT HILL 2** - Proj: 7.17
-8. **ROUTINE** - Proj: 7.04
-9. **Visage** - Proj: 7.03
-10. **The Dark Pictures Anthology: House of Ashes** - Proj: 7.02
+8. **INDIKA** - Proj: 7.14
+9. **Bramble: The Mountain King** - Proj: 7.13
+10. **Amnesia: The Bunker** - Proj: 7.07
 
 
 ### ★ Antichamber (You rated: 9.0)
-1. **Ghost Town** - Proj: 7.32
-2. **For Sale** - Proj: 7.14
-3. **Lingo 2** - Proj: 6.95
-4. **Fears to Fathom - Woodbury Getaway** - Proj: 6.95
-5. **Kulebra and the Souls of Limbo** - Proj: 6.94
-6. **Lorelei and the Laser Eyes** - Proj: 6.91
-7. **FunnyPizzaLand** - Proj: 6.91
-8. **The Norwood Suite** - Proj: 6.89
-9. **Chroma Zero** - Proj: 6.84
-10. **The Utility Room** - Proj: 6.82
+1. **Lightmatter** - Proj: 7.76
+2. **COCOON** - Proj: 7.65
+3. **Ghost Town** - Proj: 7.32
+4. **For Sale** - Proj: 7.14
+5. **INDIKA** - Proj: 7.14
+6. **Lingo 2** - Proj: 6.95
+7. **Fears to Fathom - Woodbury Getaway** - Proj: 6.95
+8. **Kulebra and the Souls of Limbo** - Proj: 6.94
+9. **Lorelei and the Laser Eyes** - Proj: 6.91
+10. **FunnyPizzaLand** - Proj: 6.91
 
 
 ### ★ NieR Replicant™ ver.1.22474487139... (You rated: 9.0)
-1. **God of War Ragnarök** - Proj: 8.56
-2. **Stellar Blade™** - Proj: 8.41
-3. **SCARLET NEXUS** - Proj: 7.44
-4. **KINGDOM HEARTS III + Re Mind (DLC)** - Proj: 7.31
-5. **DELTARUNE** - Proj: 7.24
-6. **KINGDOM HEARTS -HD 1.5+2.5 ReMIX-** - Proj: 7.06
-7. **Ys IX: Monstrum Nox** - Proj: 6.93
-8. **ENDER LILIES: Quietus of the Knights** - Proj: 6.92
-9. **Tales of ARISE** - Proj: 6.90
-10. **NanoApostle** - Proj: 6.90
+1. **Stellar Blade™** - Proj: 8.41
+2. **SCARLET NEXUS** - Proj: 7.44
+3. **KINGDOM HEARTS III + Re Mind (DLC)** - Proj: 7.31
+4. **DELTARUNE** - Proj: 7.24
+5. **KINGDOM HEARTS -HD 1.5+2.5 ReMIX-** - Proj: 7.06
+6. **Ys IX: Monstrum Nox** - Proj: 6.93
+7. **ENDER LILIES: Quietus of the Knights** - Proj: 6.92
+8. **Tales of ARISE** - Proj: 6.90
+9. **NanoApostle** - Proj: 6.90
+10. **Judero** - Proj: 6.85
 
 
 ### ★ Mass Effect (2007) (You rated: 9.0)
 1. **MOBILE SUIT GUNDAM SEED BATTLE DESTINY REMASTERED** - Proj: 7.61
 2. **M.A.S.S. Builder** - Proj: 7.45
 3. **SCARLET NEXUS** - Proj: 7.44
-4. **Dolls Nest** - Proj: 7.11
-5. **REMNANT II®** - Proj: 6.97
+4. **Marvel's Guardians of the Galaxy** - Proj: 7.27
+5. **DAEMON X MACHINA** - Proj: 7.24
 6. **Horizon Zero Dawn™ Remastered** - Proj: 6.86
 7. **EARTH DEFENSE FORCE 4.1 The Shadow of New Despair** - Proj: 6.83
 8. **Terminator: Resistance** - Proj: 6.83
@@ -548,55 +548,55 @@ For each game you rated 9.0 or higher, here are the top 10 best games selected f
 
 
 ### ★ INSIDE (You rated: 9.0)
-1. **Eclipsium** - Proj: 7.16
-2. **Pipistrello and the Cursed Yoyo** - Proj: 7.06
-3. **Öoo** - Proj: 6.99
-4. **Kulebra and the Souls of Limbo** - Proj: 6.94
-5. **Hollow Cocoon** - Proj: 6.72
-6. **Juufuutei Raden™'s Guide for Pixel Museum** - Proj: 6.72
-7. **Klonoa Phantasy Reverie Series** - Proj: 6.68
-8. **Disney Epic Mickey: Rebrushed** - Proj: 6.67
-9. **The Elision Effect** - Proj: 6.64
-10. **Chrono Gear: Warden of Time** - Proj: 6.62
+1. **COCOON** - Proj: 7.65
+2. **Eclipsium** - Proj: 7.16
+3. **Pipistrello and the Cursed Yoyo** - Proj: 7.06
+4. **ENA: Dream BBQ** - Proj: 7.06
+5. **Öoo** - Proj: 6.99
+6. **Kulebra and the Souls of Limbo** - Proj: 6.94
+7. **Hollow Cocoon** - Proj: 6.72
+8. **Klonoa Phantasy Reverie Series** - Proj: 6.68
+9. **Disney Epic Mickey: Rebrushed** - Proj: 6.67
+10. **The Elision Effect** - Proj: 6.64
 
 
 ### ★ God of War (You rated: 9.0)
 1. **God of War Ragnarök** - Proj: 8.56
 2. **Stellar Blade™** - Proj: 8.41
 3. **SCARLET NEXUS** - Proj: 7.44
-4. **Kingdom Come: Deliverance II** - Proj: 7.10
-5. **KINGDOM HEARTS -HD 1.5+2.5 ReMIX-** - Proj: 7.06
-6. **Ghost of Tsushima DIRECTOR'S CUT** - Proj: 6.93
-7. **Kotama and Academy Citadel** - Proj: 6.79
-8. **The First Berserker: Khazan** - Proj: 6.74
-9. **UFO ROBOT GRENDIZER - The Feast of the Wolves** - Proj: 6.73
-10. **Grand Theft Auto: San Andreas - The Definitive Edition** - Proj: 6.71
+4. **Marvel's Guardians of the Galaxy** - Proj: 7.27
+5. **Kingdom Come: Deliverance II** - Proj: 7.10
+6. **KINGDOM HEARTS -HD 1.5+2.5 ReMIX-** - Proj: 7.06
+7. **Ghost of Tsushima DIRECTOR'S CUT** - Proj: 6.93
+8. **Kotama and Academy Citadel** - Proj: 6.79
+9. **The First Berserker: Khazan** - Proj: 6.74
+10. **UFO ROBOT GRENDIZER - The Feast of the Wolves** - Proj: 6.73
 
 
 ### ★ Persona 5 Royal (You rated: 9.0)
 1. **Persona 3 Reload** - Proj: 8.48
-2. **Persona® 5 Strikers** - Proj: 7.51
-3. **Five Hearts Under One Roof** - Proj: 7.34
-4. **Trails in the Sky 1st Chapter** - Proj: 7.21
-5. **Persona 5 Tactica** - Proj: 7.17
-6. **KINGDOM HEARTS -HD 1.5+2.5 ReMIX-** - Proj: 7.06
-7. **The Legend of Heroes: Kuro no Kiseki** - Proj: 7.00
-8. **BLUE REFLECTION: Second Light** - Proj: 6.98
+2. **Persona 4 Golden** - Proj: 8.40
+3. **Metaphor: ReFantazio** - Proj: 8.13
+4. **Persona® 5 Strikers** - Proj: 7.51
+5. **Five Hearts Under One Roof** - Proj: 7.34
+6. **Trails in the Sky 1st Chapter** - Proj: 7.21
+7. **Persona 5 Tactica** - Proj: 7.17
+8. **The Legend of Heroes: Kuro no Kiseki** - Proj: 7.00
 9. **Persona 4 Arena Ultimax** - Proj: 6.97
 10. **The Legend of Heroes: Trails beyond the Horizon** - Proj: 6.90
 
 
 ### ★ Portal (You rated: 9.0)
-1. **Split Fiction** - Proj: 7.19
-2. **Moss: Book II** - Proj: 7.03
-3. **Öoo** - Proj: 6.99
-4. **Bridge Constructor Portal** - Proj: 6.99
-5. **Portal Dungeon** - Proj: 6.86
-6. **A Hat in Time** - Proj: 6.75
-7. **The Spirit and the Mouse** - Proj: 6.72
-8. **NODE: The Last Favor of the Antarii** - Proj: 6.70
-9. **SpongeBob SquarePants: Titans of the Tide** - Proj: 6.70
-10. **Disney Epic Mickey: Rebrushed** - Proj: 6.67
+1. **Lightmatter** - Proj: 7.76
+2. **COCOON** - Proj: 7.65
+3. **Moss: Book II** - Proj: 7.03
+4. **Öoo** - Proj: 6.99
+5. **Bridge Constructor Portal** - Proj: 6.99
+6. **Portal Dungeon** - Proj: 6.86
+7. **A Hat in Time** - Proj: 6.75
+8. **The Spirit and the Mouse** - Proj: 6.72
+9. **NODE: The Last Favor of the Antarii** - Proj: 6.70
+10. **SpongeBob SquarePants: Titans of the Tide** - Proj: 6.70
 
 
 ### ★ Ori and the Blind Forest (You rated: 9.0)
@@ -606,127 +606,127 @@ For each game you rated 9.0 or higher, here are the top 10 best games selected f
 4. **ENDER LILIES: Quietus of the Knights** - Proj: 6.92
 5. **Crypt Custodian** - Proj: 6.87
 6. **Kotama and Academy Citadel** - Proj: 6.79
-7. **Arzette: The Jewel of Faramore** - Proj: 6.72
-8. **AWAKEN - Astral Blade** - Proj: 6.70
-9. **Disney Epic Mickey: Rebrushed** - Proj: 6.67
-10. **ANIMAL WELL** - Proj: 6.61
+7. **Raji: An Ancient Epic** - Proj: 6.75
+8. **Arzette: The Jewel of Faramore** - Proj: 6.72
+9. **AWAKEN - Astral Blade** - Proj: 6.70
+10. **Disney Epic Mickey: Rebrushed** - Proj: 6.67
 
 
 ### ★ Ori and the Will of the Wisps (You rated: 9.0)
 1. **God of War Ragnarök** - Proj: 8.56
-2. **Stellar Blade™** - Proj: 8.41
-3. **My Little Puppy** - Proj: 7.56
-4. **ENDER MAGNOLIA: Bloom in the Mist** - Proj: 7.53
-5. **Neva** - Proj: 7.48
-6. **DELTARUNE** - Proj: 7.24
-7. **The Midnight Walk** - Proj: 7.17
-8. **Öoo** - Proj: 6.99
-9. **SONIC X SHADOW GENERATIONS** - Proj: 6.95
-10. **ENDER LILIES: Quietus of the Knights** - Proj: 6.92
+2. **My Little Puppy** - Proj: 7.56
+3. **ENDER MAGNOLIA: Bloom in the Mist** - Proj: 7.53
+4. **Neva** - Proj: 7.48
+5. **DELTARUNE** - Proj: 7.24
+6. **The Midnight Walk** - Proj: 7.17
+7. **Öoo** - Proj: 6.99
+8. **SONIC X SHADOW GENERATIONS** - Proj: 6.95
+9. **ENDER LILIES: Quietus of the Knights** - Proj: 6.92
+10. **Éalú** - Proj: 6.90
 
 
 ### ★ Not For Broadcast (You rated: 9.0)
 1. **Politics The Game** - Proj: 7.82
 2. **The Political Process** - Proj: 7.67
-3. **Duskpunk** - Proj: 7.22
-4. **Star Trek: Resurgence** - Proj: 6.96
-5. **Pro Philosopher 2: Governments & Grievances** - Proj: 6.96
-6. **Venba** - Proj: 6.94
-7. **Crisis in the Kremlin: The Cold War** - Proj: 6.90
-8. **Sacred Fire: A Role Playing Game** - Proj: 6.80
-9. **Love Love Mystery Club** - Proj: 6.76
-10. **美女，请别影响我成仙** - Proj: 6.73
+3. **Suzerain** - Proj: 7.63
+4. **Duskpunk** - Proj: 7.22
+5. **Killer Frequency** - Proj: 7.12
+6. **Star Trek: Resurgence** - Proj: 6.96
+7. **Pro Philosopher 2: Governments & Grievances** - Proj: 6.96
+8. **Venba** - Proj: 6.94
+9. **Crisis in the Kremlin: The Cold War** - Proj: 6.90
+10. **Road 96 🛣️** - Proj: 6.84
 
 
 ### ★ Manifold Garden (You rated: 9.0)
-1. **A Space for the Unbound** - Proj: 7.24
-2. **Eclipsium** - Proj: 7.16
-3. **Dreamcore** - Proj: 7.11
-4. **The Exit 8** - Proj: 7.10
-5. **Moss: Book II** - Proj: 7.03
-6. **Escape From Mystwood Mansion** - Proj: 6.99
-7. **Homebody** - Proj: 6.96
-8. **Kulebra and the Souls of Limbo** - Proj: 6.94
-9. **Enigma of Fear** - Proj: 6.91
-10. **Lorelei and the Laser Eyes** - Proj: 6.91
+1. **COCOON** - Proj: 7.65
+2. **Tales From Off-Peak City Vol. 1** - Proj: 7.28
+3. **A Space for the Unbound** - Proj: 7.24
+4. **Eclipsium** - Proj: 7.16
+5. **Dreamcore** - Proj: 7.11
+6. **The Exit 8** - Proj: 7.10
+7. **ENA: Dream BBQ** - Proj: 7.06
+8. **Moss: Book II** - Proj: 7.03
+9. **Botany Manor** - Proj: 7.02
+10. **Escape From Mystwood Mansion** - Proj: 6.99
 
 
 ### ★ Spiritfarer®: Farewell Edition (You rated: 9.0)
 1. **STORY OF SEASONS: Grand Bazaar** - Proj: 7.39
 2. **Hello Kitty Island Adventure** - Proj: 7.30
-3. **Little Kitty, Big City** - Proj: 7.30
-4. **Tiny Bookshop** - Proj: 7.28
-5. **Lil Gator Game** - Proj: 7.17
-6. **Farewell North** - Proj: 7.10
-7. **Your Turn To Die -Death Game By Majority-** - Proj: 7.09
-8. **Tavern Keeper 🍻** - Proj: 6.95
-9. **Whisper of the House** - Proj: 6.94
-10. **Fireside Feelings** - Proj: 6.91
+3. **Tiny Bookshop** - Proj: 7.28
+4. **Lil Gator Game** - Proj: 7.17
+5. **Farewell North** - Proj: 7.10
+6. **Tavern Keeper 🍻** - Proj: 6.95
+7. **Whisper of the House** - Proj: 6.94
+8. **Fireside Feelings** - Proj: 6.91
+9. **Cozy Caravan** - Proj: 6.90
+10. **Crypt Custodian** - Proj: 6.87
 
 
 ### ★ SpaceChem (You rated: 9.0)
-1. **Little Rocket Lab** - Proj: 7.91
-2. **Alchemy Factory** - Proj: 7.86
-3. **Virtual Circuit Board** - Proj: 7.64
-4. **Kaizen: A Factory Story** - Proj: 7.50
-5. **The Signal State** - Proj: 7.37
-6. **Learning Factory** - Proj: 7.00
-7. **Bridge Constructor Portal** - Proj: 6.99
-8. **Prime Mover** - Proj: 6.95
-9. **The Zachtronics Solitaire Collection** - Proj: 6.94
-10. **CIPHER ZERO** - Proj: 6.90
+1. **MOLEK-SYNTEZ** - Proj: 8.18
+2. **Little Rocket Lab** - Proj: 7.91
+3. **Alchemy Factory** - Proj: 7.86
+4. **Virtual Circuit Board** - Proj: 7.64
+5. **Kaizen: A Factory Story** - Proj: 7.50
+6. **The Signal State** - Proj: 7.37
+7. **Infinifactory** - Proj: 7.13
+8. **Learning Factory** - Proj: 7.00
+9. **Bridge Constructor Portal** - Proj: 6.99
+10. **Prime Mover** - Proj: 6.95
 
 
 ### ★ The Walking Dead (You rated: 9.0)
 1. **The Walking Dead: The Telltale Definitive Series** - Proj: 9.44
-2. **The Walking Dead: The Final Season** - Proj: 8.11
-3. **Fears to Fathom - Ironbark Lookout** - Proj: 7.40
-4. **The Walking Dead: Michonne - A Telltale Miniseries** - Proj: 7.15
-5. **Your Turn To Die -Death Game By Majority-** - Proj: 7.09
-6. **Sigh of the Abyss** - Proj: 7.03
-7. **DRAMAtical Murder** - Proj: 6.99
-8. **Purrfect Apawcalypse: Patches' Infurno** - Proj: 6.97
-9. **I Hate My Waifu Streamer** - Proj: 6.91
-10. **ghostpia Season One** - Proj: 6.90
+2. **The Walking Dead: Season Two** - Proj: 8.60
+3. **The Walking Dead: The Final Season** - Proj: 8.11
+4. **Fears to Fathom - Ironbark Lookout** - Proj: 7.40
+5. **Life is Strange: True Colors** - Proj: 7.25
+6. **The Walking Dead: Michonne - A Telltale Miniseries** - Proj: 7.15
+7. **Your Turn To Die -Death Game By Majority-** - Proj: 7.09
+8. **Beyond: Two Souls** - Proj: 7.03
+9. **Sigh of the Abyss** - Proj: 7.03
+10. **DRAMAtical Murder** - Proj: 6.99
 
 
 ### ★ The Talos Principle 2 (You rated: 9.0)
 1. **KARMA: The Dark World** - Proj: 7.77
 2. **The Talos Principle VR** - Proj: 7.49
 3. **Split Fiction** - Proj: 7.19
-4. **The Exit 8** - Proj: 7.10
-5. **Ouros** - Proj: 7.05
-6. **Moss: Book II** - Proj: 7.03
-7. **Star Trek: Resurgence** - Proj: 6.96
+4. **INDIKA** - Proj: 7.14
+5. **The Exit 8** - Proj: 7.10
+6. **Ouros** - Proj: 7.05
+7. **Moss: Book II** - Proj: 7.03
 8. **Pro Philosopher 2: Governments & Grievances** - Proj: 6.96
 9. **Éalú** - Proj: 6.90
 10. **Chroma Zero** - Proj: 6.84
 
 
 ### ★ The Talos Principle (You rated: 9.0)
-1. **The Talos Principle VR** - Proj: 7.49
-2. **Ouros** - Proj: 7.05
-3. **Enigma of Fear** - Proj: 6.91
-4. **Terminator: Resistance** - Proj: 6.83
-5. **Titan Station** - Proj: 6.77
-6. **PLAYNE : The Meditation Game** - Proj: 6.76
-7. **REVEIL** - Proj: 6.72
-8. **Eye of the Temple** - Proj: 6.70
-9. **Hauntii** - Proj: 6.61
-10. **Red Matter 2** - Proj: 6.57
+1. **Lightmatter** - Proj: 7.76
+2. **COCOON** - Proj: 7.65
+3. **The Talos Principle VR** - Proj: 7.49
+4. **Ouros** - Proj: 7.05
+5. **Enigma of Fear** - Proj: 6.91
+6. **Terminator: Resistance** - Proj: 6.83
+7. **Titan Station** - Proj: 6.77
+8. **PLAYNE : The Meditation Game** - Proj: 6.76
+9. **REVEIL** - Proj: 6.72
+10. **Eye of the Temple** - Proj: 6.70
 
 
 ### ★ The Forgotten City (You rated: 9.0)
 1. **The Berlin Apartment** - Proj: 7.57
 2. **The Haunting of Joni Evers** - Proj: 7.37
-3. **CARIMARA: Beneath the forlorn limbs** - Proj: 7.23
-4. **EMOTIONLESS : The Last Ticket** - Proj: 7.18
-5. **The Inn-Sanity** - Proj: 7.14
-6. **The Tartarus Key** - Proj: 7.11
-7. **Mind Diver** - Proj: 7.10
-8. **Amerzone - The Explorer's Legacy** - Proj: 7.04
-9. **Enigma of Fear** - Proj: 6.91
-10. **The Norwood Suite** - Proj: 6.89
+3. **Tales From Off-Peak City Vol. 1** - Proj: 7.28
+4. **CARIMARA: Beneath the forlorn limbs** - Proj: 7.23
+5. **Adios** - Proj: 7.22
+6. **EMOTIONLESS : The Last Ticket** - Proj: 7.18
+7. **The Inn-Sanity** - Proj: 7.14
+8. **The Tartarus Key** - Proj: 7.11
+9. **Mind Diver** - Proj: 7.10
+10. **Amerzone - The Explorer's Legacy** - Proj: 7.04
 
 
 ### ★ Stray (You rated: 9.0)
@@ -770,13 +770,13 @@ For each game you rated 9.0 or higher, here are the top 10 best games selected f
 
 ### ★ Mass Effect™ 3 N7 Digital Deluxe Edition (2012) (You rated: 9.0)
 1. **The Walking Dead: The Final Season** - Proj: 8.11
-2. **EARTH DEFENSE FORCE: WORLD BROTHERS 2** - Proj: 7.78
-3. **MOBILE SUIT GUNDAM SEED BATTLE DESTINY REMASTERED** - Proj: 7.61
-4. **M.A.S.S. Builder** - Proj: 7.45
+2. **MOBILE SUIT GUNDAM SEED BATTLE DESTINY REMASTERED** - Proj: 7.61
+3. **M.A.S.S. Builder** - Proj: 7.45
+4. **Marvel's Guardians of the Galaxy** - Proj: 7.27
 5. **REMNANT II®** - Proj: 6.97
 6. **Horizon Zero Dawn™ Remastered** - Proj: 6.86
-7. **EARTH DEFENSE FORCE 4.1 The Shadow of New Despair** - Proj: 6.83
-8. **Terminator: Resistance** - Proj: 6.83
-9. **Witchfire** - Proj: 6.75
-10. **The Walking Dead: A New Frontier** - Proj: 6.71
+7. **Terminator: Resistance** - Proj: 6.83
+8. **Witchfire** - Proj: 6.75
+9. **The Walking Dead: A New Frontier** - Proj: 6.71
+10. **Afterplace** - Proj: 6.70
 

@@ -404,7 +404,7 @@ def main():
         lines.append(f"- **Avg Rating Without:** {stat['mean_without']:.2f}")
         lines.append(f"- **P-Value:** {stat['p_val']:.4f}\n")
         
-        tag_mask = valid_game_mask & (~df['appid'].isin(all_gt_appids)) & df['tags'].apply(lambda x: stat['tag'] in get_list(x))
+        tag_mask = valid_game_mask & (~df['appid'].isin(all_gt_appids - backlog_appids)) & df['tags'].apply(lambda x: stat['tag'] in get_list(x))
         sub_df = df[tag_mask].sort_values('projected_rating', ascending=False)
         lines.append(f"**Top 10 Unowned Games with `{stat['tag']}`:**")
         for i, (_, row) in enumerate(sub_df.head(10).iterrows()):
@@ -418,7 +418,7 @@ def main():
     fav_merged = favorites.merge(df[['appid', 'name']], on='appid', how='inner')
     fav_merged['meta_idx'] = fav_merged['appid'].map({appid: idx for idx, appid in enumerate(df['appid'])})
     
-    valid_indices = np.where(valid_game_mask & (~df['appid'].isin(all_gt_appids)))[0]
+    valid_indices = np.where(valid_game_mask & (~df['appid'].isin(all_gt_appids - backlog_appids)))[0]
     
     for _, fav in fav_merged.iterrows():
         idx = fav['meta_idx']
