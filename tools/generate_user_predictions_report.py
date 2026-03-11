@@ -406,7 +406,7 @@ def main():
         
         tag_mask = valid_game_mask & (~df['appid'].isin(all_gt_appids - backlog_appids)) & df['tags'].apply(lambda x: stat['tag'] in get_list(x))
         sub_df = df[tag_mask].sort_values('projected_rating', ascending=False)
-        lines.append(f"**Top 10 Unowned Games with `{stat['tag']}`:**")
+        lines.append(f"**Top 10 Games with `{stat['tag']}`:**")
         for i, (_, row) in enumerate(sub_df.head(10).iterrows()):
             lines.append(f"  {i+1}. {str(row['name'])} (Proj: {row['projected_rating']:.2f})")
         lines.append("\n")
