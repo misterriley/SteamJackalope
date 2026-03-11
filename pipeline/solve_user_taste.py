@@ -1,12 +1,13 @@
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import Ridge
-from sklearn.model_selection import KFold
+import scipy.stats
+import math
 import os
 import sys
 import json
 import ast
 import re
+from sklearn.linear_model import Ridge
 
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -16,353 +17,438 @@ from common.constants import (
     PRODUCTION_DATA_DIR,
     EMBEDDINGS_DESC_FILE,
     EMBEDDINGS_DESC_NORMS_FILE,
-    TOPIC_DISTRIBUTIONS_FILE,
     Z_SCORE_CLAMP_MIN,
     Z_SCORE_CLAMP_MAX
 )
-from common.utils import to_z, calculate_jackalope_kernel_2d, MIGS, normalize_string
+from common.utils import to_z
+
+def normalize(arr):
+    norms = np.linalg.norm(arr, axis=1, keepdims=True)
+    norms[norms == 0] = 1
+    return arr / norms
+
+def get_list(val):
+    if pd.isna(val).all() if hasattr(val, 'all') else pd.isna(val): return []
+    if isinstance(val, dict): return list(val.keys())
+    if isinstance(val, str):
+        try:
+            d = eval(val)
+            if isinstance(d, dict): return list(d.keys())
+        except: pass
+        return [x.strip() for x in val.split(',')]
+    if hasattr(val, 'tolist'): return val.tolist()
+    if isinstance(val, np.ndarray) and len(val.shape) == 0 and isinstance(val.item(), dict):
+        return list(val.item().keys())
+    return list(val)
+
+def identify_puzzle_subgenre(tags_set):
+    if 'Hidden Object' in tags_set: return 'Hidden Object'
+    if 'Automation' in tags_set or 'Programming' in tags_set: return 'Automation'
+    if 'Sokoban' in tags_set or 'Grid-Based Movement' in tags_set: return 'Sokoban/Grid'
+    if 'Puzzle' in tags_set and ('First-Person' in tags_set or '3D Platformer' in tags_set or 'Open World' in tags_set): return 'Spatial/3D'
+    return 'Generic/Other'
+
+def calculate_subversion_probability(tags_set):
+    prob = 0.0
+    has_psych_horror = 'Psychological Horror' in tags_set
+    has_surreal = 'Surreal' in tags_set
+    has_satire = 'Satire' in tags_set
+    innocent_tags = {'Cute', 'Education', 'Dating Sim', 'Family Friendly', 'Farming Sim', 'Typing', 'Math', 'Software', 'Game Development'}
+    intersecting_innocent = tags_set.intersection(innocent_tags)
+    if len(intersecting_innocent) > 0:
+        if has_psych_horror:
+            if 'Dating Sim' in intersecting_innocent: prob = max(prob, 0.95)
+            elif 'Cute' in intersecting_innocent or 'Family Friendly' in intersecting_innocent: prob = max(prob, 0.85)
+            else: prob = max(prob, 0.60)
+        if has_satire:
+            if 'Farming Sim' in intersecting_innocent or 'Game Development' in intersecting_innocent: prob = max(prob, 0.40)
+            else: prob = max(prob, 0.25)
+        if has_surreal:
+            if 'Education' in intersecting_innocent or 'Math' in intersecting_innocent: prob = max(prob, 0.30)
+            else: prob = max(prob, 0.15)
+    return prob
+
+def calc_aicc(y, X):
+    X_mat = np.column_stack((np.ones(len(y)), X))
+    beta, _, _, _ = np.linalg.lstsq(X_mat, y, rcond=None)
+    preds = X_mat @ beta
+    resid = y - preds
+    rss = np.sum(resid**2)
+    n = len(y)
+    k = X_mat.shape[1]
+    aic = n * np.log(rss / n) + 2 * k
+    if n - k - 1 > 0:
+        aicc = aic + (2 * k * (k + 1)) / (n - k - 1)
+    else:
+        aicc = np.inf
+    return aicc, preds, resid, beta
+
+def golden_section_search(f, a, b, tol=0.1):
+    phi = (1 + math.sqrt(5)) / 2
+    resphi = 2 - phi
+    c = a + resphi * (b - a)
+    d = b - resphi * (b - a)
+    fc = f(c)
+    fd = f(d)
+    while abs(b - a) > tol:
+        if fc < fd:
+            b = d
+            d = c
+            fd = fc
+            c = a + resphi * (b - a)
+            fc = f(c)
+        else:
+            a = c
+            c = d
+            fc = fd
+            d = b - resphi * (b - a)
+            fd = f(d)
+    return (b + a) / 2
 
 def solve_user_taste(ground_truth_path, output_path=None):
-    """
-    Production Solver: CORE 9 Mode (20.47% Verified OOS R2 Peak).
-    Includes rich insight generation for the 'Analyze' page.
-    """
-    print(f"Loading ground truth from {ground_truth_path}...")
-    df_gt = pd.read_csv(ground_truth_path)
-    # Rated Games Only for Solver
-    df_rated = df_gt[df_gt['status'] == 'rated'].dropna(subset=['actual_rating'])
-    y = df_rated['actual_rating'].values
-    user_appids = df_rated['appid'].values
-    y_dev_global = y - 5.0
+    print(f"Loading data from {ground_truth_path}...")
+    df = pd.read_parquet(METADATA_FILE)
+    N_all = len(df)
     
-    sid = os.path.basename(ground_truth_path).split('_')[1]
-    sl_path = ground_truth_path.replace('_ground_truth.csv', '_soft_labels.csv')
+    gt = pd.read_csv(ground_truth_path)
+    gt_rated = gt[gt['status'] == 'rated'].copy()
+    all_gt_appids = set(gt['appid'].tolist())
     
-    steam_library_appids = set()
-    if os.path.exists(sl_path):
-        df_sl = pd.read_csv(sl_path)
-        steam_library_appids.update(df_sl['appid'].unique().tolist())
-
-    discovery_exclude_appids = steam_library_appids.copy()
-    if 'status' in df_gt.columns:
-        discovery_exclude_appids.update(df_gt[df_gt['status'].isin(['backlog', 'played', 'rated'])]['appid'].tolist())
-        discovery_exclude_appids.update(df_gt[df_gt['status'] == 'ignored']['appid'].tolist())
-
-    print(f"Loading metadata and vectors...")
-    full_metadata = pd.read_parquet(METADATA_FILE)
-    appid_to_idx = {int(aid): idx for idx, aid in enumerate(full_metadata['appid'])}
-    user_indices = [appid_to_idx[aid] for aid in df_rated['appid'] if aid in appid_to_idx]
-    user_meta_df = full_metadata.iloc[user_indices].copy()
-    N = len(user_indices)
-
-    all_graph_vectors = np.load(os.path.join(PRODUCTION_DATA_DIR, 'embeddings_graph.npy'), mmap_mode='r').astype(np.float32)
-    user_graph_vectors = all_graph_vectors[user_indices]
-    verb_profiles = np.load(os.path.join(PRODUCTION_DATA_DIR, "diffused_verb_profiles.npy"), mmap_mode='r')[user_indices].astype(np.float32)
-    sem_vectors = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')[user_indices].astype(np.float32)
-    sem_norms = np.load(EMBEDDINGS_DESC_NORMS_FILE, mmap_mode='r')[user_indices].astype(np.float32)
-    topic_dist = np.load(TOPIC_DISTRIBUTIONS_FILE, mmap_mode='r')[user_indices].astype(np.float32)
-    t_means = np.load(os.path.join(PRODUCTION_DATA_DIR, "topic_means.npy")).astype(np.float32)
-    t_stds = np.load(os.path.join(PRODUCTION_DATA_DIR, "topic_stds.npy")).astype(np.float32)
-
-    mig_mask_array = np.zeros((len(full_metadata), len(MIGS)), dtype=bool)
-    tag_series_full = full_metadata['tags'].fillna('').astype(str)
-    for j, (group, tags) in enumerate(MIGS.items()):
-        for t in tags:
-            pattern = rf"'{re.escape(t)}':"
-            mig_mask_array[:, j] |= tag_series_full.str.contains(pattern, regex=True).values
-    user_mig_masks = mig_mask_array[user_indices]
-
-    from common.utils import extract_seed_metadata
-    seed_meta = extract_seed_metadata(user_indices, full_metadata)
-
-    print("Calculating full NxN Jackalope Kernel and Graph Sim...")
-    K_full = calculate_jackalope_kernel_2d(
-        verb_profiles=verb_profiles, seed_verb_profiles=verb_profiles,
-        sem_vectors=sem_vectors, sem_norms=sem_norms, seed_sem_vecs=sem_vectors, seed_sem_norms=sem_norms,
-        topic_distributions=topic_dist, seed_topic_dists=topic_dist,
-        topic_means=t_means, topic_stds=t_stds,
-        candidate_mig_masks=user_mig_masks,
-        seed_mig_masks=user_mig_masks,
-        difficulty_z=user_meta_df['difficulty_z'].values, seed_difficulty_z=user_meta_df['difficulty_z'].values,
-        tone_z=user_meta_df['tone_z'].values, seed_tone_z=user_meta_df['tone_z'].values,
-        seed_tags=seed_meta['soul_tags_list'], seed_migs=seed_meta['migs_list'],
-        mature_content_flags=seed_meta['mature_flags'], seed_mature_content_flags=seed_meta['mature_flags'],
-        graph_embeddings=user_graph_vectors, seed_graph_vecs=user_graph_vectors
-    )
-
-    dot_graph = np.dot(user_graph_vectors, user_graph_vectors.T)
-    g_norms = np.linalg.norm(user_graph_vectors, axis=1)
-    G_full = dot_graph / (g_norms[:, None] * g_norms[None, :] + 1e-9)
-    G_full = np.maximum(0, G_full)
-
-    user_names = user_meta_df['name'].tolist()
-    lp_mask = np.ones((N, N), dtype=bool)
-    for i in range(N):
-        clean_i = set(normalize_string(user_names[i]).split())
-        if len(clean_i) < 2: continue 
-        for j in range(i + 1, N):
-            clean_j = set(normalize_string(user_names[j]).split())
-            overlap = clean_i.intersection(clean_j)
-            if len(overlap) >= 2 and (len(overlap) / max(len(clean_i), len(clean_j)) > 0.7):
-                lp_mask[i, j] = lp_mask[j, i] = False
-
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
-    alphas = np.logspace(-3, 6, 50)
-    alpha_scores = np.zeros(len(alphas))
-    
-    quality_grid = np.load(os.path.join(PRODUCTION_DATA_DIR, "quality_scores_grid.npy"), mmap_mode='r')
-    q_feat = to_z(quality_grid[0][user_indices], clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
-    meta_cols = ['date_z', 'pop_z', 'playtime_z', 'difficulty_z', 'price_z', 'tone_z']
-    X_meta_data = np.zeros((N, len(meta_cols)))
-    for j, col in enumerate(meta_cols):
-        X_meta_data[:, j] = to_z(user_meta_df[col].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX))
-    
-    # CORE 9 Feature Pool: [Q, Meta]
-    X_static = np.hstack([q_feat.reshape(-1, 1), X_meta_data]) 
-
-    K_exp_full_pool = np.exp(K_full * 10.0)
-    
-    print(f"Executing Research Alpha Sweep for {N} samples with CORE 9 features...")
-    for train_idx, test_idx in kf.split(range(N)):
-        K_sub_train = K_exp_full_pool[np.ix_(train_idx, train_idx)] * lp_mask[np.ix_(train_idx, train_idx)]
-        np.fill_diagonal(K_sub_train, 0.0)
-        X_k_train = (np.sum(K_sub_train * y_dev_global[train_idx], axis=1) / (np.sum(K_sub_train, axis=1) + 1e-9)).reshape(-1, 1)
+    unplayed_statuses = ['backlog', 'unplayed', 'wishlist']
+    backlog_appids = set(gt[gt['status'].isin(unplayed_statuses)]['appid'].tolist())
+    if len(backlog_appids) == 0:
+        backlog_appids = set(gt[~gt['status'].isin(['rated', 'ignored', 'played'])]['appid'].tolist())
         
-        G_train = G_full[np.ix_(train_idx, train_idx)] * lp_mask[np.ix_(train_idx, train_idx)]
-        np.fill_diagonal(G_train, 0.0)
-        X_g_train = (np.sum(G_train * y_dev_global[train_idx], axis=1) / (np.sum(G_train, axis=1) + 1e-9)).reshape(-1, 1)
-        
-        X_train = np.hstack([X_k_train, X_g_train, X_static[train_idx]])
-        
-        K_sub_test = K_exp_full_pool[np.ix_(test_idx, train_idx)] * lp_mask[np.ix_(test_idx, train_idx)]
-        X_k_test = (np.sum(K_sub_test * y_dev_global[train_idx], axis=1) / (np.sum(K_sub_test, axis=1) + 1e-9)).reshape(-1, 1)
-        
-        G_test = G_full[np.ix_(test_idx, train_idx)] * lp_mask[np.ix_(test_idx, train_idx)]
-        X_g_test = (np.sum(G_test * y_dev_global[train_idx], axis=1) / (np.sum(G_test, axis=1) + 1e-9)).reshape(-1, 1)
-        
-        X_test = np.hstack([X_k_test, X_g_test, X_static[test_idx]])
-        
-        for i, a in enumerate(alphas):
-            ridge = Ridge(alpha=a).fit(X_train, y[train_idx])
-            alpha_scores[i] += ridge.score(X_test, y[test_idx])
-            
-    best_alpha = alphas[np.argmax(alpha_scores)]
-    oos_r2 = np.max(alpha_scores) / 5.0
-    print(f"Selected Discovery Alpha: {best_alpha:.4f}")
-    print(f"Verified Discovery OOS R^2: {oos_r2:.4f}")
-
-    X_k_final = (np.sum((K_exp_full_pool * lp_mask) * y_dev_global, axis=1) / (np.sum(K_exp_full_pool * lp_mask, axis=1) + 1e-9)).reshape(-1, 1)
-    X_g_final = (np.sum((G_full * lp_mask) * y_dev_global, axis=1) / (np.sum(G_full * lp_mask, axis=1) + 1e-9)).reshape(-1, 1)
-    X_final = np.hstack([X_k_final, X_g_final, X_static])
+    ignored_appids = set(gt[gt['status'] == 'ignored']['appid'].tolist())
     
-    model = Ridge(alpha=best_alpha).fit(X_final, y)
-    r2_train = model.score(X_final, y)
-    print(f"Final Fit Confidence (Training R2): {r2_train:.4f}")
-
-    kernel_coeff = model.coef_[0]
-    graph_coeff = model.coef_[1]
-    q_coeff = model.coef_[2]
-    meta_coeffs = model.coef_[3:9]
-    topic_coeffs = np.zeros(249)
-
-    # --- RICH INSIGHTS: ACTIVE MIGS ---
-    print("Generating rich insights...")
-    mig_impacts = []
-    for j, group in enumerate(MIGS.keys()):
-        # Calculate impact by looking at rated games with this MIG
-        mask = user_mig_masks[:, j].astype(bool)
-        if np.sum(mask) >= 3:
-            impact = np.mean(y[mask]) - np.mean(y)
-            mig_impacts.append({'group': group, 'impact': float(impact)})
-    active_migs = sorted(mig_impacts, key=lambda x: abs(x['impact']), reverse=True)
-
-    # --- PRODUCTION SCORING (Library Scale) ---
-    print("Calculating library-scale recommendations...")
-    all_verb_profiles = np.load(os.path.join(PRODUCTION_DATA_DIR, "diffused_verb_profiles.npy"), mmap_mode='r')
-    all_sem_vectors = np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r')
-    all_sem_norms = np.load(EMBEDDINGS_DESC_NORMS_FILE, mmap_mode='r')
+    merged = gt_rated.merge(df[['appid']], on='appid', how='inner')
+    merged['meta_idx'] = merged['appid'].map({appid: idx for idx, appid in enumerate(df['appid'])})
+    src_idxs = merged['meta_idx'].values
+    actual_ratings = merged['actual_rating'].values
     
-    K_lib = calculate_jackalope_kernel_2d(
-        verb_profiles=all_verb_profiles, seed_verb_profiles=verb_profiles,
-        sem_vectors=all_sem_vectors, sem_norms=all_sem_norms, seed_sem_vecs=sem_vectors, seed_sem_norms=sem_norms,
-        topic_distributions=np.zeros((len(full_metadata), 249), dtype=np.float32), 
-        seed_topic_dists=np.zeros((len(user_indices), 249), dtype=np.float32),
-        topic_means=t_means, topic_stds=t_stds,
-        candidate_mig_masks=mig_mask_array, seed_mig_masks=user_mig_masks,
-        difficulty_z=full_metadata['difficulty_z'].values, seed_difficulty_z=user_meta_df['difficulty_z'].values,
-        tone_z=full_metadata['tone_z'].values, seed_tone_z=user_meta_df['tone_z'].values,
-        seed_tags=seed_meta['soul_tags_list'], seed_migs=seed_meta['migs_list'],
-        mature_content_flags=full_metadata['mature_content'].values > 0,
-        seed_mature_content_flags=seed_meta['mature_flags'],
-        graph_embeddings=all_graph_vectors, seed_graph_vecs=user_graph_vectors
-    )
-    
-    K_exp_lib = np.exp(K_lib * 10.0) 
-    for c, f_idx in enumerate(user_indices): K_exp_lib[f_idx, c] = 0.0
-    X_k_lib = np.sum(K_exp_lib * y_dev_global, axis=1) / (np.sum(K_exp_lib, axis=1) + 1e-9)
-
-    G_lib = np.dot(all_graph_vectors, user_graph_vectors.T)
-    g_norms_lib = np.linalg.norm(all_graph_vectors, axis=1)
-    s_norms_lib = np.linalg.norm(user_graph_vectors, axis=1)
-    G_lib /= (g_norms_lib[:, None] * s_norms_lib[None, :] + 1e-9)
-    G_lib = np.maximum(0, G_lib)
-    for c, f_idx in enumerate(user_indices): G_lib[f_idx, c] = 0.0
-    X_g_lib = np.sum(G_lib * y_dev_global, axis=1) / (np.sum(G_lib, axis=1) + 1e-9)
-
-    scores = (X_k_lib * kernel_coeff) + (X_g_lib * graph_coeff) + model.intercept_
-    scores += (to_z(quality_grid[0], clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)) * q_coeff)
-    for i, col in enumerate(meta_cols):
-        scores += to_z(full_metadata[col].values, clamp=(Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)) * meta_coeffs[i]
-
-    # --- FILTERS & EXCLUSIONS ---
-    from common.utils import get_base_filter_mask
-    base_mask = get_base_filter_mask(full_metadata, english_only=True, remove_vr=True, remove_utilities=True, remove_delisted=True, remove_hollow=True)
-    
-    # Requirement: At least one positive or negative vote (Exclude games with 0 feedback for discovery)
-    has_votes = (full_metadata['positive'] + full_metadata['negative'] > 0).values
-    discovery_mask = base_mask & has_votes
-
-    # Discovery Exclusions
-    completed_indices = [appid_to_idx[aid] for aid in discovery_exclude_appids if aid in appid_to_idx]
-    discovery_scores = scores.copy()
-    discovery_scores[completed_indices] = -1e12
-    discovery_scores[~discovery_mask] = -1e12
-    top_discovery_indices = np.argsort(-discovery_scores)[:30]
-    top_recommendations = full_metadata.iloc[top_discovery_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
-    top_recommendations['predicted_rating'] = np.clip(scores[top_discovery_indices], 0, 10)
-
-    # Free Games (Requires positive indicator via 'Free to Play' tag to avoid false positives)
-    tag_series = full_metadata['tags'].fillna('').astype(str)
-    is_free_mask = tag_series.str.contains("'Free to Play':", regex=False).values
-    
-    free_scores = discovery_scores.copy()
-    free_scores[~is_free_mask] = -1e12
-    top_free_indices = np.argsort(-free_scores)[:10]
-    free_recommendations = full_metadata.iloc[top_free_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
-    free_recommendations['predicted_rating'] = np.clip(scores[top_free_indices], 0, 10)
-
-    # Backlog Priority
-    backlog_appids = df_gt[df_gt['status'] == 'backlog']['appid'].values
-    backlog_indices = [appid_to_idx[aid] for aid in backlog_appids if aid in appid_to_idx]
-    if backlog_indices:
-        backlog_scores = scores[backlog_indices]
-        top_backlog_indices = np.array(backlog_indices)[np.argsort(-backlog_scores)][:30]
-        backlog_recommendations = full_metadata.iloc[top_backlog_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
-        backlog_recommendations['predicted_rating'] = np.clip(scores[top_backlog_indices], 0, 10)
-    else:
-        backlog_recommendations = pd.DataFrame(columns=['appid', 'name', 'predicted_rating', 'header_image', 'is_nsfw'])
-
-    # Upcoming Games (Coming soon or released in the future)
-    now = pd.Timestamp.now().normalize()
-    
-    placeholders = ['coming soon', 'to be announced', 'maybe', 'tbd']
-    is_upcoming_mask = (full_metadata['parsed_date'] > now) | \
-                      (full_metadata['release_date'].fillna('').astype(str).str.lower().str.contains('|'.join(placeholders), regex=True))
-    
-    upcoming_scores = scores.copy()
-    upcoming_scores[~is_upcoming_mask.values] = -1e12
-    upcoming_scores[~base_mask] = -1e12 # Still apply base filters (no hollow, utilities, etc.)
-    top_upcoming_indices = np.argsort(-upcoming_scores)[:30]
-    upcoming_recommendations = full_metadata.iloc[top_upcoming_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
-    upcoming_recommendations['predicted_rating'] = np.clip(scores[top_upcoming_indices], 0, 10)
-
-    # North Stars (Highest X_k values - games mathematically closest to your peak taste)
-    # Apply base discovery filter to North Stars to avoid unreleased/utility clutter
-    ns_scores = X_k_lib.copy()
-    ns_scores[~discovery_mask] = -1e12
-    ns_scores[completed_indices] = -1e12
-    north_star_indices = np.argsort(-ns_scores)[:5]
-    north_stars = full_metadata.iloc[north_star_indices][['appid', 'name', 'header_image', 'is_nsfw']].copy()
-    north_stars['alignment'] = X_k_lib[north_star_indices]
-
-    # Predictive Tags
-    tag_impacts = []
-    # Only check top 200 popular tags for speed
+    print("Analyzing predictive tags...")
+    tag_lists_src = [set(get_list(t)) for t in df.iloc[src_idxs]['tags']]
     all_tags = set()
-    for t_str in full_metadata.iloc[user_indices]['tags']:
-        if isinstance(t_str, str):
-            all_tags.update(ast.literal_eval(t_str).keys())
-    
+    for t_set in tag_lists_src: all_tags.update(t_set)
+        
+    tag_stats = []
     for tag in list(all_tags)[:150]:
-        pattern = rf"'{re.escape(tag)}':"
-        has_tag = tag_series_full.iloc[user_indices].str.contains(pattern, regex=True).values
-        if np.sum(has_tag) >= 5:
-            impact = np.mean(y[has_tag]) - np.mean(y)
-            
-            # Find top discovery games with this tag
-            cand_has_tag = tag_series_full.str.contains(pattern, regex=True).values
-            tag_scores = scores.copy()
-            tag_scores[~cand_has_tag] = -1e12
-            tag_scores[completed_indices] = -1e12
-            tag_scores[~discovery_mask] = -1e12
-            top_tag_indices = np.argsort(-tag_scores)[:5]
-            tag_top_games = full_metadata.iloc[top_tag_indices][['appid', 'name', 'header_image', 'is_nsfw']].to_dict(orient='records')
-            
-            tag_impacts.append({
-                'tag': tag, 
-                'impact': float(impact), 
-                'ratings_with': y[has_tag].tolist(), 
-                'ratings_without': y[~has_tag].tolist(),
-                'top_games': tag_top_games
-            })
+        with_tag = []
+        without_tag = []
+        for i, t_set in enumerate(tag_lists_src):
+            if tag in t_set: with_tag.append(actual_ratings[i])
+            else: without_tag.append(actual_ratings[i])
+                
+        if len(with_tag) >= 5 and len(without_tag) >= 5:
+            t_stat, p_val = scipy.stats.ttest_ind(with_tag, without_tag, equal_var=False)
+            if p_val < 0.05 and np.mean(with_tag) > np.mean(without_tag):
+                tag_stats.append({
+                    'tag': tag,
+                    'mean_with': np.mean(with_tag),
+                    'mean_without': np.mean(without_tag),
+                    'diff': np.mean(with_tag) - np.mean(without_tag),
+                    'p_val': p_val,
+                    'count': len(with_tag)
+                })
+                
+    tag_stats.sort(key=lambda x: x['diff'], reverse=True)
     
-    sorted_tags = sorted(tag_impacts, key=lambda x: x['impact'], reverse=True)
-    associative_tags = {
-        'top': sorted_tags[:15],
-        'bottom': sorted_tags[-15:][::-1]
+    print("Loading feature matrices...")
+    f_tags = normalize(np.load(os.path.join(PRODUCTION_DATA_DIR, 'steam_tag_vectors.npy'), mmap_mode='r'))
+    f_desc = normalize(np.load(EMBEDDINGS_DESC_FILE, mmap_mode='r'))
+    f_verbs = normalize(np.load(os.path.join(PRODUCTION_DATA_DIR, 'diffused_verb_profiles.npy'), mmap_mode='r').astype(np.float32))
+    f_graph = normalize(np.load(os.path.join(PRODUCTION_DATA_DIR, 'embeddings_graph.npy'), mmap_mode='r'))
+    
+    pop_z = df['pop_z'].fillna(0).values
+    pop_discount = np.where(pop_z > 0, np.exp(-0.15 * pop_z), 1.0)
+    
+    print("Finding Best Quality Grid Level...")
+    quality_grid = np.load(os.path.join(PRODUCTION_DATA_DIR, 'quality_scores_grid.npy'), mmap_mode='r')
+    best_corr, best_row = -1, -1
+    for i in range(quality_grid.shape[0]):
+        q = quality_grid[i, src_idxs]
+        corr, _ = scipy.stats.pearsonr(q, actual_ratings)
+        if corr > best_corr:
+            best_corr = corr
+            best_row = i
+            
+    quality_feature_all = quality_grid[best_row, :]
+    
+    print("Forward Selection of Linear Predictors (AICc)...")
+    global_features = {
+        'Quality': quality_feature_all,
+        'Popularity': df['pop_z'].fillna(0).values,
+        'Price': df['price_z'].fillna(0).values,
+        'Age': df['date_z'].fillna(0).values,
+        'Length': df['playtime_z'].fillna(0).values,
+        'Difficulty': df['difficulty_z'].fillna(0).values,
+        'Tone': df['tone_z'].fillna(0).values
     }
+    
+    selected_feature_names = ['Quality']
+    remaining_features = ['Popularity', 'Price', 'Age', 'Length', 'Difficulty', 'Tone']
+    X_train_current = global_features['Quality'][src_idxs].reshape(-1, 1)
+    current_aicc, base_preds, current_residuals, current_beta = calc_aicc(actual_ratings, X_train_current)
+    
+    while remaining_features:
+        best_candidate, best_candidate_aicc = None, current_aicc
+        for candidate in remaining_features:
+            X_test = np.column_stack((X_train_current, global_features[candidate][src_idxs]))
+            test_aicc, _, _, _ = calc_aicc(actual_ratings, X_test)
+            if test_aicc < best_candidate_aicc:
+                best_candidate_aicc = test_aicc
+                best_candidate = candidate
+        if best_candidate:
+            selected_feature_names.append(best_candidate)
+            remaining_features.remove(best_candidate)
+            X_train_current = np.column_stack((X_train_current, global_features[best_candidate][src_idxs]))
+            current_aicc = best_candidate_aicc
+        else:
+            break
+            
+    _, _, final_residuals, final_beta = calc_aicc(actual_ratings, X_train_current)
+    X_global_selected = np.column_stack([global_features[f] for f in selected_feature_names])
+    X_global_mat = np.column_stack((np.ones(N_all), X_global_selected))
+    base_preds_all = X_global_mat @ final_beta
+    
+    print("Tuning Similarity Power (Golden Section Search)...")
+    sim_tags_loo = np.dot(f_tags[src_idxs], f_tags[src_idxs].T)
+    sim_desc_loo = np.dot(f_desc[src_idxs], f_desc[src_idxs].T)
+    sim_verbs_loo = np.dot(f_verbs[src_idxs], f_verbs[src_idxs].T)
+    sim_graph_loo = np.dot(f_graph[src_idxs], f_graph[src_idxs].T) * pop_discount[src_idxs][:, None]
+    
+    weights = {'tags': 0.174, 'desc': 0.445, 'verbs': 0.233, 'graph': 0.148}
+    sim_matrix_loo = (
+        weights['tags'] * sim_tags_loo +
+        weights['desc'] * sim_desc_loo +
+        weights['verbs'] * sim_verbs_loo +
+        weights['graph'] * sim_graph_loo
+    )
+    
+    tags_list_all = [set(get_list(x)) for x in df['tags']]
+    subgenres_all = np.array([identify_puzzle_subgenre(t) for t in tags_list_all])
+    subv_probs_all = np.array([calculate_subversion_probability(t) for t in tags_list_all])
+    
+    subgenres_src = subgenres_all[src_idxs]
+    subv_probs_src = subv_probs_all[src_idxs]
+    
+    for j in range(len(src_idxs)):
+        src_subg = subgenres_src[j]
+        src_prob = subv_probs_src[j]
+        if src_subg != 'Generic/Other':
+            mask = (subgenres_src != 'Generic/Other') & (subgenres_src != src_subg)
+            sim_matrix_loo[mask, j] -= 0.3
+        if src_prob > 0:
+            joint_probs = np.sqrt(src_prob * subv_probs_src)
+            sim_matrix_loo[:, j] += (0.45 * joint_probs)
+            
+    np.fill_diagonal(sim_matrix_loo, 0)
+    
+    def objective_function(power):
+        weight_matrix = np.sign(sim_matrix_loo) * (np.abs(sim_matrix_loo) ** power)
+        sum_abs_w = np.sum(np.abs(weight_matrix), axis=1)
+        valid_mask = sum_abs_w > 0
+        loo_preds = np.zeros(len(final_residuals))
+        if np.any(valid_mask):
+            loo_preds[valid_mask] = np.sum(weight_matrix[valid_mask] * final_residuals, axis=1) / sum_abs_w[valid_mask]
+        return np.mean((final_residuals[valid_mask] - loo_preds[valid_mask])**2)
 
-    # Favorite Game Seed Recommendations (All 9s and 10s)
+    best_power = golden_section_search(objective_function, 0, 20, tol=0.1)
+    
+    print("Computing out-of-sample similarities...")
+    sim_matrix_all = np.zeros((N_all, len(src_idxs)), dtype=np.float32)
+    batch_size = 20000
+    for i in range(0, N_all, batch_size):
+        end = min(i + batch_size, N_all)
+        s_tags = np.dot(f_tags[i:end], f_tags[src_idxs].T)
+        s_desc = np.dot(f_desc[i:end], f_desc[src_idxs].T)
+        s_verbs = np.dot(f_verbs[i:end], f_verbs[src_idxs].T)
+        s_graph = np.dot(f_graph[i:end], f_graph[src_idxs].T) * pop_discount[i:end, None]
+        sim_matrix_all[i:end] = (weights['tags'] * s_tags + weights['desc'] * s_desc + weights['verbs'] * s_verbs + weights['graph'] * s_graph)
+        
+    for j in range(len(src_idxs)):
+        src_subg = subgenres_src[j]
+        src_prob = subv_probs_src[j]
+        if src_subg != 'Generic/Other':
+            mask = (subgenres_all != 'Generic/Other') & (subgenres_all != src_subg)
+            sim_matrix_all[mask, j] -= 0.3
+        if src_prob > 0:
+            joint_probs = np.sqrt(src_prob * subv_probs_all)
+            sim_matrix_all[:, j] += (0.45 * joint_probs)
+
+    weight_matrix = np.sign(sim_matrix_all) * (np.abs(sim_matrix_all) ** best_power)
+    for j, idx in enumerate(src_idxs): weight_matrix[idx, j] = 0.0
+        
+    sum_abs_w = np.sum(np.abs(weight_matrix), axis=1)
+    target_residual_pred = np.zeros(N_all)
+    valid_mask = sum_abs_w > 0
+    target_residual_pred[valid_mask] = np.sum(weight_matrix[valid_mask] * final_residuals, axis=1) / sum_abs_w[valid_mask]
+    
+    final_preds = base_preds_all + target_residual_pred
+    final_preds = np.clip(final_preds, 0, 10)
+    df['projected_rating'] = final_preds
+
+    total_variance = np.mean((actual_ratings - np.mean(actual_ratings))**2)
+    final_mse = objective_function(best_power)
+    oos_r2 = 1.0 - (final_mse / total_variance)
+
+    # --- FILTERS ---
+    p = df['positive'].fillna(0).values
+    n = df['negative'].fillna(0).values
+    total_reviews = p + n
+    pos_ratio = np.divide(p, total_reviews + 1e-9)
+    
+    base_mask = (
+        (total_reviews >= 63) & 
+        (pos_ratio >= 0.65) & 
+        (~df['is_hollow'].fillna(False)) & 
+        (~df['is_delisted'].fillna(False)) & 
+        (~df['is_utility'].fillna(False)) & 
+        (~df['is_nsfw'].fillna(False))
+    )
+    
+    now = pd.Timestamp.now()
+    parsed_dt = pd.to_datetime(df['parsed_date'], errors='coerce')
+    is_future_exact = parsed_dt > now
+    rel_date_str = df['release_date'].astype(str).str.lower()
+    is_tba = rel_date_str.str.contains('coming|tba|tbd|announced|soon', na=False)
+    curr_yr = now.year
+    future_yrs = '|'.join([str(curr_yr + i) for i in range(1, 6)])
+    is_future_year = rel_date_str.str.contains(future_yrs, na=False)
+    q_str = r'q[234]' if now.month <= 3 else r'q[34]' if now.month <= 6 else r'q4' if now.month <= 9 else r'q_none'
+    is_q_future = rel_date_str.str.contains(f'{q_str}\\s*{curr_yr}', regex=True, na=False)
+    is_just_current_year = rel_date_str == str(curr_yr)
+    is_future_text = is_tba | is_future_year | is_q_future | is_just_current_year
+    upcoming_mask = (is_future_exact | is_future_text) & (total_reviews < 50) & (~df['is_hollow'].fillna(False)) & (~df['is_nsfw'].fillna(False))
+    
+    discovery_mask = base_mask & (~df['appid'].isin(all_gt_appids))
+    is_free = df['tags'].apply(lambda x: 'Free to Play' in get_list(x))
+    
+    # 1. Top Recs
+    top_discovery = df[discovery_mask].sort_values('projected_rating', ascending=False).head(30)
+    top_recommendations = top_discovery[['appid', 'name', 'header_image', 'is_nsfw', 'projected_rating']].copy()
+    
+    # 2. Free Recs
+    top_free = df[discovery_mask & is_free].sort_values('projected_rating', ascending=False).head(30)
+    free_recommendations = top_free[['appid', 'name', 'header_image', 'is_nsfw', 'projected_rating']].copy()
+    
+    # 3. Backlog Recs
+    backlog_recs = df[df['appid'].isin(backlog_appids)].sort_values('projected_rating', ascending=False).head(30)
+    backlog_recommendations = backlog_recs[['appid', 'name', 'header_image', 'is_nsfw', 'projected_rating']].copy()
+    
+    # 4. Upcoming Recs
+    upcoming_recs = df[upcoming_mask & (~df['appid'].isin(all_gt_appids))].sort_values('projected_rating', ascending=False).head(30)
+    upcoming_recommendations = upcoming_recs[['appid', 'name', 'header_image', 'is_nsfw', 'projected_rating']].copy()
+
+    # 5. North Stars (Highest Kernel Residual Pull)
+    ns_scores = target_residual_pred.copy()
+    ns_scores[~discovery_mask] = -1e12
+    top_ns_idx = np.argsort(ns_scores)[-5:][::-1]
+    north_stars = df.iloc[top_ns_idx][['appid', 'name', 'header_image', 'is_nsfw']].copy()
+    north_stars['alignment'] = ns_scores[top_ns_idx]
+
+    # 6. Interactive Pool (Top ~1000 games + features) for snappy frontend slider
+    # First, gather ALL valid unowned + backlog games, no ignored ones
+    interactive_mask = base_mask & (~df['appid'].isin(ignored_appids))
+    top_interactive = df[interactive_mask].sort_values('projected_rating', ascending=False).head(1000).copy()
+    
+    interactive_pool = []
+    # Intercept is beta[0], quality is beta[1], diff is beta[2] etc. based on selected_features
+    # Create a mapping of beta coefficients
+    coef_map = {}
+    for i, feature in enumerate(selected_feature_names):
+        coef_map[feature.lower()] = float(final_beta[i+1])
+    
+    for idx in top_interactive.index:
+        game = df.iloc[idx]
+        features = {}
+        for feature in selected_feature_names:
+            features[feature.lower()] = float(global_features[feature][idx])
+        
+        interactive_pool.append({
+            'appid': int(game['appid']),
+            'name': str(game['name']),
+            'header_image': str(game['header_image']),
+            'projected_rating': float(game['projected_rating']),
+            'features': features,
+            'kernel_residual': float(target_residual_pred[idx])
+        })
+
+    # 7. Associative Tags
+    tag_impacts_formatted = []
+    for stat in tag_stats[:15]:
+        tag_mask = discovery_mask & df['tags'].apply(lambda x: stat['tag'] in get_list(x))
+        sub_df = df[tag_mask].sort_values('projected_rating', ascending=False).head(5)
+        tag_top_games = sub_df[['appid', 'name', 'header_image', 'is_nsfw']].to_dict(orient='records')
+        tag_impacts_formatted.append({
+            'tag': stat['tag'],
+            'impact': float(stat['diff']),
+            'top_games': tag_top_games
+        })
+    associative_tags = {'top': tag_impacts_formatted, 'bottom': []}
+
+    # 8. Favorite Neighbors
     favorite_recs = []
-    top_user_games = df_rated[df_rated['actual_rating'] >= 9.0]
-    for _, row in top_user_games.iterrows():
-        aid = int(row['appid'])
-        if aid in appid_to_idx:
-            idx = appid_to_idx[aid]
-            # Recover name from metadata if missing
-            seed_name = full_metadata.iloc[idx]['name'] if pd.isna(row['name']) else row['name']
-            seed_header = full_metadata.iloc[idx]['header_image']
-            seed_nsfw = bool(full_metadata.iloc[idx]['is_nsfw'])
-            # Get closest neighbors from K_lib
-            sims = K_lib[:, user_indices.index(idx)]
-            sims[idx] = -1e12
-            sims[completed_indices] = -1e12
-            sims[~discovery_mask] = -1e12
-            neighbor_indices = np.argsort(-sims)[:10]
-            fav_neighbors = full_metadata.iloc[neighbor_indices][['appid', 'name', 'header_image', 'is_nsfw']].to_dict(orient='records')
-            favorite_recs.append({
-                'seed_appid': aid, 
-                'seed_name': seed_name, 
-                'seed_header': seed_header,
-                'seed_is_nsfw': seed_nsfw,
-                'top_games': fav_neighbors
-            })
+    favorites = gt_rated[gt_rated['actual_rating'] >= 9.0].sort_values('actual_rating', ascending=False)
+    fav_merged = favorites.merge(df[['appid', 'name']], on='appid', how='inner')
+    fav_merged['meta_idx'] = fav_merged['appid'].map({appid: idx for idx, appid in enumerate(df['appid'])})
+    valid_indices = np.where(discovery_mask | df['appid'].isin(backlog_appids))[0]
+    
+    for _, fav in fav_merged.iterrows():
+        f_idx = fav['meta_idx']
+        sim_total = sim_matrix_all[valid_indices, np.where(src_idxs == f_idx)[0][0]]
+        top_100_idx = np.argsort(sim_total)[-100:][::-1]
+        top_100_valid = valid_indices[top_100_idx]
+        top_100_projs = final_preds[top_100_valid]
+        best_10_idx = np.argsort(top_100_projs)[-10:][::-1]
+        best_10_valid = top_100_valid[best_10_idx]
+        
+        fav_neighbors = df.iloc[best_10_valid][['appid', 'name', 'header_image', 'is_nsfw']].copy()
+        fav_neighbors['predicted_rating'] = final_preds[best_10_valid]
+        
+        name_val = fav.get('name_x') if 'name_x' in fav else fav.get('name_y', fav.get('name', 'Unknown'))
+        
+        favorite_recs.append({
+            'seed_appid': int(fav['appid']),
+            'seed_name': str(name_val),
+            'seed_header': str(df.iloc[f_idx]['header_image']),
+            'seed_is_nsfw': bool(df.iloc[f_idx]['is_nsfw']),
+            'top_games': fav_neighbors.to_dict(orient='records')
+        })
 
+    # Prepare final JSON
     result = {
         'metadata': {
-            'kernel_match': float(kernel_coeff), 'graph_match': float(graph_coeff),
-            'quality': float(q_coeff), 'age': float(meta_coeffs[0]), 'popularity': float(meta_coeffs[1]), 
-            'length': float(meta_coeffs[2]), 'difficulty': float(meta_coeffs[3]), 'price': float(meta_coeffs[4]),
-            'tone': float(meta_coeffs[5]), 'topic_coeffs': topic_coeffs.tolist(),
-            'best_q_idx': 0, 'oos_r2': float(oos_r2)
+            'quality': float(coef_map.get('quality', 0.0)), 
+            'age': float(coef_map.get('age', 0.0)), 
+            'popularity': float(coef_map.get('popularity', 0.0)), 
+            'length': float(coef_map.get('length', 0.0)), 
+            'difficulty': float(coef_map.get('difficulty', 0.0)), 
+            'price': float(coef_map.get('price', 0.0)),
+            'tone': float(coef_map.get('tone', 0.0)),
+            'kernel_match': 1.0, 
+            'best_q_idx': int(best_row), 
+            'oos_r2': float(oos_r2),
+            'similarity_power': float(best_power)
         },
-        'kernel_anchors': active_migs[:50], 
-        'r2': float(r2_train), 
-        'intercept': float(model.intercept_),
-        'library_appids': [int(aid) for aid in discovery_exclude_appids],
-        'rated_appids': [int(aid) for aid in user_appids],
+        'kernel_anchors': [],
+        'r2': float(oos_r2),
+        'intercept': float(final_beta[0]),
+        'library_appids': list(all_gt_appids),
+        'rated_appids': gt_rated['appid'].tolist(),
         'top_recommendations': top_recommendations.to_dict(orient='records'),
         'free_recommendations': free_recommendations.to_dict(orient='records'),
         'backlog_recommendations': backlog_recommendations.to_dict(orient='records'),
         'upcoming_recommendations': upcoming_recommendations.to_dict(orient='records'),
         'north_stars': north_stars.to_dict(orient='records'),
         'associative_tags': associative_tags,
-        'favorite_game_recommendations': favorite_recs
+        'favorite_game_recommendations': favorite_recs,
+        'interactive_pool': interactive_pool # <--- The snappy payload!
     }
-    
+
     if output_path:
         with open(output_path, 'w') as f: json.dump(result, f, indent=4)
-        np.save(output_path.replace('_taste_profile.json', '_predicted_ratings.npy'), scores.astype(np.float32))
+        np.save(output_path.replace('_taste_profile.json', '_predicted_ratings.npy'), final_preds.astype(np.float32))
         print(f"\n>>> SUCCESS: RICH TASTE DNA SAVED TO {output_path} (R2: {oos_r2:.4f}) <<<")
     return result
 

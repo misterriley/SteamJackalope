@@ -11,6 +11,8 @@ import ChangelogView from './components/ChangelogView';
 import SplashView from './components/SplashView';
 import { useUser } from './context/UserContext';
 
+import InteractiveRankingsView from './components/InteractiveRankingsView';
+
 function App() {
   const { setSteamId: globalSetSteamId } = useUser();
   const [activeTab, setActiveTab] = useState<TabType>(() => {
@@ -189,6 +191,7 @@ function App() {
           onProfileClear={handleProfileClear} 
         />
       );
+      case 'interactive': return <InteractiveRankingsView />;
       case 'lists': return <ListsView />;
       case 'catalogue': return <CatalogueView />;
       case 'personalize': return (

@@ -1,7 +1,7 @@
 import React from 'react';
-import { Sparkles, BarChart2, Github, Info, BookOpen, History, RotateCcw, Table, Dna } from 'lucide-react';
+import { Sparkles, BarChart2, Github, Info, BookOpen, History, RotateCcw, Table, Dna, Activity } from 'lucide-react';
 
-export type TabType = 'splash' | 'recommend' | 'lists' | 'catalogue' | 'personalize' | 'about' | 'methodology' | 'changelog';
+export type TabType = 'splash' | 'recommend' | 'interactive' | 'lists' | 'catalogue' | 'personalize' | 'about' | 'methodology' | 'changelog';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -38,6 +38,17 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
             >
               <Sparkles size={16} />
               Recommendations
+            </button>
+            <button
+              onClick={() => onTabChange('interactive')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'interactive' 
+                  ? 'bg-card text-primary shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Activity size={16} />
+              Interactive
             </button>
             <button
               onClick={() => onTabChange('lists')}
