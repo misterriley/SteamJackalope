@@ -406,7 +406,7 @@ def solve_user_taste(ground_truth_path, output_path=None):
         fav_neighbors = df.iloc[best_10_valid][['appid', 'name', 'header_image', 'is_nsfw']].copy()
         fav_neighbors['predicted_rating'] = final_preds[best_10_valid]
         
-        name_val = fav.get('name_x') if 'name_x' in fav else fav.get('name_y', fav.get('name', 'Unknown'))
+        name_val = fav['name_x'] if 'name_x' in fav and pd.notna(fav['name_x']) else fav.get('name_y', fav.get('name', 'Unknown'))
         
         favorite_recs.append({
             'seed_appid': int(fav['appid']),
