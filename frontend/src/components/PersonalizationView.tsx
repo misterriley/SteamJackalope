@@ -307,13 +307,27 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
 
   // Effects for persistence and environment sync
   useEffect(() => {
-    const state = { step, steamId, reviewHtml, games, insights, status };
-    sessionStorage.setItem('personalization_state', JSON.stringify(state));
-  }, [step, steamId, reviewHtml, games, insights, status]);
+    // Exclude massive arrays (games, insights) from sessionStorage to prevent QuotaExceededError
+    const state = { step, steamId, reviewHtml, status };
+    try {
+      sessionStorage.setItem('personalization_state', JSON.stringify(state));
+    } catch (e) {
+      console.error("Failed to save personalization_state", e);
+    }
+  }, [step, steamId, reviewHtml, status]);
 
   useEffect(() => {
     if (steamId && step === 2 && games.length === 0) fetchVerificationData(steamId);
-  }, [step]);
+  }, [step, steamId, games.length]);
+
+  useEffect(() => {
+    if (steamId && step === 3 && !insights) {
+      fetch(`${API_BASE_URL}/user/insights/${steamId}`)
+        .then(res => res.json())
+        .then(data => setInsights(data))
+        .catch(err => console.error("Failed to recover insights", err));
+    }
+  }, [step, steamId, insights]);
 
   useEffect(() => {
     const handleScroll = () => {
