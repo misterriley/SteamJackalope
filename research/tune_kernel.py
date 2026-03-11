@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
-from sklearn.linear_model import Ridge
 
 def normalize(arr):
     norms = np.linalg.norm(arr, axis=1, keepdims=True)
@@ -41,60 +40,49 @@ def calculate_subversion_score(tags_set):
     elif meta_count == 1: return 1.0
     return 0.0
 
-def evaluate_multivariate_residual_kernel(sim_matrix, X_global, actual_ratings, power=10.0):
+def evaluate_kernel(sim_matrix, actual_ratings, transform_func, **kwargs):
     N = len(actual_ratings)
-    # The base signed polynomial kernel
-    weight_matrix = np.sign(sim_matrix) * (np.abs(sim_matrix) ** power)
+    weight_matrix = transform_func(sim_matrix, **kwargs)
     np.fill_diagonal(weight_matrix, 0)
     
     predictions = []
+    global_mean = np.mean(actual_ratings)
     
-    # We'll also track coefficients to see what matters globally
-    all_coefs = []
-    
-    # 1. Base Prediction: Multivariate Linear Regression
     for i in range(N):
-        # Hold out the target game
-        mask = np.ones(N, dtype=bool)
-        mask[i] = False
-        
-        # Train linear model on the N-1 games
-        X_train = X_global[mask]
-        y_train = actual_ratings[mask]
-        
-        # We'll use Ridge to add a tiny bit of stability to the multivariate regression
-        lr = Ridge(alpha=1.0)
-        lr.fit(X_train, y_train)
-        all_coefs.append(lr.coef_)
-        
-        # Calculate training residuals
-        train_preds = lr.predict(X_train)
-        residuals = y_train - train_preds
-        
-        # 2. Predict the target game's base score
-        target_X = X_global[i].reshape(1, -1)
-        target_base_pred = lr.predict(target_X)[0]
-        
-        # 3. Kernel Smoothing over the Residuals
-        w = weight_matrix[i, mask]
-        sum_abs_w = np.sum(np.abs(w))
-        
-        if sum_abs_w > 0:
-            target_residual_pred = np.sum(w * residuals) / sum_abs_w
+        w = weight_matrix[i]
+        sum_w = np.sum(w)
+        if sum_w > 0:
+            pred = np.sum(w * actual_ratings) / sum_w
         else:
-            target_residual_pred = 0.0 # If no neighbors, predict exactly the base score
-            
-        # 4. Final Prediction = Base + Residual
-        final_pred = target_base_pred + target_residual_pred
-        final_pred = np.clip(final_pred, 0, 10)
-        predictions.append(final_pred)
+            pred = global_mean
+        predictions.append(pred)
         
     predictions = np.array(predictions)
     r2 = r2_score(actual_ratings, predictions)
     mae = mean_absolute_error(actual_ratings, predictions)
-    
-    avg_coefs = np.mean(all_coefs, axis=0)
-    return r2, mae, predictions, avg_coefs
+    return r2, mae
+
+# Transforms
+def poly_transform(sim, power):
+    return np.maximum(0, sim) ** power
+
+def exp_transform(sim, beta):
+    # Shift by max for numerical stability before exp
+    shifted_sim = sim - np.max(sim, axis=1, keepdims=True)
+    return np.exp(beta * shifted_sim)
+
+def thresh_poly_transform(sim, power, threshold):
+    return np.maximum(0, sim - threshold) ** power
+
+def top_k_transform(sim, k):
+    W = np.zeros_like(sim)
+    for i in range(len(sim)):
+        # get indices of top k
+        idx = np.argsort(sim[i])[-k:]
+        W[i, idx] = sim[i, idx]
+        # set non-positive sims to 0 even if in top k
+        W[i] = np.maximum(0, W[i])
+    return W
 
 def main():
     print("Loading data...")
@@ -108,10 +96,8 @@ def main():
     
     valid_idxs = merged['meta_idx'].values
     actual_ratings = merged['actual_rating'].values
-    names = merged['name'].values
     N = len(valid_idxs)
     
-    # Load features
     f_tags = normalize(np.load('data/production/steam_tag_vectors.npy', mmap_mode='r')[valid_idxs])
     f_desc = normalize(np.load('data/production/embeddings_desc.npy', mmap_mode='r')[valid_idxs])
     f_verbs = normalize(np.load('data/production/diffused_verb_profiles.npy', mmap_mode='r')[valid_idxs].astype(np.float32))
@@ -120,20 +106,6 @@ def main():
     pop_z = df.iloc[valid_idxs]['pop_z'].fillna(0).values
     pop_discount = np.where(pop_z > 0, np.exp(-0.15 * pop_z), 1.0)
     
-    # Load global signals
-    quality_grid = np.load('data/production/quality_scores_grid.npy', mmap_mode='r')
-    q_vector = quality_grid[20, valid_idxs] 
-    
-    # Fill nan values for other signals with 0 (mean)
-    date_z = df.iloc[valid_idxs]['date_z'].fillna(0).values
-    price_z = df.iloc[valid_idxs]['price_z'].fillna(0).values
-    diff_z = df.iloc[valid_idxs]['difficulty_z'].fillna(0).values
-    
-    diff_pred = df.iloc[valid_idxs]['difficulty_predicted'].fillna(5.0).values
-    diff_low = (diff_pred < 4.0).astype(float)
-    diff_high = (diff_pred >= 6.0).astype(float)
-    
-    # Base similarities
     sim_tags = np.dot(f_tags, f_tags.T)
     sim_desc = np.dot(f_desc, f_desc.T)
     sim_verbs = np.dot(f_verbs, f_verbs.T)
@@ -148,7 +120,6 @@ def main():
         weights['graph'] * sim_graph
     )
     
-    # Apply Puzzle and Subversion modifiers
     tags_list = [set(get_list(x)) for x in df.iloc[valid_idxs]['tags']]
     subgenres = [identify_puzzle_subgenre(t) for t in tags_list]
     subv_scores = [calculate_subversion_score(t) for t in tags_list]
@@ -170,38 +141,37 @@ def main():
                 else: sim_matrix[i, j] -= 0.20
             elif t_subv == 0.0:
                 if m_subv >= 2.0: sim_matrix[i, j] -= 0.30
-
-    print("\nEvaluating Multivariate Residual Models...")
+                
+    results = []
     
-    # Test 1: Quality Only (Our previous best)
-    X_q_only = q_vector.reshape(-1, 1)
-    r2_q, mae_q, preds_q, coefs_q = evaluate_multivariate_residual_kernel(sim_matrix.copy(), X_q_only, actual_ratings)
-    print(f"\n[1] Quality Only Base -> R2: {r2_q:.4f} | MAE: {mae_q:.4f}")
-    print(f"    Avg Coefs: Quality={coefs_q[0]:.3f}")
-    
-    # Test 2: Quality + Age
-    X_qa = np.column_stack((q_vector, date_z))
-    r2_qa, mae_qa, preds_qa, coefs_qa = evaluate_multivariate_residual_kernel(sim_matrix.copy(), X_qa, actual_ratings)
-    print(f"\n[2] Quality + Age Base -> R2: {r2_qa:.4f} | MAE: {mae_qa:.4f}")
-    print(f"    Avg Coefs: Quality={coefs_qa[0]:.3f}, Date_Z={coefs_qa[1]:.3f}")
+    print("\n--- Polynomial Transform (max(0, sim)^p) ---")
+    for p in [1, 2, 3, 5, 8, 10, 15, 20, 30, 50, 100]:
+        r2, mae = evaluate_kernel(sim_matrix.copy(), actual_ratings, poly_transform, power=p)
+        print(f"Power: {p:<3} | R2: {r2:.4f} | MAE: {mae:.4f}")
+        results.append(('Poly', p, r2, mae))
 
-    # Test 3: Quality + Age + Price
-    X_qap = np.column_stack((q_vector, date_z, price_z))
-    r2_qap, mae_qap, preds_qap, coefs_qap = evaluate_multivariate_residual_kernel(sim_matrix.copy(), X_qap, actual_ratings)
-    print(f"\n[3] Quality + Age + Price Base -> R2: {r2_qap:.4f} | MAE: {mae_qap:.4f}")
-    print(f"    Avg Coefs: Quality={coefs_qap[0]:.3f}, Date_Z={coefs_qap[1]:.3f}, Price_Z={coefs_qap[2]:.3f}")
-    
-    # Test 4: Quality + Age + Price + Difficulty
-    X_all = np.column_stack((q_vector, date_z, price_z, diff_z))
-    r2_all, mae_all, preds_all, coefs_all = evaluate_multivariate_residual_kernel(sim_matrix.copy(), X_all, actual_ratings)
-    print(f"\n[4] All Global Signals Base -> R2: {r2_all:.4f} | MAE: {mae_all:.4f}")
-    print(f"    Avg Coefs: Quality={coefs_all[0]:.3f}, Date_Z={coefs_all[1]:.3f}, Price_Z={coefs_all[2]:.3f}, Diff_Z={coefs_all[3]:.3f}")
+    print("\n--- Exponential Transform (exp(beta * sim)) ---")
+    for b in [1, 3, 5, 10, 15, 20, 30, 50]:
+        r2, mae = evaluate_kernel(sim_matrix.copy(), actual_ratings, exp_transform, beta=b)
+        print(f"Beta:  {b:<3} | R2: {r2:.4f} | MAE: {mae:.4f}")
+        results.append(('Exp', b, r2, mae))
 
-    # Test 5: Quality + Age + Difficulty Buckets (0-4, 6-10)
-    X_buckets = np.column_stack((q_vector, date_z, diff_low, diff_high))
-    r2_buck, mae_buck, preds_buck, coefs_buck = evaluate_multivariate_residual_kernel(sim_matrix.copy(), X_buckets, actual_ratings)
-    print(f"\n[5] Quality + Age + Diff Buckets Base -> R2: {r2_buck:.4f} | MAE: {mae_buck:.4f}")
-    print(f"    Avg Coefs: Quality={coefs_buck[0]:.3f}, Date_Z={coefs_buck[1]:.3f}, Diff_Low(0-4)={coefs_buck[2]:.3f}, Diff_High(6-10)={coefs_buck[3]:.3f}")
+    print("\n--- Thresholded Polynomial (max(0, sim - thresh)^p) ---")
+    for t in [0.1, 0.2, 0.3, 0.4, 0.5]:
+        for p in [1, 3, 5, 10]:
+            r2, mae = evaluate_kernel(sim_matrix.copy(), actual_ratings, thresh_poly_transform, power=p, threshold=t)
+            print(f"Thresh: {t}, Power: {p:<2} | R2: {r2:.4f} | MAE: {mae:.4f}")
+            results.append((f'ThreshPoly(t={t})', p, r2, mae))
+            
+    print("\n--- Top K Neighbors ---")
+    for k in [3, 5, 10, 20, 50]:
+        r2, mae = evaluate_kernel(sim_matrix.copy(), actual_ratings, top_k_transform, k=k)
+        print(f"Top K: {k:<3} | R2: {r2:.4f} | MAE: {mae:.4f}")
+        results.append(('TopK', k, r2, mae))
+
+    # Best by R2
+    best = max(results, key=lambda x: x[2])
+    print(f"\nBEST TRANSFORMATION: {best[0]} with param={best[1]} (R2: {best[2]:.4f}, MAE: {best[3]:.4f})")
 
 if __name__ == "__main__":
     main()

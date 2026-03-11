@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
-from sklearn.linear_model import Ridge
 
 def normalize(arr):
     norms = np.linalg.norm(arr, axis=1, keepdims=True)
@@ -41,60 +40,40 @@ def calculate_subversion_score(tags_set):
     elif meta_count == 1: return 1.0
     return 0.0
 
-def evaluate_multivariate_residual_kernel(sim_matrix, X_global, actual_ratings, power=10.0):
+def evaluate_combined_kernel(sim_matrix, q_vector, actual_ratings, alpha):
     N = len(actual_ratings)
     # The base signed polynomial kernel
-    weight_matrix = np.sign(sim_matrix) * (np.abs(sim_matrix) ** power)
+    K_sim = np.sign(sim_matrix) * (np.abs(sim_matrix) ** 10.0)
+    
+    # The rank-1 quality kernel
+    # q_i * q_j
+    K_q = np.outer(q_vector, q_vector)
+    
+    # Combined kernel
+    weight_matrix = K_sim + alpha * K_q
+    
+    # Prevent self-voting
     np.fill_diagonal(weight_matrix, 0)
     
     predictions = []
+    global_mean = np.mean(actual_ratings)
     
-    # We'll also track coefficients to see what matters globally
-    all_coefs = []
-    
-    # 1. Base Prediction: Multivariate Linear Regression
     for i in range(N):
-        # Hold out the target game
-        mask = np.ones(N, dtype=bool)
-        mask[i] = False
-        
-        # Train linear model on the N-1 games
-        X_train = X_global[mask]
-        y_train = actual_ratings[mask]
-        
-        # We'll use Ridge to add a tiny bit of stability to the multivariate regression
-        lr = Ridge(alpha=1.0)
-        lr.fit(X_train, y_train)
-        all_coefs.append(lr.coef_)
-        
-        # Calculate training residuals
-        train_preds = lr.predict(X_train)
-        residuals = y_train - train_preds
-        
-        # 2. Predict the target game's base score
-        target_X = X_global[i].reshape(1, -1)
-        target_base_pred = lr.predict(target_X)[0]
-        
-        # 3. Kernel Smoothing over the Residuals
-        w = weight_matrix[i, mask]
+        w = weight_matrix[i]
         sum_abs_w = np.sum(np.abs(w))
         
         if sum_abs_w > 0:
-            target_residual_pred = np.sum(w * residuals) / sum_abs_w
+            pred = global_mean + np.sum(w * (actual_ratings - global_mean)) / sum_abs_w
         else:
-            target_residual_pred = 0.0 # If no neighbors, predict exactly the base score
+            pred = global_mean
             
-        # 4. Final Prediction = Base + Residual
-        final_pred = target_base_pred + target_residual_pred
-        final_pred = np.clip(final_pred, 0, 10)
-        predictions.append(final_pred)
+        pred = np.clip(pred, 0, 10)
+        predictions.append(pred)
         
     predictions = np.array(predictions)
     r2 = r2_score(actual_ratings, predictions)
     mae = mean_absolute_error(actual_ratings, predictions)
-    
-    avg_coefs = np.mean(all_coefs, axis=0)
-    return r2, mae, predictions, avg_coefs
+    return r2, mae
 
 def main():
     print("Loading data...")
@@ -108,7 +87,6 @@ def main():
     
     valid_idxs = merged['meta_idx'].values
     actual_ratings = merged['actual_rating'].values
-    names = merged['name'].values
     N = len(valid_idxs)
     
     # Load features
@@ -120,18 +98,9 @@ def main():
     pop_z = df.iloc[valid_idxs]['pop_z'].fillna(0).values
     pop_discount = np.where(pop_z > 0, np.exp(-0.15 * pop_z), 1.0)
     
-    # Load global signals
+    # Load quality grid (row 20 corresponds to Discovery 1.0)
     quality_grid = np.load('data/production/quality_scores_grid.npy', mmap_mode='r')
-    q_vector = quality_grid[20, valid_idxs] 
-    
-    # Fill nan values for other signals with 0 (mean)
-    date_z = df.iloc[valid_idxs]['date_z'].fillna(0).values
-    price_z = df.iloc[valid_idxs]['price_z'].fillna(0).values
-    diff_z = df.iloc[valid_idxs]['difficulty_z'].fillna(0).values
-    
-    diff_pred = df.iloc[valid_idxs]['difficulty_predicted'].fillna(5.0).values
-    diff_low = (diff_pred < 4.0).astype(float)
-    diff_high = (diff_pred >= 6.0).astype(float)
+    q_vector = quality_grid[20, valid_idxs] # The Z-scores for these specific games
     
     # Base similarities
     sim_tags = np.dot(f_tags, f_tags.T)
@@ -170,38 +139,23 @@ def main():
                 else: sim_matrix[i, j] -= 0.20
             elif t_subv == 0.0:
                 if m_subv >= 2.0: sim_matrix[i, j] -= 0.30
-
-    print("\nEvaluating Multivariate Residual Models...")
+                
+    results = []
     
-    # Test 1: Quality Only (Our previous best)
-    X_q_only = q_vector.reshape(-1, 1)
-    r2_q, mae_q, preds_q, coefs_q = evaluate_multivariate_residual_kernel(sim_matrix.copy(), X_q_only, actual_ratings)
-    print(f"\n[1] Quality Only Base -> R2: {r2_q:.4f} | MAE: {mae_q:.4f}")
-    print(f"    Avg Coefs: Quality={coefs_q[0]:.3f}")
+    print("\n--- Grid Search: K_sim + alpha * K_q (Discovery 1.0) ---")
+    print(f"Base Signed Polynomial R2 (alpha=0.0): {evaluate_combined_kernel(sim_matrix.copy(), q_vector, actual_ratings, 0.0)[0]:.4f}")
     
-    # Test 2: Quality + Age
-    X_qa = np.column_stack((q_vector, date_z))
-    r2_qa, mae_qa, preds_qa, coefs_qa = evaluate_multivariate_residual_kernel(sim_matrix.copy(), X_qa, actual_ratings)
-    print(f"\n[2] Quality + Age Base -> R2: {r2_qa:.4f} | MAE: {mae_qa:.4f}")
-    print(f"    Avg Coefs: Quality={coefs_qa[0]:.3f}, Date_Z={coefs_qa[1]:.3f}")
-
-    # Test 3: Quality + Age + Price
-    X_qap = np.column_stack((q_vector, date_z, price_z))
-    r2_qap, mae_qap, preds_qap, coefs_qap = evaluate_multivariate_residual_kernel(sim_matrix.copy(), X_qap, actual_ratings)
-    print(f"\n[3] Quality + Age + Price Base -> R2: {r2_qap:.4f} | MAE: {mae_qap:.4f}")
-    print(f"    Avg Coefs: Quality={coefs_qap[0]:.3f}, Date_Z={coefs_qap[1]:.3f}, Price_Z={coefs_qap[2]:.3f}")
+    alphas_to_test = [0.0001, 0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0]
     
-    # Test 4: Quality + Age + Price + Difficulty
-    X_all = np.column_stack((q_vector, date_z, price_z, diff_z))
-    r2_all, mae_all, preds_all, coefs_all = evaluate_multivariate_residual_kernel(sim_matrix.copy(), X_all, actual_ratings)
-    print(f"\n[4] All Global Signals Base -> R2: {r2_all:.4f} | MAE: {mae_all:.4f}")
-    print(f"    Avg Coefs: Quality={coefs_all[0]:.3f}, Date_Z={coefs_all[1]:.3f}, Price_Z={coefs_all[2]:.3f}, Diff_Z={coefs_all[3]:.3f}")
+    for a in alphas_to_test:
+        r2, mae = evaluate_combined_kernel(sim_matrix.copy(), q_vector, actual_ratings, alpha=a)
+        results.append((a, r2, mae))
 
-    # Test 5: Quality + Age + Difficulty Buckets (0-4, 6-10)
-    X_buckets = np.column_stack((q_vector, date_z, diff_low, diff_high))
-    r2_buck, mae_buck, preds_buck, coefs_buck = evaluate_multivariate_residual_kernel(sim_matrix.copy(), X_buckets, actual_ratings)
-    print(f"\n[5] Quality + Age + Diff Buckets Base -> R2: {r2_buck:.4f} | MAE: {mae_buck:.4f}")
-    print(f"    Avg Coefs: Quality={coefs_buck[0]:.3f}, Date_Z={coefs_buck[1]:.3f}, Diff_Low(0-4)={coefs_buck[2]:.3f}, Diff_High(6-10)={coefs_buck[3]:.3f}")
+    results.sort(key=lambda x: x[1], reverse=True)
+    
+    print("Top Configurations (by R2):")
+    for res in results:
+        print(f"Alpha: {res[0]:<6} | R2: {res[1]:.4f} | MAE: {res[2]:.4f}")
 
 if __name__ == "__main__":
     main()
