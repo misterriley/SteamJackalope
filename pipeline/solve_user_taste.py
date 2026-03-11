@@ -9,6 +9,8 @@ import ast
 import re
 from sklearn.linear_model import Ridge
 
+import numexpr as ne
+
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -290,11 +292,14 @@ def solve_user_taste(ground_truth_path, output_path=None):
             joint_probs = np.sqrt(src_prob * subv_probs_all)
             sim_matrix_all[:, j] += (0.45 * joint_probs)
 
+    import time
+    t_start_smoothing = time.time()
     print("Computing residual smoothing...")
     weight_matrix = np.zeros_like(sim_matrix_all)
     def compute_weight_batch(start_idx):
         end = min(start_idx + batch_size, N_all)
-        weight_matrix[start_idx:end] = np.sign(sim_matrix_all[start_idx:end]) * (np.abs(sim_matrix_all[start_idx:end]) ** best_power)
+        sim_slice = sim_matrix_all[start_idx:end]
+        weight_matrix[start_idx:end] = ne.evaluate('sign(sim_slice) * (abs(sim_slice) ** best_power)', local_dict={'sim_slice': sim_slice, 'best_power': best_power})
         return start_idx, end
 
     with ThreadPoolExecutor(max_workers=cpu_cores) as executor:
@@ -316,8 +321,12 @@ def solve_user_taste(ground_truth_path, output_path=None):
     total_variance = np.mean((actual_ratings - np.mean(actual_ratings))**2)
     final_mse = objective_function(best_power)
     oos_r2 = 1.0 - (final_mse / total_variance)
+    t_end_smoothing = time.time()
+    print(f"-> Residual smoothing completed in {t_end_smoothing - t_start_smoothing:.2f}s")
 
     # --- FILTERS ---
+    t_filters = time.time()
+    print("Applying filters and extracting list sections...")
     p = df['positive'].fillna(0).values
     n = df['negative'].fillna(0).values
     total_reviews = p + n
@@ -371,8 +380,13 @@ def solve_user_taste(ground_truth_path, output_path=None):
     top_ns_idx = np.argsort(ns_scores)[-5:][::-1]
     north_stars = df.iloc[top_ns_idx][['appid', 'name', 'header_image', 'is_nsfw']].copy()
     north_stars['alignment'] = ns_scores[top_ns_idx]
+    
+    t_end_filters = time.time()
+    print(f"-> Base lists extracted in {t_end_filters - t_filters:.2f}s")
 
     # 6. Interactive Pool (All valid games + features) for snappy frontend slider
+    t_interactive = time.time()
+    print("Generating Interactive Pool...")
     # First, gather ALL valid unowned + backlog games, excluding ignored, rated, and played
     exclude_statuses = ['ignored', 'rated', 'played']
     excluded_interactive_appids = set(gt[gt['status'].isin(exclude_statuses)]['appid'].tolist())
@@ -401,21 +415,42 @@ def solve_user_taste(ground_truth_path, output_path=None):
             'features': features,
             'kernel_residual': float(target_residual_pred[idx])
         })
+    t_end_interactive = time.time()
+    print(f"-> Interactive pool ({len(interactive_pool)} games) generated in {t_end_interactive - t_interactive:.2f}s")
 
     # 7. Associative Tags
+    t_tags = time.time()
+    print("Extracting Associative Tags...")
     tag_impacts_formatted = []
+    
+    # Pre-parse tags for the discovery mask to avoid repeated string parsing
+    discovery_indices = np.where(discovery_mask)[0]
+    discovery_tags_raw = df['tags'].iloc[discovery_indices]
+    discovery_tags_sets = [set(get_list(t)) for t in discovery_tags_raw]
+    discovery_df = df.iloc[discovery_indices].copy()
+    
     for stat in tag_stats[:15]:
-        tag_mask = discovery_mask & df['tags'].apply(lambda x: stat['tag'] in get_list(x))
-        sub_df = df[tag_mask].sort_values('projected_rating', ascending=False).head(5)
+        tag = stat['tag']
+        # Quickly check which games in discovery mask have the tag
+        has_tag_mask = np.array([tag in t_set for t_set in discovery_tags_sets])
+        
+        if not np.any(has_tag_mask):
+            continue
+            
+        sub_df = discovery_df[has_tag_mask].sort_values('projected_rating', ascending=False).head(5)
         tag_top_games = sub_df[['appid', 'name', 'header_image', 'is_nsfw']].to_dict(orient='records')
         tag_impacts_formatted.append({
-            'tag': stat['tag'],
+            'tag': tag,
             'impact': float(stat['diff']),
             'top_games': tag_top_games
         })
     associative_tags = {'top': tag_impacts_formatted, 'bottom': []}
+    t_end_tags = time.time()
+    print(f"-> Tags computed in {t_end_tags - t_tags:.2f}s")
 
     # 8. Favorite Neighbors
+    t_favs = time.time()
+    print("Computing Neighborhood Recommendations...")
     favorite_recs = []
     favorites = gt_rated[gt_rated['actual_rating'] >= 9.0].sort_values('actual_rating', ascending=False)
     fav_merged = favorites.merge(df[['appid', 'name']], on='appid', how='inner')
@@ -443,6 +478,8 @@ def solve_user_taste(ground_truth_path, output_path=None):
             'seed_is_nsfw': bool(df.iloc[f_idx]['is_nsfw']),
             'top_games': fav_neighbors.to_dict(orient='records')
         })
+    t_end_favs = time.time()
+    print(f"-> Neighborhoods computed in {t_end_favs - t_favs:.2f}s")
 
     # Prepare final JSON
     result = {
