@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   User, 
   Search, 
@@ -19,10 +19,11 @@ import {
   Compass,
   Anchor,
   Sparkles,
-  Library
+  Library,
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getMetadata, getTermLinks, API_BASE_URL } from '../api';
+import { getMetadata, getTermLinks, API_BASE_URL, updateUserVerify } from '../api';
 import ExplainabilityChart from './ExplainabilityChart';
 import ViolinPlot from './ViolinPlot';
 
@@ -31,6 +32,7 @@ import { type GameStatus } from '../types';
 
 import GameAddControl from './GameAddControl';
 import GameHeaderImage from './GameHeaderImage';
+import GameHoverCard from './GameHoverCard';
 
 interface GameVerification {
   appid: number;
@@ -60,15 +62,21 @@ interface VerificationRowProps {
   onRatingChange: (appid: number, rating: number) => void;
   onIgnoreChange: (appid: number, ignore: boolean) => void;
   onDelete?: (appid: number) => void;
+  onMouseEnter: (e: React.MouseEvent, game: any) => void;
+  onMouseLeave: () => void;
 }
 
-const VerificationRow = React.memo(({ game, blurNSFW, showPlaytime, onRatingChange, onIgnoreChange, onDelete }: VerificationRowProps) => {
+const VerificationRow = React.memo(({ game, blurNSFW, showPlaytime, onRatingChange, onIgnoreChange, onDelete, onMouseEnter, onMouseLeave }: VerificationRowProps) => {
   return (
-    <tr className={`hover:bg-secondary/30 transition-colors ${game.ignore ? 'opacity-40' : ''}`}>
+    <tr 
+      className={`hover:bg-secondary/30 transition-colors ${game.ignore ? 'opacity-40' : ''}`}
+      onMouseEnter={(e) => onMouseEnter(e, game)}
+      onMouseLeave={onMouseLeave}
+    >
       <td className="px-6 py-3">
         <a href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80 transition-opacity">
-          <GameHeaderImage 
-            appid={game.appid} 
+          <GameHeaderImage
+            appid={game.appid}
             header_image={game.header_image}
             isNSFW={game.is_nsfw}
             blurNSFW={blurNSFW}
@@ -104,7 +112,7 @@ const VerificationRow = React.memo(({ game, blurNSFW, showPlaytime, onRatingChan
       </td>
       <td className="px-6 py-3 min-w-[180px]">
         <div className="flex items-center gap-3">
-          <input 
+          <input
             type="range" min="0" max="10" step="1" className="w-full accent-primary h-1"
             value={game.actual_rating}
             onChange={(e) => onRatingChange(game.appid, parseInt(e.target.value))}
@@ -113,7 +121,7 @@ const VerificationRow = React.memo(({ game, blurNSFW, showPlaytime, onRatingChan
         </div>
       </td>
       <td className="px-6 py-3 text-center">
-        <input 
+        <input
           type="checkbox" checked={game.ignore}
           onChange={(e) => onIgnoreChange(game.appid, e.target.checked)}
           className="w-4 h-4 rounded border-border text-primary"
@@ -125,7 +133,7 @@ const VerificationRow = React.memo(({ game, blurNSFW, showPlaytime, onRatingChan
             <Trash2 size={16} />
           </button>
         ) : (
-          <span className="text-[10px] text-muted-foreground/30 font-bold uppercase">Library</span>
+          <span className="text-[10px] text-muted-foreground/30 font-bold uppercase">Library</span>       
         )}
       </td>
     </tr>
@@ -145,20 +153,22 @@ interface VerificationTableProps {
   onRatingChange: (appid: number, rating: number) => void;
   onIgnoreChange: (appid: number, ignore: boolean) => void;
   onDelete?: (appid: number) => void;
+  onMouseEnter: (e: React.MouseEvent, game: any) => void;
+  onMouseLeave: () => void;
 }
 
-const VerificationTable = ({ 
-  data, title, showPlaytime = true, blurNSFW = true, visibleCount = 50, sortConfig, onSort, onRatingChange, onIgnoreChange, onDelete 
+const VerificationTable = ({
+  data, title, showPlaytime = true, blurNSFW = true, visibleCount = 50, sortConfig, onSort, onRatingChange, onIgnoreChange, onDelete, onMouseEnter, onMouseLeave
 }: VerificationTableProps) => (
   <div className="space-y-4">
     <h3 className="text-sm font-bold uppercase tracking-widest text-primary px-2">{title} ({data.length})</h3>
-    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-xl overflow-x-auto">
+    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-xl overflow-x-auto">  
       <table className="w-full text-left">
         <thead className="bg-secondary/50 border-b border-border">
           <tr>
             <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground w-20">Img</th>
             <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground cursor-pointer hover:bg-secondary" onClick={() => onSort('name')}>
-              <div className="flex items-center gap-2">Game {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />)}</div>
+              <div className="flex items-center gap-2">Game {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />)}</div>    
             </th>
             <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-center">Status</th>
             {showPlaytime && (
@@ -180,14 +190,16 @@ const VerificationTable = ({
         </thead>
         <tbody className="divide-y divide-border">
           {data.slice(0, visibleCount).map((game) => (
-            <VerificationRow 
-              key={game.appid} 
-              game={game} 
-              blurNSFW={blurNSFW} 
+            <VerificationRow
+              key={game.appid}
+              game={game}
+              blurNSFW={blurNSFW}
               showPlaytime={showPlaytime}
               onRatingChange={onRatingChange}
               onIgnoreChange={onIgnoreChange}
               onDelete={onDelete}
+              onMouseEnter={onMouseEnter}
+              onMouseLeave={onMouseLeave}
             />
           ))}
         </tbody>
@@ -205,10 +217,35 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
   const [hoveredDimension, setHoveredDimension] = useState<string | null>(null);
   const [hoveredSemanticDimension, setHoveredSemanticDimension] = useState<string | null>(null);
   const [hoveredTag, setHoveredTag] = useState<string | null>(null);
+  
+  // Stable Hover State
+  const [hoverState, setHoverState] = useState<{ game: any, anchor: DOMRect } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleGameMouseEnter = (e: React.MouseEvent, game: any) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    
+    // 150ms "Intent Delay" to prevent flicker
+    const delay = hoverState ? 50 : 150; 
+    
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverState({ game, anchor: rect });
+    }, delay);
+  };
+
+  const handleGameMouseLeave = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    
+    // Small exit delay to allow moving to card
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverState(null);
+    }, 100);
+  };
 
   const handleContextMenu = (e: React.MouseEvent, appid: number, currentList: string) => {
     e.preventDefault();
-    
+
     // Determine the likely current status based on the list it's in
     let statusHint: GameStatus = 'none';
     if (currentList === 'backlog') statusHint = 'backlog';
@@ -224,32 +261,32 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
         if (status === 'deleted') {
           setGames(prev => prev.filter(g => g.appid !== aid));
         }
-        
-        // If status is changed to anything other than what would keep it in the current list, remove it.
+
+        // If status is changed to anything other than what would keep it in the current list, remove it. 
         setInsights((prev: any) => {
           if (!prev) return prev;
           const next = { ...prev };
-          
+
           // Discovery lists show 'none' status. Anything else is a removal.
           // Backlog list shows 'backlog' status. Anything else is a removal.
-          const isDiscoveryList = ['top', 'upcoming', 'free', 'tag', 'fav'].includes(currentList);
-          
-          // Normalized status for logic: 'deleted' behaves like 'none' (reset to recommendations)
+          const isDiscoveryList = ['top', 'upcoming', 'free', 'tag', 'fav'].includes(currentList);        
+
+          // Normalized status for logic: 'deleted' behaves like 'none' (reset to recommendations)        
           const effectiveStatus = (status === 'deleted') ? 'none' : status;
-          
-          const isRemovalStatus = isDiscoveryList 
-            ? (effectiveStatus !== 'none') 
+
+          const isRemovalStatus = isDiscoveryList
+            ? (effectiveStatus !== 'none')
             : (effectiveStatus !== 'backlog');
-          
+
           if (currentList === 'top' && isRemovalStatus) {
-            next.top_recommendations = next.top_recommendations?.filter((g: any) => g.appid !== aid);
+            next.top_recommendations = next.top_recommendations?.filter((g: any) => g.appid !== aid);     
           } else if (currentList === 'upcoming' && isRemovalStatus) {
             next.upcoming_recommendations = next.upcoming_recommendations?.filter((g: any) => g.appid !== aid);
             next.bottom_recommendations = next.bottom_recommendations?.filter((g: any) => g.appid !== aid);
           } else if (currentList === 'backlog' && isRemovalStatus) {
             next.backlog_recommendations = next.backlog_recommendations?.filter((g: any) => g.appid !== aid);
           } else if (currentList === 'free' && isRemovalStatus) {
-            next.free_recommendations = next.free_recommendations?.filter((g: any) => g.appid !== aid);
+            next.free_recommendations = next.free_recommendations?.filter((g: any) => g.appid !== aid);   
           } else if (currentList === 'tag' && isRemovalStatus) {
             if (next.associative_tags?.top) {
               next.associative_tags.top = next.associative_tags.top.map((t: any) => ({
@@ -258,12 +295,12 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
               }));
             }
           } else if (currentList === 'fav' && isRemovalStatus) {
-            next.favorite_game_recommendations = next.favorite_game_recommendations?.map((f: any) => ({
+            next.favorite_game_recommendations = next.favorite_game_recommendations?.map((f: any) => ({   
               ...f,
               top_games: f.top_games?.filter((g: any) => g.appid !== aid)
             }));
           }
-          
+
           return next;
         });
       }
@@ -360,7 +397,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
     checkFilters();
     window.addEventListener('storage', checkFilters);
     const interval = setInterval(checkFilters, 1000);
-    return () => { window.removeEventListener('storage', checkFilters); clearInterval(interval); };
+    return () => { window.removeEventListener('storage', checkFilters); clearInterval(interval); };       
   }, []);
 
   useEffect(() => {
@@ -379,14 +416,14 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
   }, [step, steamId]);
 
   const handleFetch = async () => {
-    let cleanId = steamId.trim().replace(/\/$/, ""); 
+    let cleanId = steamId.trim().replace(/\/$/, "");
     if (cleanId.includes('steamcommunity.com')) {
       const profileMatch = cleanId.match(/profiles\/(\d+)/);
       const idMatch = cleanId.match(/id\/([^/]+)/);
       if (profileMatch) cleanId = profileMatch[1];
       else if (idMatch) cleanId = idMatch[1];
     }
-    
+
     setLoading(true);
     setError(null);
 
@@ -456,7 +493,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
     setGames([...games].sort((a, b) => {
       const valA = a[key], valB = b[key];
       if (typeof valA === 'string' && typeof valB === 'string') return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-      if (typeof valA === 'number' && typeof valB === 'number') return direction === 'asc' ? valA - valB : valB - valA;
+      if (typeof valA === 'number' && typeof valB === 'number') return direction === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
       if (typeof valA === 'boolean' && typeof valB === 'boolean') return direction === 'asc' ? (valA === valB ? 0 : valA ? 1 : -1) : (valA === valB ? 0 : valB ? 1 : -1);
       return 0;
     }));
@@ -479,7 +516,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
   }, []);
 
   const handleRatingChange = useCallback((appid: number, actual_rating: number) => {
-    setGames(prev => prev.map(g => g.appid === appid ? { ...g, actual_rating, status: 'rated' } : g));
+    setGames(prev => prev.map(g => g.appid === appid ? { ...g, actual_rating, status: 'rated' } : g));    
   }, []);
 
   const handleDeleteManual = useCallback(async (appid: number) => {
@@ -527,12 +564,12 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
           const isActive = step >= s; const isCurrent = Math.floor(step) === s;
           return (
             <React.Fragment key={s}>
-              <button 
+              <button
                 onClick={() => step > s && setStep(s)}
                 className={`flex flex-col items-center gap-2 group transition-all ${step > s ? 'cursor-pointer' : 'cursor-default'}`}
               >
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${
-                  isCurrent ? 'bg-primary border-primary text-primary-foreground shadow-lg scale-110' :
+                  isCurrent ? 'bg-primary border-primary text-primary-foreground shadow-lg scale-110' :   
                   isActive ? 'bg-primary/20 border-primary text-primary' : 'bg-secondary border-border text-muted-foreground'
                 }`}>
                   {s === 1 ? <Search size={20} /> : s === 2 ? <TableIcon size={20} /> : <ChartBar size={20} />}
@@ -549,7 +586,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
 
       <AnimatePresence mode="wait">
         {step === 1 && (
-          <motion.div 
+          <motion.div
             key="step1" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
             className="bg-card border border-border rounded-2xl p-8 shadow-xl space-y-8 max-w-2xl mx-auto"
           >
@@ -561,7 +598,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground flex items-center gap-2"><User size={14} />SteamID64 or Custom URL</label>
                 <div className="flex gap-2">
-                  <input 
+                  <input
                     type="text" placeholder="e.g., 76561198039155404"
                     className="flex-grow bg-secondary border-none rounded-xl px-4 py-3 text-lg outline-none focus:ring-2 focus:ring-primary/50"
                     value={steamId} onChange={(e) => setSteamId(e.target.value)}
@@ -579,17 +616,17 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <label className="text-sm font-medium text-muted-foreground flex items-center gap-2"><Search size={14} />Optional: Paste Review HTML</label>
                   <a href={`https://steamcommunity.com/id/${steamId}/recommended/`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline flex items-center gap-1">Find my reviews <ExternalLink size={10} /></a>
                 </div>
-                <textarea 
+                <textarea
                   placeholder="Paste HTML from your Steam Reviews page..."
                   className="w-full bg-secondary border-none rounded-xl px-4 py-3 text-sm h-32 outline-none focus:ring-2 focus:ring-primary/50 font-mono"
                   value={reviewHtml} onChange={(e) => setReviewHtml(e.target.value)}
                 />
               </div>
-              <button 
+              <button
                 onClick={handleFetch} disabled={!steamId || loading}
                 className="w-full bg-primary text-primary-foreground py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 shadow-lg shadow-primary/20"
               >
-                {loading ? <RefreshCcw size={20} className="animate-spin" /> : <ArrowRight size={20} />}
+                {loading ? <RefreshCcw size={20} className="animate-spin" /> : <ArrowRight size={20} />}  
                 {loading ? 'Starting Acquisition...' : 'Start Analysis'}
               </button>
               {error && <div className="bg-destructive/10 text-destructive text-sm p-4 rounded-xl flex items-center gap-2"><AlertCircle size={16} />{error}</div>}
@@ -622,7 +659,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
               </div>
               <div className="flex flex-col items-end gap-3">
                 <button onClick={handleSaveAndSolve} disabled={loading || games.length < 10} className="bg-primary text-primary-foreground px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-primary/20 disabled:opacity-50 disabled:scale-100">
-                  {loading ? <RefreshCcw size={20} className="animate-spin" /> : <Sparkles size={20} />}
+                  {loading ? <RefreshCcw size={20} className="animate-spin" /> : <Sparkles size={20} />}  
                   Solve Taste DNA
                 </button>
                 {loading && (
@@ -635,14 +672,16 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
             </div>
 
             {manualGames.length > 0 && (
-              <VerificationTable 
+              <VerificationTable
                 data={manualGames} title="Manual Additions" showPlaytime={false} blurNSFW={blurNSFW} sortConfig={sortConfig} onSort={handleSort}
                 onRatingChange={handleRatingChange} onIgnoreChange={handleIgnoreChange} onDelete={handleDeleteManual} visibleCount={visibleCount}
+                onMouseEnter={handleGameMouseEnter} onMouseLeave={handleGameMouseLeave}
               />
             )}
-            <VerificationTable 
+            <VerificationTable
               data={libraryGames} title="Library Games" blurNSFW={blurNSFW} sortConfig={sortConfig} onSort={handleSort}
               onRatingChange={handleRatingChange} onIgnoreChange={handleIgnoreChange} visibleCount={visibleCount}
+              onMouseEnter={handleGameMouseEnter} onMouseLeave={handleGameMouseLeave}
             />
           </motion.div>
         )}
@@ -657,11 +696,10 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                 <h2 className="text-4xl font-bold">Taste DNA Solved</h2>
                 <p className="text-muted-foreground italic text-lg max-w-2xl">We've identified the underlying patterns that drive your enjoyment. Your profile is now optimized with an R² of {insights.r2?.toFixed(2) || '0.55'}.</p>
                 <div className="flex flex-wrap gap-4">
-                  <button onClick={() => { 
+                  <button onClick={() => {
                     if (onApply) {
-                      // Ensure steam_id is attached to insights for global state management
                       const finalInsights = { ...insights, steam_id: steamId };
-                      onApply(finalInsights); 
+                      onApply(finalInsights);
                     }
                   }} className="bg-primary text-primary-foreground px-8 py-3 rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-primary/20">Apply to Recommender</button>
                   <button onClick={() => setStep(2)} className="bg-secondary text-foreground px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-secondary/80 border border-border/50">
@@ -676,14 +714,17 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="space-y-8">
                 {/* LOVE LIST */}
-                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">  
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
                   <h3 className="text-lg font-bold flex items-center gap-2 text-blue-500"><ThumbsUp size={18} />Games You'll Love</h3>
                   <div className="space-y-3">
-                    {insights.top_recommendations?.slice(0, 30).map((game: any, idx: number) => (      
-                      <a
-                        key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
+                    {insights.top_recommendations?.slice(0, 30).map((game: any, idx: number) => (
+                      <div
+                        key={game.appid}
+                        onMouseEnter={(e) => handleGameMouseEnter(e, game)}
+                        onMouseLeave={handleGameMouseLeave}
                         onContextMenu={(e) => handleContextMenu(e, game.appid, 'top')}
-                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-blue-500/30 transition-colors group"
+                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-blue-500/30 transition-colors group cursor-pointer"
+                        onClick={() => window.open(`https://store.steampowered.com/app/${game.appid}`, '_blank')}
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-blue-500/10 rounded-full text-[10px] font-bold text-blue-500 shrink-0">{idx + 1}</div>
                         <GameHeaderImage
@@ -699,20 +740,23 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div className="text-right">
                           <div className="text-[10px] font-bold text-blue-500">{game.predicted_rating?.toFixed(1)}</div>
                         </div>
-                      </a>
+                      </div>
                     ))}
                   </div>
                 </div>
 
                 {/* UPCOMING GAMES */}
-                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">  
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
                   <h3 className="text-lg font-bold flex items-center gap-2 text-purple-500"><Sparkles size={18} />Upcoming Games</h3>
                   <div className="space-y-3">
-                    {(insights.upcoming_recommendations || insights.bottom_recommendations)?.slice(0, 10).map((game: any, idx: number) => (   
-                      <a
-                        key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
+                    {(insights.upcoming_recommendations || insights.bottom_recommendations)?.slice(0, 10).map((game: any, idx: number) => (
+                      <div
+                        key={game.appid}
+                        onMouseEnter={(e) => handleGameMouseEnter(e, game)}
+                        onMouseLeave={handleGameMouseLeave}
                         onContextMenu={(e) => handleContextMenu(e, game.appid, 'upcoming')}
-                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-purple-500/30 transition-colors group"
+                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-purple-500/30 transition-colors group cursor-pointer"
+                        onClick={() => window.open(`https://store.steampowered.com/app/${game.appid}`, '_blank')}
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-purple-500/10 rounded-full text-[10px] font-bold text-purple-500 shrink-0">{idx + 1}</div>
                         <GameHeaderImage
@@ -728,54 +772,88 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div className="text-right">
                           <div className="text-[10px] font-bold text-purple-500">{game.predicted_rating?.toFixed(1)}</div>
                         </div>
-                      </a>
+                      </div>
                     ))}
                   </div>
                 </div>
+                
+                {/* INTERACTIVE POOL (New Feature Restored) */}
+                {insights.interactive_pool && (
+                   <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
+                    <h3 className="text-lg font-bold flex items-center gap-2 text-primary"><Activity size={18} />Interactive Pool</h3>
+                    <div className="space-y-3">
+                      {insights.interactive_pool.slice(0, 20).map((game: any, idx: number) => (
+                        <div
+                          key={game.appid}
+                          onMouseEnter={(e) => handleGameMouseEnter(e, game)}
+                          onMouseLeave={handleGameMouseLeave}
+                          onContextMenu={(e) => handleContextMenu(e, game.appid, 'none')}
+                          className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-primary/30 transition-colors group cursor-pointer"
+                          onClick={() => window.open(`https://store.steampowered.com/app/${game.appid}`, '_blank')}
+                        >
+                          <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
+                          <GameHeaderImage
+                            appid={game.appid}
+                            header_image={game.header_image}
+                            isNSFW={game.is_nsfw}
+                            blurNSFW={blurNSFW}
+                            className="w-12 h-6 object-cover rounded shadow-sm group-hover:scale-105 transition-transform"
+                          />
+                          <div className="flex-grow min-w-0">
+                            <div className="font-bold text-[11px] truncate group-hover:text-primary transition-colors">{game.name}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[10px] font-bold text-primary">{game.predicted_rating?.toFixed(1)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="bg-card border border-border rounded-2xl p-6 space-y-6 relative">
                   <h3 className="text-lg font-bold flex items-center gap-2"><LineChart size={18} className="text-primary" />Metadata Weights</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {Object.entries(insights.metadata || {}).filter(([key, val]) => typeof val === 'number' && !['best_q_idx', 'oos_r2'].includes(key)).map(([key, val]: [string, any]) => {
-                      const labels: any = { 
-                        quality: 'Quality', 
-                        age: 'Release Date', 
-                        popularity: 'Popularity', 
-                        length: 'Playtime', 
-                        difficulty: 'Difficulty', 
-                        price: 'Price', 
-                        tone: 'Tonal Spirit', 
-                        semantic: 'Theme Match', 
+                      const labels: any = {
+                        quality: 'Quality',
+                        age: 'Release Date',
+                        popularity: 'Popularity',
+                        length: 'Playtime',
+                        difficulty: 'Difficulty',
+                        price: 'Price',
+                        tone: 'Tonal Spirit',
+                        semantic: 'Theme Match',
                         tag_match: 'Vibe Match',
                         kernel_match: 'Mechanical Sim',
                         graph_match: 'Behavioral Sim'
                       };
-                      const descriptions: any = { 
-                        quality: 'Preference for high critic/user consensus.', 
-                        age: 'Preference for newer vs. classic titles.', 
-                        popularity: 'Preference for mainstream vs. niche gems.', 
-                        length: 'Preference for short vs. long experiences.', 
-                        difficulty: 'Preference for relaxed vs. hard games.', 
-                        price: 'Sensitivity to game price.', 
-                        tone: 'Preference for Bizarre/Absurd (Positive) vs. Serious/Grounded (Negative) spirit.', 
-                        semantic: 'Weight of the descriptive theme model.', 
+                      const descriptions: any = {
+                        quality: 'Preference for high critic/user consensus.',
+                        age: 'Preference for newer vs. classic titles.',
+                        popularity: 'Preference for mainstream vs. niche gems.',
+                        length: 'Preference for short vs. long experiences.',
+                        difficulty: 'Preference for relaxed vs. hard games.',
+                        price: 'Sensitivity to game price.',
+                        tone: 'Preference for Bizarre/Absurd (Positive) vs. Serious/Grounded (Negative) spirit.',
+                        semantic: 'Weight of the descriptive theme model.',
                         tag_match: 'Weight of the categorical tag model.',
-                        kernel_match: 'Weight of the high-fidelity mechanical similarity engine.',
+                        kernel_match: 'Weight of the high-fidelity mechanical similarity engine.',        
                         graph_match: 'Weight of the behavioral graph resonance model.'
                       };
                       return (
-                        <div key={key} className="p-4 bg-secondary/30 rounded-xl space-y-2 group cursor-help relative" onMouseEnter={() => setHoveredWeight(key)} onMouseLeave={() => setHoveredWeight(null)}>
+                        <div key={key} className="p-4 bg-secondary/30 rounded-xl space-y-2 group cursor-help relative" onMouseEnter={() => setHoveredWeight(key)} onMouseLeave={() => setHoveredWeight(null)}>      
                           <div className="flex justify-between items-center"><span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{labels[key] || key}</span><span className={`text-sm font-mono font-bold ${(val as number) > 0 ? 'text-green-500' : (val as number) < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>{(val as number).toFixed(2)}</span></div>
                           {key === 'tone' ? (
                             <div className="space-y-1">
-                              <div className="h-1.5 bg-secondary rounded-full overflow-hidden relative">
-                                <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-border z-10" />
-                                <div 
-                                  className={`h-full transition-all duration-1000 ${(val as number) > 0 ? 'bg-purple-500' : 'bg-blue-500'}`} 
-                                  style={{ 
-                                    width: `${Math.min(50, Math.abs((val as number) * 50))}%`, 
-                                    marginLeft: (val as number) > 0 ? '50%' : `${50 - Math.min(50, Math.abs((val as number) * 50))}%` 
-                                  }} 
+                              <div className="h-1.5 bg-secondary rounded-full overflow-hidden relative">  
+                                <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-border z-10" /> 
+                                <div
+                                  className={`h-full transition-all duration-1000 ${(val as number) > 0 ? 'bg-purple-500' : 'bg-blue-500'}`}
+                                  style={{
+                                    width: `${Math.min(50, Math.abs((val as number) * 50))}%`,
+                                    marginLeft: (val as number) > 0 ? '50%' : `${50 - Math.min(50, Math.abs((val as number) * 50))}%`
+                                  }}
                                 />
                               </div>
                               <div className="flex justify-between text-[8px] font-bold uppercase tracking-tighter text-muted-foreground/50">
@@ -881,7 +959,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                     <div className="space-y-3">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-green-500">Like...</div>
                       <div className="flex flex-wrap gap-2">
-                        {(insights.associative_tags?.top || insights.top_tags || []).map((t: any) => (
+                        {(insights.associative_tags?.top || insights.top_tags || []).map((t: any) => (    
                           <div key={t.tag} className="relative group/tag" onMouseEnter={() => setHoveredTag(t.tag)} onMouseLeave={() => setHoveredTag(null)}>
                             {termLinks[t.tag] ? <a href={termLinks[t.tag]} target="_blank" rel="noopener noreferrer" className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500 hover:bg-green-500/20 transition-colors block">{t.tag}</a> : <div className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-medium text-green-500">{t.tag}</div>}
                             <AnimatePresence>{hoveredTag === t.tag && t.ratings_with && <motion.div initial={{ opacity: 0, x: 20, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 20, scale: 0.9 }} className="absolute left-[calc(100%+0.5rem)] top-0 z-[120] pointer-events-none"><ViolinPlot ratingsWith={t.ratings_with} ratingsWithout={t.ratings_without} tagName={t.tag} /></motion.div>}</AnimatePresence>
@@ -905,14 +983,17 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
               </div>
 
               <div className="space-y-8">
-                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">  
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
                   <h3 className="text-lg font-bold flex items-center gap-2 text-primary"><Library size={18} />Backlog Priority</h3>
                   <div className="space-y-3">
-                    {(insights.backlog_recommendations || []).slice(0, 30).map((game: any, idx: number) => (      
-                      <a
-                        key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
+                    {(insights.backlog_recommendations || []).slice(0, 30).map((game: any, idx: number) => (
+                      <div
+                        key={game.appid}
+                        onMouseEnter={(e) => handleGameMouseEnter(e, game)}
+                        onMouseLeave={handleGameMouseLeave}
                         onContextMenu={(e) => handleContextMenu(e, game.appid, 'backlog')}
-                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-primary/30 transition-colors group"
+                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-primary/30 transition-colors group cursor-pointer"
+                        onClick={() => window.open(`https://store.steampowered.com/app/${game.appid}`, '_blank')}
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-primary/10 rounded-full text-[10px] font-bold text-primary shrink-0">{idx + 1}</div>
                         <GameHeaderImage
@@ -928,20 +1009,23 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div className="text-right">
                           <div className="text-[10px] font-bold text-primary">{game.predicted_rating?.toFixed(1)}</div>
                         </div>
-                      </a>
+                      </div>
                     ))}
                   </div>
                 </div>
 
                 {/* FREE LIST */}
-                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">  
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
                   <h3 className="text-lg font-bold flex items-center gap-2 text-green-500"><Download size={18} />Top Free Games</h3>
                   <div className="space-y-3">
-                    {(insights.free_recommendations || []).slice(0, 10).map((game: any, idx: number) => (      
-                      <a
-                        key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer"
+                    {(insights.free_recommendations || []).slice(0, 10).map((game: any, idx: number) => ( 
+                      <div
+                        key={game.appid}
+                        onMouseEnter={(e) => handleGameMouseEnter(e, game)}
+                        onMouseLeave={handleGameMouseLeave}
                         onContextMenu={(e) => handleContextMenu(e, game.appid, 'free')}
-                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-green-500/30 transition-colors group"
+                        className="flex items-center gap-3 bg-secondary/20 p-2 rounded-xl border border-border/30 hover:border-green-500/30 transition-colors group cursor-pointer"
+                        onClick={() => window.open(`https://store.steampowered.com/app/${game.appid}`, '_blank')}
                       >
                         <div className="w-6 h-6 flex items-center justify-center bg-green-500/10 rounded-full text-[10px] font-bold text-green-500 shrink-0">{idx + 1}</div>
                         <GameHeaderImage
@@ -957,7 +1041,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                         <div className="text-right">
                           <div className="text-[10px] font-bold text-green-500">{game.predicted_rating?.toFixed(1)}</div>
                         </div>
-                      </a>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -967,22 +1051,26 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <p className="text-xs text-muted-foreground italic">Games that perfectly match your solved Vibe DNA (ignoring age/quality/price).</p>
                   <div className="grid grid-cols-1 gap-4">
                     {(insights.north_stars || []).map((game: any) => (
-                      <a key={game.appid} href={`https://store.steampowered.com/app/${game.appid}`} target="_blank" rel="noopener noreferrer" 
+                      <div
+                        key={game.appid}
+                        onMouseEnter={(e) => handleGameMouseEnter(e, game)}
+                        onMouseLeave={handleGameMouseLeave}
                         onContextMenu={(e) => handleContextMenu(e, game.appid, 'top')}
-                        className="bg-secondary/30 border border-border/50 rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all group"
+                        className="bg-secondary/30 border border-border/50 rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all group cursor-pointer"
+                        onClick={() => window.open(`https://store.steampowered.com/app/${game.appid}`, '_blank')}
                       >
                         <div className="w-24 h-12 rounded overflow-hidden shrink-0">
-                          <GameHeaderImage 
-                            appid={game.appid} 
+                          <GameHeaderImage
+                            appid={game.appid}
                             header_image={game.header_image}
                             isNSFW={game.is_nsfw}
                             blurNSFW={blurNSFW}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                           />
                         </div>
                         <div className="flex-grow min-w-0"><div className="font-bold text-sm truncate group-hover:text-primary transition-colors">{game.name}</div><div className="text-[10px] text-muted-foreground uppercase tracking-widest">Match Score: {game.alignment?.toFixed(2)}</div></div>
                         <ExternalLink size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
-                      </a>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -994,11 +1082,11 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <div className="md:col-span-2 space-y-8 mt-4">
                     <div className="flex items-center gap-2">
                       <Sparkles size={20} className="text-primary" />
-                      <h3 className="text-xl font-bold">Top Recommendations by Tag</h3>   
+                      <h3 className="text-xl font-bold">Top Recommendations by Tag</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {insights.associative_tags.top
-                        .filter((t: any) => t.top_games && t.top_games.length > 0)        
+                        .filter((t: any) => t.top_games && t.top_games.length > 0)
                         .map((t: any) => (
                           <div key={t.tag} className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm hover:shadow-md transition-shadow">
                             <div className="flex items-center justify-between">
@@ -1011,7 +1099,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                                     {t.tag}
                                   </a>
                                 ) : (
-                                  <div className="px-2.5 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-bold text-green-500 uppercase tracking-wider"> 
+                                  <div className="px-2.5 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-bold text-green-500 uppercase tracking-wider">
                                     {t.tag}
                                   </div>
                                 )}
@@ -1021,13 +1109,13 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
 
                             <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
                               {t.top_games.map((game: any) => (
-                                <a
+                                <div
                                   key={game.appid}
-                                  href={`https://store.steampowered.com/app/${game.appid}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                  onMouseEnter={(e) => handleGameMouseEnter(e, game)}
+                                  onMouseLeave={handleGameMouseLeave}
                                   onContextMenu={(e) => handleContextMenu(e, game.appid, 'tag')}
-                                  className="flex-shrink-0 w-32 group/tag-game"
+                                  onClick={() => window.open(`https://store.steampowered.com/app/${game.appid}`, '_blank')}
+                                  className="flex-shrink-0 w-32 group/tag-game cursor-pointer"
                                 >
                                   <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/tag-game:border-primary/50 transition-colors">
                                     <GameHeaderImage
@@ -1035,13 +1123,13 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                                       header_image={game.header_image}
                                       isNSFW={game.is_nsfw}
                                       blurNSFW={blurNSFW}
-                                      className="w-full h-full object-cover group-hover/tag-game:scale-105 transition-transform"     
+                                      className="w-full h-full object-cover group-hover/tag-game:scale-105 transition-transform"
                                     />
                                   </div>
                                   <div className="mt-1.5 px-0.5">
                                     <div className="text-[10px] font-bold truncate group-hover/tag-game:text-primary transition-colors leading-tight">{game.name}</div>
                                   </div>
-                                </a>
+                                </div>
                               ))}
                             </div>
                           </div>
@@ -1055,12 +1143,12 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                   <div className="md:col-span-2 space-y-8 mt-12">
                     <div className="flex items-center gap-2">
                       <ThumbsUp size={20} className="text-primary" />
-                      <h3 className="text-xl font-bold">Similar to Your Favorites</h3>    
+                      <h3 className="text-xl font-bold">Similar to Your Favorites</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {insights.favorite_game_recommendations.map((fav: any) => (
                         <div key={fav.seed_appid} className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm hover:shadow-md transition-shadow">
-                          <div className="flex items-center justify-between gap-4">       
+                          <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-2 min-w-0">
                               <GameHeaderImage
                                 appid={fav.seed_appid}
@@ -1069,32 +1157,32 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
                               />
                               <div className="text-[10px] font-bold truncate text-muted-foreground uppercase tracking-wider">{fav.seed_name}</div>
                             </div>
-                            <span className="text-[8px] font-bold text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded whitespace-nowrap">Seed Source</span>    
+                            <span className="text-[8px] font-bold text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded whitespace-nowrap">Seed Source</span>
                           </div>
 
-                          <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">  
+                          <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
                             {fav.top_games.map((game: any) => (
-                              <a
+                              <div
                                 key={game.appid}
-                                href={`https://store.steampowered.com/app/${game.appid}`} 
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                onMouseEnter={(e) => handleGameMouseEnter(e, game)}
+                                onMouseLeave={handleGameMouseLeave}
                                 onContextMenu={(e) => handleContextMenu(e, game.appid, 'fav')}
-                                className="flex-shrink-0 w-32 group/fav-game"
+                                onClick={() => window.open(`https://store.steampowered.com/app/${game.appid}`, '_blank')}
+                                className="flex-shrink-0 w-32 group/fav-game cursor-pointer"
                               >
-                                <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/fav-game:border-primary/50 transition-colors"> 
+                                <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50 group-hover/fav-game:border-primary/50 transition-colors">
                                   <GameHeaderImage
                                     appid={game.appid}
                                     header_image={game.header_image}
                                     isNSFW={game.is_nsfw}
                                     blurNSFW={blurNSFW}
-                                    className="w-full h-full object-cover group-hover/fav-game:scale-105 transition-transform"       
+                                    className="w-full h-full object-cover group-hover/fav-game:scale-105 transition-transform"
                                   />
                                 </div>
                                 <div className="mt-1.5 px-0.5">
                                   <div className="text-[10px] font-bold truncate group-hover/fav-game:text-primary transition-colors leading-tight">{game.name}</div>
                                 </div>
-                              </a>
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -1106,6 +1194,12 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Portaled Game Hover Card */}
+      <GameHoverCard 
+        game={hoverState?.game || null} 
+        anchorRect={hoverState?.anchor} 
+      />
     </div>
   );
 };

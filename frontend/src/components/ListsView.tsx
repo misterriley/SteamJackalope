@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { GameMetadata, ListResponse } from '../types';
 import { getList, getTermLinks } from '../api';
 import { Trophy, TrendingUp, Clock, History, Swords, Info, Tags, ExternalLink } from 'lucide-react';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { useUser } from '../context/UserContext';
+import GameHoverCard from './GameHoverCard';
 
 const ListsView: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('quality');
@@ -14,6 +15,26 @@ const ListsView: React.FC = () => {
   const { showContextMenu } = useContextMenu();
   const { steamId: globalSteamId } = useUser();
 
+  // Stable Hover State
+  const [hoverState, setHoverState] = useState<{ game: any, anchor: DOMRect } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleGameMouseEnter = (e: React.MouseEvent, game: any) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    const delay = hoverState ? 50 : 150; 
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverState({ game, anchor: rect });
+    }, delay);
+  };
+
+  const handleGameMouseLeave = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverState(null);
+    }, 100);
+  };
+
   const handleContextMenu = useCallback((e: React.MouseEvent, appid: number) => {
     e.preventDefault();
     showContextMenu({
@@ -22,9 +43,7 @@ const ListsView: React.FC = () => {
       appid: appid,
       steamId: globalSteamId || "",
       onUpdate: (aid, status) => {
-        if (status === 'ignored' || status === 'played' || status === 'rated' || status === 'deleted') {
-          // In lists, we can just remove locally if we want, but usually lists stay static
-          // unless they are filtered by profile.
+        if (status === 'ignored' || status === 'played' || status === 'rated' || status === 'deleted') {  
           setData((prev: any) => {
             if (!prev) return prev;
             return {
@@ -50,7 +69,6 @@ const ListsView: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // For difficulty_tags, we use the difficulty endpoint
       const endpoint = activeCategory === 'difficulty_tags' ? 'difficulty' : activeCategory;
       const [result, links] = await Promise.all([
         getList(endpoint, discoveryPref),
@@ -70,7 +88,7 @@ const ListsView: React.FC = () => {
   }, [activeCategory, discoveryPref]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 relative">
       {/* Category Tabs */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {categories.map((cat) => (
@@ -78,9 +96,9 @@ const ListsView: React.FC = () => {
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
             className={`flex flex-col items-center gap-3 p-4 rounded-xl border transition-all ${
-              activeCategory === cat.id 
-                ? 'bg-primary/10 border-primary text-primary shadow-sm shadow-primary/5' 
-                : 'bg-card border-border text-muted-foreground hover:border-muted hover:text-foreground'
+              activeCategory === cat.id
+                ? 'bg-primary/10 border-primary text-primary shadow-sm shadow-primary/5'
+                : 'bg-card border-border text-muted-foreground hover:border-muted hover:text-foreground'  
             }`}
           >
             {cat.icon}
@@ -133,7 +151,7 @@ const ListsView: React.FC = () => {
                <div className="h-8 w-48 bg-muted animate-pulse rounded" />
                <div className="grid grid-cols-1 gap-4">
                  {[...Array(3)].map((_, j) => (
-                   <div key={j} className="h-32 bg-card rounded-lg border border-border animate-pulse" />
+                   <div key={j} className="h-32 bg-card rounded-lg border border-border animate-pulse" /> 
                  ))}
                </div>
              </div>
@@ -175,61 +193,71 @@ const ListsView: React.FC = () => {
                         <h3 className="text-xl font-bold flex items-center gap-2">
                           <span className="w-2 h-8 bg-green-500 rounded-full" />
                           {
-                            activeCategory === 'quality' ? 'Top Rated' : 
+                            activeCategory === 'quality' ? 'Top Rated' :
                             activeCategory === 'popularity' ? 'Most Popular' :
-                            activeCategory === 'length' ? 'Longest Games' : 
+                            activeCategory === 'length' ? 'Longest Games' :
                             activeCategory === 'age' ? 'Newest Releases' :
                             activeCategory === 'difficulty' ? 'Hardest Challenges' : 'Top Tier'
                           }
                         </h3>
                         <div className="grid grid-cols-1 gap-4">
                           {data.top.slice(0, 10).map((game) => (
-                            <ListGameItem 
-                              key={game.appid} 
-                              game={game as GameMetadata} 
-                              category={activeCategory} 
+                            <ListGameItem
+                              key={game.appid}
+                              game={game as GameMetadata}
+                              category={activeCategory}
                               onContextMenu={handleContextMenu}
+                              onMouseEnter={handleGameMouseEnter}
+                              onMouseLeave={handleGameMouseLeave}
                             />
                           ))}
                         </div>
                       </div>
-            
+
                       {/* Bottom List */}
                       <div className="space-y-6">
                         <h3 className="text-xl font-bold flex items-center gap-2">
                           <span className="w-2 h-8 bg-red-500 rounded-full" />
                           {
-                            activeCategory === 'quality' ? 'Bottom Rated' : 
+                            activeCategory === 'quality' ? 'Bottom Rated' :
                             activeCategory === 'popularity' ? 'Least Popular' :
-                            activeCategory === 'length' ? 'Shortest Games' : 
+                            activeCategory === 'length' ? 'Shortest Games' :
                             activeCategory === 'age' ? 'Oldest Releases' :
                             activeCategory === 'difficulty' ? 'Relaxing Experiences' : 'Niche/Lesser Known'
                           }
                         </h3>
                         <div className="grid grid-cols-1 gap-4">
                           {data.bottom.slice(0, 10).map((game) => (
-                            <ListGameItem 
-                              key={game.appid} 
-                              game={game as GameMetadata} 
-                              category={activeCategory} 
+                            <ListGameItem
+                              key={game.appid}
+                              game={game as GameMetadata}
+                              category={activeCategory}
                               onContextMenu={handleContextMenu}
+                              onMouseEnter={handleGameMouseEnter}
+                              onMouseLeave={handleGameMouseLeave}
                             />
                           ))}
                         </div>
                       </div>          </div>
         )
       ) : null}
+
+      {/* Portaled Game Hover Card */}
+      <GameHoverCard 
+        game={hoverState?.game || null} 
+        anchorRect={hoverState?.anchor} 
+      />
     </div>
   );
 };
 
 const TagImpactItem = ({ tag, impact, termLinks }: { tag: string, impact: number, termLinks: Record<string, string> }) => {
   const link = termLinks[tag];
-  
+
   const content = (
     <div className={`bg-card border border-border rounded-lg p-3 flex items-center justify-between hover:border-primary/50 transition-all group ${link ? 'cursor-pointer' : ''}`}>
       <div className="flex items-center gap-3">
-        <div className={`w-1 h-6 rounded-full ${impact >= 0 ? 'bg-orange-500' : 'bg-cyan-500'}`} />
+        <div className={`w-1 h-6 rounded-full ${impact >= 0 ? 'bg-orange-500' : 'bg-cyan-500'}`} />       
         <span className="font-bold text-sm text-foreground uppercase tracking-wider flex items-center gap-2">
           {tag}
           {link && <ExternalLink size={12} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
@@ -252,18 +280,22 @@ const TagImpactItem = ({ tag, impact, termLinks }: { tag: string, impact: number
   return content;
 };
 
-const ListGameItem = ({ 
-  game, 
-  category, 
-  onContextMenu 
-}: { 
-  game: GameMetadata, 
-  category: string, 
-  onContextMenu: (e: React.MouseEvent, appid: number) => void 
+const ListGameItem = ({
+  game,
+  category,
+  onContextMenu,
+  onMouseEnter,
+  onMouseLeave
+}: {
+  game: GameMetadata,
+  category: string,
+  onContextMenu: (e: React.MouseEvent, appid: number) => void,
+  onMouseEnter: (e: React.MouseEvent, game: any) => void,
+  onMouseLeave: () => void
 }) => {
   const [imgError, setImgError] = useState(false);
   const iconUrl = game.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/capsule_184x69.jpg`;
-  
+
   const getStat = () => {
     switch(category) {
       case 'quality': {
@@ -282,18 +314,18 @@ const ListGameItem = ({
   }
 
   return (
-    <a 
-      href={`https://store.steampowered.com/app/${game.appid}`}
-      target="_blank"
-      rel="noopener noreferrer"
+    <div
+      onMouseEnter={(e) => onMouseEnter(e, game)}
+      onMouseLeave={onMouseLeave}
       onContextMenu={(e) => onContextMenu(e, game.appid)}
-      className="bg-card border border-border rounded-lg p-3 flex items-center gap-4 hover:border-primary/50 transition-all group no-underline"
+      className="bg-card border border-border rounded-lg p-3 flex items-center gap-4 hover:border-primary/50 transition-all group cursor-pointer"
+      onClick={() => window.open(`https://store.steampowered.com/app/${game.appid}`, '_blank')}
     >
       <div className="w-24 h-12 shrink-0 overflow-hidden rounded bg-secondary flex items-center justify-center relative">
         {!imgError ? (
-          <img 
-            src={iconUrl} 
-            alt={game.name} 
+          <img
+            src={iconUrl}
+            alt={game.name}
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
             onError={() => setImgError(true)}
           />
@@ -310,12 +342,12 @@ const ListGameItem = ({
       </div>
       <div className="flex-grow min-w-0">
         <h4 className="font-bold text-sm truncate group-hover:text-primary transition-colors">{game.name}</h4>
-        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{game.appid}</p>
+        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{game.appid}</p>       
       </div>
       <div className="text-right">
         <div className="text-sm font-mono font-bold text-primary">{getStat()}</div>
       </div>
-    </a>
+    </div>
   );
 }
 

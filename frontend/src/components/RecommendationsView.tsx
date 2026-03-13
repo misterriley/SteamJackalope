@@ -9,13 +9,14 @@ import TagSelector from './TagSelector';
 import { Search, RotateCcw, AlertCircle, Dices, Sparkles, TrendingUp, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { GameStatus } from '../types';
+import GameHoverCard from './GameHoverCard';
 
 
 const DEFAULT_GENRES = [
-  "Action", "Adventure", "Casual", "Indie", "Massively Multiplayer", "RPG", "Simulation", 
-  "Sports", "Strategy", "Racing", "Early Access", "Free to Play", "Violent", "Gore", 
-  "Nudity", "Sexual Content", "Education", "Software Training", "Utilities", 
-  "Design & Illustration", "Web Publishing", "Video Production", "Audio Production", 
+  "Action", "Adventure", "Casual", "Indie", "Massively Multiplayer", "RPG", "Simulation",
+  "Sports", "Strategy", "Racing", "Early Access", "Free to Play", "Violent", "Gore",
+  "Nudity", "Sexual Content", "Education", "Software Training", "Utilities",
+  "Design & Illustration", "Web Publishing", "Video Production", "Audio Production",
   "Photo Editing", "Animation & Modeling", "Accounting"
 ];
 
@@ -37,14 +38,34 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const isInitialMount = useRef(true);
 
+  // Stable Hover State
+  const [hoverState, setHoverState] = useState<{ game: any, anchor: DOMRect } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleGameMouseEnter = (e: React.MouseEvent, game: any) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    const delay = hoverState ? 50 : 150; 
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverState({ game, anchor: rect });
+    }, delay);
+  };
+
+  const handleGameMouseLeave = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverState(null);
+    }, 100);
+  };
+
   // Track window resize and scroll position
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     const handleScroll = () => setShowScrollTop(window.scrollY > 500);
-    
+
     window.addEventListener('resize', handleResize);
     window.addEventListener('scroll', handleScroll);
-    
+
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('scroll', handleScroll);
@@ -83,19 +104,16 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        console.log("RecommendationsView: Initializing filters from sessionStorage", parsed);
         return { ...defaults, ...parsed };
       } catch (e) {
         console.error("RecommendationsView: Failed to parse saved filters", e);
       }
     }
-    console.log("RecommendationsView: Initializing filters with defaults");
     return defaults;
   });
 
   // Save filters to session storage
   useEffect(() => {
-    console.log("RecommendationsView: Persisting filters to sessionStorage", filters);
     sessionStorage.setItem('recommendations_filters', JSON.stringify(filters));
   }, [filters]);
 
@@ -109,26 +127,16 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   // Initial data load
   useEffect(() => {
     const fetchInitialData = async () => {
-      console.log("Fetching initial data (genres, tags, links)...");
       try {
         const [genres, tags, links] = await Promise.all([
           getGenres(),
           getTags(),
           getTermLinks()
         ]);
-        
-        console.log("Genres received:", genres);
-        if (genres && genres.length > 0) {
-          setGenresList(genres);
-        }
 
-        if (tags && tags.length > 0) {
-          setTagsList(tags);
-        }
-        
-        if (links) {
-          setTermLinks(links);
-        }
+        if (genres && genres.length > 0) setGenresList(genres);
+        if (tags && tags.length > 0) setTagsList(tags);
+        if (links) setTermLinks(links);
       } catch (err) {
         console.error("Failed to load initial data", err);
         setError("Failed to connect to the discovery server. Is the backend running?");
@@ -160,15 +168,15 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   const handleSearch = async (currentFilters: RecommendationRequest) => {
     const filterStr = JSON.stringify(currentFilters);
     if (filterStr === lastSearchRef.current) return;
-    
-    lastSearchRef.current = filterStr; // Update immediately
+
+    lastSearchRef.current = filterStr;
     setLoading(true);
     setError(null);
     try {
       const results = await recommend(currentFilters);
       setRecommendations(results);
-      
-      if (results.length === 0 && currentFilters.seed_games.length === 0 && !currentFilters.prompt) {
+
+      if (results.length === 0 && currentFilters.seed_games.length === 0 && !currentFilters.prompt) {     
         // Silently handle empty state
       } else if (results.length === 0) {
         setError("No recommendations found matching your criteria. Try loosening your filters.");
@@ -176,7 +184,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     } catch (err) {
       console.error("Recommendation failed", err);
       setError("An error occurred while fetching recommendations.");
-      lastSearchRef.current = ''; // Reset on error to allow retry
+      lastSearchRef.current = '';
     } finally {
       setLoading(false);
     }
@@ -184,12 +192,9 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
 
   // Auto-update effect with debouncing
   useEffect(() => {
-    // Define which filters are 'significant' (require a backend re-score)
-    // remove_nsfw (Blur) only affects local rendering.
     const { remove_nsfw, ...significantFilters } = filters;
     const sigStr = JSON.stringify(significantFilters);
 
-    // Immediate search on mount
     if (isInitialMount.current) {
       isInitialMount.current = false;
       handleSearch(filters);
@@ -197,10 +202,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       return;
     }
 
-    // Skip if only non-significant filters changed
-    if (sigStr === lastSignificantFiltersRef.current) {
-      return;
-    }
+    if (sigStr === lastSignificantFiltersRef.current) return;
 
     const timer = setTimeout(() => {
       handleSearch(filters);
@@ -208,11 +210,10 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [filters]); // Still watch filters to ensure UI stays in sync
+  }, [filters]);
 
   const handleReset = () => {
     if (filters.vibe_vector && filters.metadata_weights) {
-      // Profile-aware reset: return to solved profile weights
       const meta = filters.metadata_weights;
       setFilters(prev => ({
         ...prev,
@@ -226,27 +227,19 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
         length_pref: typeof meta.length === 'number' ? meta.length : 0.0,
         difficulty_pref: typeof meta.difficulty === 'number' ? meta.difficulty : 0.0,
         price_pref: typeof meta.price === 'number' ? meta.price : 0.0,
-        
-        // Still reset these to clean state
         prompt: '',
         seed_games: [],
         genres: [],
         tags: [],
-        
-        // Keep global toggles as they are, or reset to defaults?
-        // Let's reset to defaults for a true "Reset All"
         remove_vr: true,
         english_only: true,
         remove_nsfw: true,
         remove_utilities: true,
         remove_unreleased: true,
         remove_delisted: true,
-        
-        // Ensure profile remains active
         profile_filter: 'all'
       }));
     } else {
-      // Standard global reset
       setFilters({
         alpha: 0.5,
         beta: 0.5,
@@ -278,9 +271,9 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   };
 
   const handleRandomizeSliders = () => {
-    const rand = () => parseFloat((Math.random() * 2 - 1).toFixed(2)); // -1.00 to 1.00
-    const randCore = () => parseFloat(Math.random().toFixed(2)); // 0.00 to 1.00 for alpha/beta/gamma
-    
+    const rand = () => parseFloat((Math.random() * 2 - 1).toFixed(2));
+    const randCore = () => parseFloat(Math.random().toFixed(2));
+
     setFilters(prev => ({
       ...prev,
       alpha: randCore(),
@@ -309,11 +302,10 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   };
 
   const handleStatusUpdate = useCallback((appid: number, status: GameStatus) => {
-    // If the new status would mean the game is filtered out, remove it locally
     const isExcluded = (
       (filters.profile_filter === 'all' && (status === 'played' || status === 'rated' || status === 'backlog')) ||
       (filters.profile_filter === 'rated' && status === 'rated') ||
-      (status === 'ignored') // Ignored is always excluded from results
+      (status === 'ignored')
     );
 
     if (isExcluded) {
@@ -331,12 +323,9 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
     const vibeVector = (profile.vibe_vector || []).map((v: any) => v || 0);
     const semVibeVector = (profile.semantic_vibe_vector || []).map((v: any) => v || 0);
     const topicVibeVector = (profile.topic_vibe_vector || []).map((v: any) => v || 0);
-    
-    console.log("RecommendationsView: Manual Profile Upload", profile);
 
     setFilters(prev => ({
       ...prev,
-      // Sliders show the ABSOLUTE solved weights
       quality_pref: typeof meta.quality === 'number' ? meta.quality : 1.0,
       age_pref: typeof meta.age === 'number' ? meta.age : 0.0,
       pop_pref: typeof meta.popularity === 'number' ? meta.popularity : 0.0,
@@ -346,7 +335,6 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       alpha: typeof meta.semantic === 'number' ? meta.semantic : 1.0,
       beta: typeof meta.tag_match === 'number' ? meta.tag_match : 1.0,
       gamma_topic: typeof meta.topic_match === 'number' ? meta.topic_match : 0.5,
-      
       vibe_vector: vibeVector,
       semantic_vibe_vector: semVibeVector,
       topic_vibe_vector: topicVibeVector,
@@ -354,7 +342,6 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       intercept: typeof profile.intercept === 'number' ? profile.intercept : 5.0,
       scaling_factor: typeof profile.scaling_factor === 'number' ? profile.scaling_factor : 1.0,
       disc_pref: typeof meta.discovery === 'number' ? meta.discovery : 0,
-      
       profile_filter: 'all',
       library_appids: profile.library_appids || [],
       rated_appids: profile.rated_appids || [],
@@ -366,7 +353,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   return (
     <div className="flex flex-col lg:flex-row gap-8 relative">
       {/* Mobile Filter Toggle */}
-      <button 
+      <button
         onClick={() => setShowMobileFilters(!showMobileFilters)}
         className="lg:hidden fixed bottom-6 right-6 z-[60] bg-primary text-primary-foreground p-4 rounded-full shadow-2xl flex items-center gap-2 font-bold animate-in fade-in zoom-in"
       >
@@ -393,19 +380,19 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       {/* Sidebar - Filters */}
       <AnimatePresence>
         {(showMobileFilters || windowWidth >= 1024) && (
-          <motion.aside 
+          <motion.aside
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             className={`w-full lg:w-80 shrink-0 ${showMobileFilters ? 'fixed inset-0 z-[55] bg-background/95 backdrop-blur-md p-4 overflow-y-auto' : 'hidden lg:block'}`}
           >
-            <Filters 
-              filters={filters} 
-              onChange={setFilters} 
+            <Filters
+              filters={filters}
+              onChange={setFilters}
               onSearch={() => {
                 handleSearch(filters);
                 setShowMobileFilters(false);
-              }} 
+              }}
               loading={loading}
               onProfileUpload={(profile) => {
                 handleProfileUpload(profile);
@@ -425,7 +412,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
             <input
               type="text"
-              placeholder="Describe the kind of experience you're looking for... (Press Enter to search)"
+              placeholder="Describe the kind of experience you're looking for... (Press Enter to search)" 
               className="w-full bg-secondary border-none rounded-lg pl-12 pr-4 py-3 text-lg focus:ring-2 focus:ring-primary/50 transition-all outline-none"
               value={localPrompt}
               onChange={(e) => setLocalPrompt(e.target.value)}
@@ -445,45 +432,45 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2 lg:col-span-1">
               <label className="text-sm font-medium text-muted-foreground">Seed Games</label>
-              <SeedSelector 
-                selected={filters.seed_games} 
-                onChange={(seeds) => setFilters({ ...filters, seed_games: seeds })} 
+              <SeedSelector
+                selected={filters.seed_games}
+                onChange={(seeds) => setFilters({ ...filters, seed_games: seeds })}
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">Genres</label>
-              <GenreSelector 
-                options={genresList} 
-                selected={filters.genres} 
-                onChange={(genres) => setFilters({ ...filters, genres: genres })} 
+              <GenreSelector
+                options={genresList}
+                selected={filters.genres}
+                onChange={(genres) => setFilters({ ...filters, genres: genres })}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Tags (Require All)</label>
-              <TagSelector 
-                options={tagsList} 
-                selected={filters.tags} 
-                onChange={(tags) => setFilters({ ...filters, tags: tags })} 
+              <label className="text-sm font-medium text-muted-foreground">Tags (Require All)</label>     
+              <TagSelector
+                options={tagsList}
+                selected={filters.tags}
+                onChange={(tags) => setFilters({ ...filters, tags: tags })}
               />
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-4 pt-2">
-            <button 
+            <button
               onClick={handleReset}
               className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
             >
               <RotateCcw size={14} />
               Reset All
             </button>
-            <button 
+            <button
               onClick={handleRandomizeSliders}
               className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
             >
               <Dices size={14} />
               Randomize Sliders
             </button>
-            <button 
+            <button
               onClick={handleRandomSeed}
               className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
             >
@@ -496,19 +483,11 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
                 id="trending-random"
                 checked={useTrendingRandom}
                 onChange={(e) => setUseTrendingRandom(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary bg-secondary"
+                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary bg-secondary"  
               />
               <label htmlFor="trending-random" className="text-xs text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1">
                 <TrendingUp size={12} />
-                <a 
-                  href="https://store.steampowered.com/charts/mostplayed" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="hover:text-primary transition-colors underline decoration-dotted underline-offset-2"
-                >
-                  Trending
-                </a>
+                Trending
               </label>
             </div>
             <div className="text-xs text-muted-foreground italic ml-auto hidden sm:block">
@@ -543,7 +522,7 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-card rounded-lg h-80 animate-pulse border border-border" />
+                <div key={i} className="bg-card rounded-lg h-80 animate-pulse border border-border" />    
               ))}
             </div>
           ) : (
@@ -558,11 +537,13 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
                     transition={{ delay: index * 0.05 }}
                     layout
                   >
-                    <GameCard 
-                      game={game} 
+                    <GameCard
+                      game={game}
                       hideNSFW={filters.remove_nsfw}
                       isSeed={true}
                       termLinks={termLinks}
+                      onMouseEnter={handleGameMouseEnter}
+                      onMouseLeave={handleGameMouseLeave}
                     />
                   </motion.div>
                 ))}
@@ -576,11 +557,13 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
                     transition={{ delay: ((seedGamesMetadata || []).length + index) * 0.05 }}
                     layout
                   >
-                    <GameCard 
-                      game={game} 
-                      hideNSFW={filters.remove_nsfw} 
+                    <GameCard
+                      game={game}
+                      hideNSFW={filters.remove_nsfw}
                       termLinks={termLinks}
                       onStatusUpdate={handleStatusUpdate}
+                      onMouseEnter={handleGameMouseEnter}
+                      onMouseLeave={handleGameMouseLeave}
                     />
                   </motion.div>
                 ))}
@@ -590,17 +573,23 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
 
           {!loading && recommendations.length === 0 && !error && (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 bg-card/50 border border-dashed border-border rounded-2xl">
-              <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center">      
                 <Search size={32} className="text-muted-foreground" />
               </div>
               <div>
                 <h3 className="text-xl font-bold">No results found</h3>
-                <p className="text-muted-foreground">Try adjusting your filters or search query.</p>
+                <p className="text-muted-foreground">Try adjusting your filters or search query.</p>      
               </div>
             </div>
           )}
         </section>
       </div>
+
+      {/* Portaled Game Hover Card */}
+      <GameHoverCard 
+        game={hoverState?.game || null} 
+        anchorRect={hoverState?.anchor} 
+      />
     </div>
   );
 };

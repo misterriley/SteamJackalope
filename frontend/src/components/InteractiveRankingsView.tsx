@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { API_BASE_URL } from '../api';
@@ -9,7 +9,7 @@ import SeedSelector from './SeedSelector';
 import GameHoverCard from './GameHoverCard';
 import { type GameStatus, type GameMetadata } from '../types';
 
-interface InteractiveGame extends GameMetadata {
+interface InteractiveGame extends Omit<GameMetadata, 'tags'> {
   appid: number;
   name: string;
   header_image: string;
@@ -40,23 +40,26 @@ export default function InteractiveRankingsView() {
   const [error, setError] = useState<string | null>(null);
   const [blurNSFW, setBlurNSFW] = useState(true);
 
-  // Hover state
-  const [hoveredGame, setHoveredGame] = useState<InteractiveGame | null>(null);
-  const [hoverAnchor, setHoverAnchor] = useState<DOMRect | undefined>(undefined);
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Hover state (Stable Pattern)
+  const [hoverState, setHoverState] = useState<{ game: any, anchor: DOMRect } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleGameMouseEnter = (e: React.MouseEvent, game: InteractiveGame) => {
+  const handleGameMouseEnter = (e: React.MouseEvent, game: any) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    hoverTimeoutRef.current = setTimeout(() => {
-      setHoveredGame(game);
-      setHoverAnchor(rect);
-    }, 400);
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    
+    const delay = hoverState ? 50 : 150;
+    
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverState({ game, anchor: rect });
+    }, delay);
   };
 
   const handleGameMouseLeave = () => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    setHoveredGame(null);
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverState(null);
+    }, 100);
   };
 
   // Filters state
@@ -80,12 +83,11 @@ export default function InteractiveRankingsView() {
     }
   }, []);
 
-  const fetchProfile = async (isManual = false) => {
+  const fetchProfile = useCallback(async (isManual = false) => {
     if (!steamId) return;
     setLoading(true);
     setError(null);
     try {
-      // Add cache buster to bypass browser caching of the profile JSON
       const cacheBuster = isManual ? `?t=${Date.now()}` : '';
       const res = await fetch(`${API_BASE_URL}/user/insights/${steamId}${cacheBuster}`);
       if (!res.ok) throw new Error("Could not load taste profile. Have you solved your Taste DNA yet?");
@@ -95,7 +97,6 @@ export default function InteractiveRankingsView() {
       }
       setProfile(data);
       
-      // Initialize weights from metadata
       const initialWeights: { [key: string]: number } = {
         quality: data.metadata.quality || 0,
         difficulty: data.metadata.difficulty || 0,
@@ -104,7 +105,7 @@ export default function InteractiveRankingsView() {
         length: data.metadata.length || 0,
         popularity: data.metadata.popularity || 0,
         tone: data.metadata.tone || 0,
-        kernel: 1.0 // Kernel residual multiplier defaults to 1.0
+        kernel: 1.0 
       };
       setWeights(initialWeights);
       setIncludedTags([]);
@@ -116,11 +117,11 @@ export default function InteractiveRankingsView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [steamId]);
 
   useEffect(() => {
     fetchProfile();
-  }, [steamId]);
+  }, [fetchProfile]);
 
   useEffect(() => {
     if (seedGames.length === 0) {
@@ -155,7 +156,6 @@ export default function InteractiveRankingsView() {
   const handleContextMenu = useCallback((e: React.MouseEvent, game: InteractiveGame) => {
     e.preventDefault();
     
-    // Determine current status
     let currentStatus: GameStatus = 'none';
     if (game.is_backlog) currentStatus = 'backlog';
     else if (game.is_wishlist) currentStatus = 'wishlist';
@@ -169,9 +169,6 @@ export default function InteractiveRankingsView() {
       onUpdate: (aid: number, status: GameStatus) => {
         setProfile((prev: any) => {
           if (!prev) return prev;
-          
-          // Removal statuses for the interactive pool (played, rated, ignored are typically hidden from recommendations)
-          // Note: 'deleted' resets status to 'none', so it stays in the recommendation pool.
           const removalStatuses: GameStatus[] = ['played', 'rated', 'ignored'];
           
           if (removalStatuses.includes(status)) {
@@ -181,7 +178,6 @@ export default function InteractiveRankingsView() {
             };
           }
           
-          // Update flags if it stays in the pool (e.g. toggling between none, backlog, and wishlist)
           return {
             ...prev,
             interactive_pool: prev.interactive_pool.map((g: any) => {
@@ -231,19 +227,15 @@ export default function InteractiveRankingsView() {
     
     let filtered = profile.interactive_pool;
 
-    // 0. Kernel Target Filtering
     if (seedGames.length > 0 && kernelAppidScores !== null) {
-      // Sort by kernel score descending
       const poolWithSims = filtered.map(game => ({
         ...game,
         _kernel_sim: kernelAppidScores[game.appid.toString()] || 0
       }));
       poolWithSims.sort((a, b) => b._kernel_sim - a._kernel_sim);
-      // Slice top N
       filtered = poolWithSims.slice(0, seedKernelLimit);
     }
 
-    // 1. Tag Filtering
     if (includedTags.length > 0) {
       filtered = filtered.filter(game => 
         game.tags && includedTags.every(tag => game.tags!.includes(tag))
@@ -255,7 +247,6 @@ export default function InteractiveRankingsView() {
       );
     }
 
-    // 2. Scoring
     const scored = filtered.map(game => {
       let score = profile.intercept;
       score += (game.features.quality || 0) * weights.quality;
@@ -265,16 +256,14 @@ export default function InteractiveRankingsView() {
       score += (game.features.length || 0) * weights.length;
       score += (game.features.popularity || 0) * weights.popularity;
       score += (game.features.tone || 0) * weights.tone;
-      score += game.kernel_residual * weights.kernel;
+      score += (game.kernel_residual || 0) * (weights.kernel ?? 1.0);
       
-      // Clamp between 0 and 10
       score = Math.max(0, Math.min(10, score));
-
       return { ...game, current_score: score };
     });
 
     scored.sort((a, b) => b.current_score - a.current_score);
-    return scored.slice(0, 100); // Only render top 100 for performance
+    return scored.slice(0, 100); 
   }, [profile, weights, includedTags, excludedTags, seedGames, seedKernelLimit, kernelAppidScores]);
 
   if (!steamId) {
@@ -309,7 +298,7 @@ export default function InteractiveRankingsView() {
   if (!profile) return null;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 relative">
       <div className="text-center space-y-4 mb-8">
         <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
           Interactive <span className="text-primary">Rankings</span>
@@ -320,7 +309,6 @@ export default function InteractiveRankingsView() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Sliders Panel */}
         <div className="lg:col-span-1 space-y-6 bg-card border border-border/50 rounded-2xl p-6 shadow-sm h-fit sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold flex items-center gap-2">
@@ -330,7 +318,6 @@ export default function InteractiveRankingsView() {
               <button 
                 onClick={() => fetchProfile(true)}
                 className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded border border-primary/20 transition-colors"
-                title="Force reload taste profile from server"
               >
                 <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Sync Data
               </button>
@@ -343,7 +330,6 @@ export default function InteractiveRankingsView() {
             </div>
           </div>
 
-          {/* Targeting Panel */}
           <div className="space-y-4 pb-4 border-b border-border/50">
             <h3 className="font-bold text-sm text-primary flex items-center gap-2">
               <Target size={14} /> Kernel Targeting
@@ -360,7 +346,7 @@ export default function InteractiveRankingsView() {
               />
             </div>
             
-            <div className="space-y-2 opacity-90 transition-opacity" style={{ opacity: seedGames.length > 0 ? 1 : 0.5 }}>
+            <div className="space-y-2" style={{ opacity: seedGames.length > 0 ? 1 : 0.5 }}>
               <div className="flex justify-between text-xs font-medium items-center">
                 <span>Pool Size Limit</span>
                 <span className="font-mono text-muted-foreground">{seedKernelLimit} games</span>
@@ -380,7 +366,6 @@ export default function InteractiveRankingsView() {
 
           <div className="space-y-4">
             <h3 className="font-bold text-sm text-primary">Tags</h3>
-            
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground font-medium">Must include ALL of:</label>
               <TagSelector 
@@ -390,7 +375,6 @@ export default function InteractiveRankingsView() {
                 placeholder="Include tags..."
               />
             </div>
-
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground font-medium">Must NOT include ANY of:</label>
               <TagSelector 
@@ -407,14 +391,6 @@ export default function InteractiveRankingsView() {
           <div className="space-y-4">
             <h3 className="font-bold text-sm text-primary mb-4">Model Weights</h3>
             {Object.entries(weights).map(([key, val]) => {
-              // Descriptive text for specific complex sliders
-              let tooltip = "";
-              if (key === 'tone') {
-                tooltip = "Tone measures the emotional weight of a game. Positive values favor intense, mature, or serious games (e.g., Horror, Violence). Negative values favor lighter, more relaxed games (e.g., Cute, Cozy).";
-              } else if (key === 'kernel') {
-                tooltip = "The Kernel represents non-linear 'vibe' similarity to your favorite games based on structure and mechanics. 1.0 is the recommended default. Increasing this makes the list hyper-focus on games strictly identical to your favorites, while decreasing it relies more on general baseline features like Quality or Release Date.";
-              }
-
               const displayLabels: { [key: string]: string } = {
                 age: 'Release Date',
                 quality: 'Quality',
@@ -427,26 +403,11 @@ export default function InteractiveRankingsView() {
               };
 
               return (
-                <div key={key} className="space-y-2 group/slider relative">
+                <div key={key} className="space-y-2">
                   <div className="flex justify-between text-sm items-center">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-medium">{displayLabels[key] || key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                      {tooltip && (
-                        <div className="text-muted-foreground hover:text-primary cursor-help">
-                          <AlertCircle size={14} />
-                        </div>
-                      )}
-                    </div>
+                    <span className="font-medium">{displayLabels[key] || key}</span>
                     <span className="font-mono text-muted-foreground">{val.toFixed(3)}</span>
                   </div>
-                  
-                  {/* Tooltip Popup */}
-                  {tooltip && (
-                    <div className="absolute left-0 bottom-full mb-2 w-64 p-2.5 bg-popover border border-border rounded-lg shadow-xl text-xs text-muted-foreground opacity-0 group-hover/slider:opacity-100 transition-opacity pointer-events-none z-50">
-                      {tooltip}
-                    </div>
-                  )}
-
                   <input
                     type="range"
                     min="-2"
@@ -462,14 +423,13 @@ export default function InteractiveRankingsView() {
           </div>
         </div>
 
-        {/* Results Panel */}
         <div className="lg:col-span-3 space-y-4">
           <div className="flex justify-between items-center mb-2 px-2">
-            <h3 className="font-bold text-xl flex items-center gap-2">
+            <h3 className="font-bold text-xl">
               Top 100 Matches
               {seedGames.length > 0 && kernelAppidScores !== null && (
-                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                  Targeted to {seedKernelLimit} closest games
+                <span className="ml-2 text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                  Targeted
                 </span>
               )}
             </h3>
@@ -478,7 +438,7 @@ export default function InteractiveRankingsView() {
           
           {rankedGames.length === 0 ? (
             <div className="bg-card border border-border/50 rounded-xl p-12 text-center text-muted-foreground">
-              No games found matching these filters. Try removing some tags.
+              No games found matching these filters.
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3">
@@ -488,10 +448,10 @@ export default function InteractiveRankingsView() {
                   href={`https://store.steampowered.com/app/${game.appid}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onContextMenu={(e) => handleContextMenu(e, game)}
+                  onContextMenu={(e) => handleContextMenu(e, game as InteractiveGame)}
                   onMouseEnter={(e) => handleGameMouseEnter(e, game)}
                   onMouseLeave={handleGameMouseLeave}
-                  className="flex items-center gap-4 bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm hover:border-primary/50 transition-colors group"
+                  className="flex items-center gap-4 bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm hover:border-primary/50 transition-colors group relative"
                 >
                   <div className="w-12 text-center font-bold text-muted-foreground group-hover:text-primary transition-colors">
                     #{index + 1}
@@ -504,37 +464,23 @@ export default function InteractiveRankingsView() {
                     className="w-32 h-[4.5rem] object-cover rounded shadow-sm border border-border/50 group-hover:scale-105 transition-transform"
                   />
                   <div className="flex-grow py-2">
-                    <h4 className="font-bold text-lg leading-tight truncate max-w-[200px] sm:max-w-sm md:max-w-md lg:max-w-lg" title={game.name}>
+                    <h4 className="font-bold text-lg leading-tight truncate">
                       {game.name}
                     </h4>
-                    {/* Status Badges */}
                     <div className="flex items-center gap-2 mt-0.5 mb-1">
-                      {game.is_backlog && (
-                        <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-500/30">
-                          Backlog
-                        </span>
-                      )}
-                      {game.is_wishlist && (
-                        <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border border-purple-500/30">
-                          Wishlist
-                        </span>
-                      )}
-                      {game.is_free && (
-                        <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border border-green-500/30">
-                          Free
-                        </span>
-                      )}
+                      {game.is_backlog && <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Backlog</span>}
+                      {game.is_wishlist && <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Wishlist</span>}
+                      {game.is_free && <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Free</span>}
                     </div>
-                    {/* Add a subtle tag list snippet for visual context */}
-                    {game.tags && game.tags.length > 0 && (
-                      <div className="text-xs text-muted-foreground truncate max-w-[200px] sm:max-w-sm md:max-w-md lg:max-w-lg mt-0.5">
-                        {game.tags.slice(0, 5).join(', ')}{game.tags.length > 5 ? ', ...' : ''}
+                    {game.tags && (
+                      <div className="text-xs text-muted-foreground truncate opacity-70">
+                        {game.tags.slice(0, 5).join(', ')}
                       </div>
                     )}
                   </div>
                   <div className="px-6 flex flex-col items-end shrink-0">
                     <div className="text-2xl font-black text-primary">
-                      {game.current_score.toFixed(2)}
+                      {(game as any).current_score.toFixed(2)}
                     </div>
                   </div>
                 </a>
@@ -544,15 +490,11 @@ export default function InteractiveRankingsView() {
         </div>
       </div>
       
-      {/* Global Hover Card for Interactive View */}
-      {hoveredGame && (
-        <GameHoverCard 
-          game={hoveredGame} 
-          isVisible={!!hoveredGame} 
-          anchorRect={hoverAnchor} 
-          weights={weights}
-        />
-      )}
+      <GameHoverCard 
+        game={hoverState?.game || null} 
+        anchorRect={hoverState?.anchor} 
+        weights={weights}
+      />
     </div>
   );
 }

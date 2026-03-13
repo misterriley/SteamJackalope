@@ -371,28 +371,79 @@ def solve_user_taste(ground_truth_path, output_path=None):
         (df['price'].fillna('').str.lower().str.contains('free', na=False))
     ) & (~df['price'].fillna('').str.contains('[1-9]', regex=True, na=False))
     
+    # Create a mapping of beta coefficients for export
+    coef_map = {name.lower(): float(final_beta[i+1]) for i, name in enumerate(selected_feature_names)}
+
+    # --- FEATURE PREPARATION FOR EXPORT ---
+    # We want all exported games to have z-scores and weights for the hover cards
+    def format_game_item(idx, score):
+        game = df.iloc[idx]
+        raw_pop = int(game['positive'] + game['negative'])
+        raw_length = float(game['estimated_playtime'] / 60.0)
+        
+        # Calculate z-scores for this game (clamped)
+        item = {
+            'appid': int(game['appid']),
+            'name': str(game['name']),
+            'header_image': str(game['header_image']),
+            'is_nsfw': bool(game['is_nsfw']),
+            'predicted_rating': float(score),
+            'weighted_score': float(score),
+            
+            # Z-scores (Core 9) - Already z-scored in the dataframe, just clip
+            'z_spps': float(np.clip(quality_feature_all[idx], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)),
+            'z_date': float(np.clip(game['date_z'], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)),
+            'z_pop': float(np.clip(game['pop_z'], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)),
+            'z_length': float(np.clip(game['playtime_z'], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)),
+            'z_difficulty': float(np.clip(game['difficulty_z'], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)),
+            'z_price': float(np.clip(game['price_z'], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)),
+            'z_tone': float(np.clip(game['tone_z'], Z_SCORE_CLAMP_MIN, Z_SCORE_CLAMP_MAX)),
+            
+            # Weights (Core 9)
+            'w_spps': float(coef_map.get('quality', 0.0)),
+            'w_date': float(coef_map.get('age', 0.0)),
+            'w_pop': float(coef_map.get('popularity', 0.0)),
+            'w_length': float(coef_map.get('length', 0.0)),
+            'w_difficulty': float(coef_map.get('difficulty', 0.0)),
+            'w_price': float(coef_map.get('price', 0.0)),
+            'w_tone': float(coef_map.get('tone', 0.0)),
+            
+            # Kernel
+            'kernel_residual': float(target_residual_pred[idx]),
+            
+            # Raw stats
+            'raw_pop': raw_pop,
+            'raw_length': raw_length,
+            'raw_price': str(game['price']),
+            'raw_difficulty': float(game['difficulty_predicted'])
+        }
+        return item
+
     # 1. Top Recs
-    top_discovery = df[discovery_mask].sort_values('projected_rating', ascending=False).head(30)
-    top_recommendations = top_discovery[['appid', 'name', 'header_image', 'is_nsfw', 'projected_rating']].copy()
+    top_discovery_idx = df[discovery_mask].sort_values('projected_rating', ascending=False).head(30).index
+    top_recommendations = [format_game_item(idx, final_preds[idx]) for idx in top_discovery_idx]
     
     # 2. Free Recs
-    top_free = df[discovery_mask & is_free].sort_values('projected_rating', ascending=False).head(30)
-    free_recommendations = top_free[['appid', 'name', 'header_image', 'is_nsfw', 'projected_rating']].copy()
+    top_free_idx = df[discovery_mask & is_free].sort_values('projected_rating', ascending=False).head(30).index
+    free_recommendations = [format_game_item(idx, final_preds[idx]) for idx in top_free_idx]
     
     # 3. Backlog Recs
-    backlog_recs = df[df['appid'].isin(backlog_appids)].sort_values('projected_rating', ascending=False).head(30)
-    backlog_recommendations = backlog_recs[['appid', 'name', 'header_image', 'is_nsfw', 'projected_rating']].copy()
+    backlog_recs_idx = df[df['appid'].isin(backlog_appids)].sort_values('projected_rating', ascending=False).head(30).index
+    backlog_recommendations = [format_game_item(idx, final_preds[idx]) for idx in backlog_recs_idx]
     
     # 4. Upcoming Recs
-    upcoming_recs = df[upcoming_mask & (~df['appid'].isin(all_gt_appids))].sort_values('projected_rating', ascending=False).head(30)
-    upcoming_recommendations = upcoming_recs[['appid', 'name', 'header_image', 'is_nsfw', 'projected_rating']].copy()
+    upcoming_recs_idx = df[upcoming_mask & (~df['appid'].isin(all_gt_appids))].sort_values('projected_rating', ascending=False).head(30).index
+    upcoming_recommendations = [format_game_item(idx, final_preds[idx]) for idx in upcoming_recs_idx]
 
     # 5. North Stars (Highest Kernel Residual Pull)
     ns_scores = target_residual_pred.copy()
     ns_scores[~discovery_mask] = -1e12
     top_ns_idx = np.argsort(ns_scores)[-5:][::-1]
-    north_stars = df.iloc[top_ns_idx][['appid', 'name', 'header_image', 'is_nsfw']].copy()
-    north_stars['alignment'] = ns_scores[top_ns_idx]
+    north_stars = []
+    for idx in top_ns_idx:
+        item = format_game_item(idx, final_preds[idx])
+        item['alignment'] = float(ns_scores[idx])
+        north_stars.append(item)
     
     t_end_filters = time.time()
     print(f"-> Base lists extracted in {t_end_filters - t_filters:.2f}s")
@@ -405,38 +456,26 @@ def solve_user_taste(ground_truth_path, output_path=None):
     excluded_interactive_appids = set(gt[gt['status'].isin(exclude_statuses)]['appid'].tolist())
     
     interactive_mask = base_mask & (~df['appid'].isin(excluded_interactive_appids))
-    top_interactive = df[interactive_mask].copy()
+    top_interactive_indices = df[interactive_mask].index
     
     interactive_pool = []
-    # Intercept is beta[0], quality is beta[1], diff is beta[2] etc. based on selected_features
-    # Create a mapping of beta coefficients
-    coef_map = {}
-    for i, feature in enumerate(selected_feature_names):
-        coef_map[feature.lower()] = float(final_beta[i+1])
-    
-    for idx in top_interactive.index:
-        game = df.iloc[idx]
+    for idx in top_interactive_indices:
+        item = format_game_item(idx, final_preds[idx])
+        # Add tags for filtering
+        item['tags'] = get_list(df.iloc[idx]['tags'])
+        # Add boolean flags
+        item['is_backlog'] = bool(df.iloc[idx]['appid'] in backlog_only_appids)
+        item['is_wishlist'] = bool(df.iloc[idx]['appid'] in wishlist_only_appids)
+        item['is_free'] = bool(is_free[idx])
+        
+        # Backward compatibility for InteractiveRankingsView which uses .features
         features = {}
-        # Include ALL features for interactive tweaking, not just the ones selected by AICc
         for feature in global_features.keys():
             features[feature.lower()] = float(global_features[feature][idx])
+        item['features'] = features
         
-        interactive_pool.append({
-            'appid': int(game['appid']),
-            'name': str(game['name']),
-            'header_image': str(game['header_image']),
-            'is_nsfw': bool(game['is_nsfw']),
-            'is_backlog': bool(game['appid'] in backlog_only_appids),
-            'is_wishlist': bool(game['appid'] in wishlist_only_appids),
-            'is_free': bool(is_free[idx]),
-            'tags': get_list(game['tags']),
-            'projected_rating': float(game['projected_rating']),
-            'features': features,
-            'kernel_residual': float(target_residual_pred[idx]),
-            'raw_price': str(game['price']),
-            'raw_difficulty': float(game['difficulty_predicted']),
-            'raw_length': float(game['estimated_playtime'] / 60.0)
-        })
+        interactive_pool.append(item)
+
     t_end_interactive = time.time()
     print(f"-> Interactive pool ({len(interactive_pool)} games) generated in {t_end_interactive - t_interactive:.2f}s")
 
@@ -524,11 +563,11 @@ def solve_user_taste(ground_truth_path, output_path=None):
         'intercept': float(final_beta[0]),
         'library_appids': list(all_gt_appids),
         'rated_appids': gt_rated['appid'].tolist(),
-        'top_recommendations': top_recommendations.to_dict(orient='records'),
-        'free_recommendations': free_recommendations.to_dict(orient='records'),
-        'backlog_recommendations': backlog_recommendations.to_dict(orient='records'),
-        'upcoming_recommendations': upcoming_recommendations.to_dict(orient='records'),
-        'north_stars': north_stars.to_dict(orient='records'),
+        'top_recommendations': top_recommendations,
+        'free_recommendations': free_recommendations,
+        'backlog_recommendations': backlog_recommendations,
+        'upcoming_recommendations': upcoming_recommendations,
+        'north_stars': north_stars,
         'associative_tags': associative_tags,
         'favorite_game_recommendations': favorite_recs,
         'interactive_pool': interactive_pool # <--- The snappy payload!

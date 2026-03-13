@@ -1946,7 +1946,8 @@ def recommend(request: RecommendationRequest):
             "z_difficulty": float(z_difficulty[idx]), "w_difficulty": float(w_difficulty_active),
             "z_price": float(z_price[idx]), "w_price": float(w_price_active),
             "z_tone": float(tone_sims[idx]), "w_tone": float(request.tone_sim_weight),
-            "raw_pop": int(game_meta['positive'] + game_meta['negative']), "raw_length": float(game_meta['estimated_playtime'] / 60.0)
+            "raw_pop": int(game_meta['positive'] + game_meta['negative']), "raw_length": float(game_meta['estimated_playtime'] / 60.0),
+            "raw_price": str(game_meta['price']), "raw_difficulty": float(game_meta['difficulty_predicted'])
         }
         response_items.append(item)
 

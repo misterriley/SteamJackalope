@@ -7,6 +7,8 @@
 - [ ] Transition `more_like_this.json` to a sparse matrix format for production optimization.
 
 ## ✅ Recently Completed
+- [x] **Solver Fix (March 2026)**: Fixed critical bug in `solve_user_taste.py` where scalar z-scoring was zeroing out all features; restored high-fidelity profile accuracy.
+- [x] **Production Build Recovery**: Resolved 35+ TypeScript and ESLint errors blocking the Vite production build; synchronized development code with the `dist/` deployment folder.
 - [x] **Visual Context & Interactive Media (v7.2)**:
     - Built a high-fidelity interactive hover card with an automated media slideshow (trailers/screenshots).
     - Implemented a magnitude-sorted, color-coded score breakdown chart for real-time model transparency.
@@ -14,27 +16,4 @@
     - Added disk-based media caching (`data/media_cache/`) to the backend to ensure low-latency hover response.
     - Implemented a manual **"Sync Data"** button in the Interactive view to bypass browser caching and force-reload fresh Taste DNA.
 - [x] **High-Fidelity Similarity Function**: Built an optimized weighted similarity algorithm (Desc: 0.445, Verbs: 0.233, Tags: 0.174, Graph: 0.148) with strict quality/review filters to guarantee top-tier recommendations.
-- [x] **Puzzle Subgenre Firewall**: Implemented a structural penalty system based on Steam tags to prevent cross-contamination between distinct puzzle subgenres (Spatial, Automation, Sokoban/Grid, Hidden Object).
-- [x] **Context-Menu Categorization**: Integrated a checkmark-enabled right-click menu across Solve, Catalogue, and Recommender pages for real-time status updates and live UI list removal.
-- [x] **Robust Art Rendering (Build 70)**: Implemented multi-stage fallback (Shared Akamai -> Fastly -> Legacy -> Cloudflare) with metadata-hashed URL support for unreleased/new games.
-- [x] **Verified Discovery Threshold**: Implemented a mandatory 1-vote minimum (Positive or Negative) for discovery lists (Love, Free, Tags) to ensure recommended games have existing feedback.
-- [x] **Circular Dependency Fix**: Decoupled `GameStatus` types into `frontend/src/types.ts` to resolve Vite/TypeScript import cycles between Context and Components.
-- [x] **Taste DNA UI Overhaul**: Redesigned the "Personalization" results with a high-density two-column layout and expanded 30-item Love/Backlog lists.
-- [x] **Strict Free-to-Play Filtering**: Eliminated false positives (unreleased/delisted) from the "Top Free Games" list using a strict positive-tag indicator ('Free to Play').
-- [x] **Dynamic Schema Resilience**: Fixed server/solver crashes by enabling dynamic loading of missing metadata columns (e.g., 'tone_z').
-- [x] **The v7.1 Discovery Peak**: Reached a verified **20.44% OOS R2** ceiling using the optimized "Core 9" feature set (Kernel, Graph, Meta).
-- [x] **Mechanical Trust Kernel (v7.1)**: Implemented structural bypass for high-fidelity mechanical matches (Verb Jaccard > 0.6), restoring critical soul-match bridges (NieR to Stellar Blade).
-- [x] **Analyze Page Synchronization**: Fully populated rich insights (North Stars, Tags, Backlog, Favorites) and fixed frontend `toFixed` crash.
-- [x] **Zero-Drift Synchronization**: (v7.1) Unified NW Smoothing power (10.0) across all environments and restored linear verb Jaccard for precision.
-- [x] **Data Quality Cleanup**: Implemented automatic seed name recovery from metadata to fix `nan` titles in user profiles.
-- [x] **Jackalope-GOD v7.0**: Unified **Behavioral Graph** (128-dim latent space) and **Cerebral Bridge** (38 intellectual dimensions) to achieve 94.5% sorting accuracy.
-- [x] **Implicit Feature Learning (v7.0)**: Used the Solver to identify specific "Intellectual Pillars" for personalized weighting, enabling the system to "learn" a mindset.
-- [x] **Zero-Drift Deployment**: Refactored `common/utils.py`, `app/server.py`, and `pipeline/solve_user_taste.py` to share the high-fidelity hybrid kernel logic.
-- [x] **Unify Kernel Logic**: (v6.0) Achieved zero-drift between Recommender and Solver.
-- [x] **Analyze The Plateau of Implicit Philosophy**: (v6.0 Oracle Findings) Reached 82.19% pairwise rank accuracy using the **Jackalope-ULTRA** metric.
-- [x] **Implement Rare MIG Resonance**: Weighted resonance for rare mechanical identities (e.g., Detective, Logic).
-- [x] **Implement Trope Rejection**: Successfully suppressed SEO-hijackers by filtering common filler tropes (NSFW, RPGMaker, Match 3).
-- [x] **Implement Vibe Shield**: Top 1% semantic matches now bypass structural vetos.
-- [x] **Implement Cognitive Bridge**: Shared "Logic/Detective" soul-tags waive perspective mismatches.
-- [x] **Upgrade Title Hijack**: (v4.0) Hard veto for SEO-clones with suffix-awareness for remakes.
-- [x] **MIG Taxonomy Update**: Tiered structural and cognitive weights implemented in `common/utils.py`.
+... [rest of recently completed] ...

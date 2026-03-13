@@ -15,6 +15,16 @@ This document serves as the manual verification protocol for human testers and d
     - *Expectation*: Dynamic fetch succeeds; latest build number matches `build_count.json`.
 
 ## 🖱️ Context Menu & Categorization (Build 53)
+- [ ] **Hover Intent Delay (v7.2)**: Hover over any game card in Recommender, Solve, or Catalogue.
+    - *Expectation*: Hover card appears after a slight delay (~150ms). Moving mouse quickly between cards should not cause flickering or multiple cards to stay open.
+- [ ] **Magnitude-Sorted Breakdown (v7.2)**: Look at the "Score Breakdown" section of the hover card.
+    - *Expectation*: Contribution bars are sorted by absolute magnitude (largest influence first). Positive contributions (e.g., "Vibe Match") are green; negative (e.g., "Release Date") are red.
+- [ ] **Automated Media Preview (v7.2)**: Keep hovering over a card for 2+ seconds.
+    - *Expectation*: The header image transitions into a slideshow of screenshots/trailers (if available in `data/media_cache/`).
+- [ ] **Viewport Clamping (v7.2)**: Hover over a game at the very edge of the screen (e.g., bottom-right or top-left).
+    - *Expectation*: The hover card "flips" or "clamps" to stay entirely within the viewport without being cut off.
+- [ ] **Portal Integrity (v7.2)**: Scroll the page while a hover card is open (if possible).
+    - *Expectation*: The card maintains its absolute position relative to the viewport (`fixed` positioning via React Portal).
 - [ ] **Right-Click Activation**: Right-click any game card in Recommender, Solve, or Catalogue.
     - *Expectation*: Custom context menu appears at mouse position.
 - [ ] **Visual Indicators**: Open menu for a game already in "Backlog."
