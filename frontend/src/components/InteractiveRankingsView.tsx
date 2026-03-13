@@ -3,12 +3,14 @@ import { useUser } from '../context/UserContext';
 import { API_BASE_URL } from '../api';
 import { Sliders, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import GameHeaderImage from './GameHeaderImage';
+import TagSelector from './TagSelector';
 
 interface InteractiveGame {
   appid: number;
   name: string;
   header_image: string;
   is_nsfw?: boolean;
+  tags?: string[];
   projected_rating: number;
   features: { [key: string]: number };
   kernel_residual: number;
@@ -27,8 +29,10 @@ export default function InteractiveRankingsView() {
   const [error, setError] = useState<string | null>(null);
   const [blurNSFW, setBlurNSFW] = useState(true);
 
-  // Sliders state
+  // Filters state
   const [weights, setWeights] = useState<{ [key: string]: number }>({});
+  const [includedTags, setIncludedTags] = useState<string[]>([]);
+  const [excludedTags, setExcludedTags] = useState<string[]>([]);
 
   useEffect(() => {
     const saved = sessionStorage.getItem('recommendations_filters');
@@ -66,7 +70,8 @@ export default function InteractiveRankingsView() {
           kernel: 1.0 // Kernel residual multiplier defaults to 1.0
         };
         setWeights(initialWeights);
-
+        setIncludedTags([]);
+        setExcludedTags([]);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -75,6 +80,15 @@ export default function InteractiveRankingsView() {
     };
     fetchProfile();
   }, [steamId]);
+
+  const allTags = useMemo(() => {
+    if (!profile?.interactive_pool) return [];
+    const tags = new Set<string>();
+    profile.interactive_pool.forEach(game => {
+      game.tags?.forEach(tag => tags.add(tag));
+    });
+    return Array.from(tags).sort();
+  }, [profile]);
 
   const handleReset = () => {
     if (!profile) return;
@@ -88,12 +102,28 @@ export default function InteractiveRankingsView() {
       tone: profile.metadata.tone || 0,
       kernel: 1.0
     });
+    setIncludedTags([]);
+    setExcludedTags([]);
   };
 
   const rankedGames = useMemo(() => {
     if (!profile) return [];
     
-    const scored = profile.interactive_pool.map(game => {
+    // 1. Tag Filtering
+    let filtered = profile.interactive_pool;
+    if (includedTags.length > 0) {
+      filtered = filtered.filter(game => 
+        game.tags && includedTags.every(tag => game.tags!.includes(tag))
+      );
+    }
+    if (excludedTags.length > 0) {
+      filtered = filtered.filter(game => 
+        !game.tags || !excludedTags.some(tag => game.tags!.includes(tag))
+      );
+    }
+
+    // 2. Scoring
+    const scored = filtered.map(game => {
       let score = profile.intercept;
       score += (game.features.quality || 0) * weights.quality;
       score += (game.features.difficulty || 0) * weights.difficulty;
@@ -112,7 +142,7 @@ export default function InteractiveRankingsView() {
 
     scored.sort((a, b) => b.current_score - a.current_score);
     return scored.slice(0, 100); // Only render top 100 for performance
-  }, [profile, weights]);
+  }, [profile, weights, includedTags, excludedTags]);
 
   if (!steamId) {
     return (
@@ -161,33 +191,62 @@ export default function InteractiveRankingsView() {
         <div className="lg:col-span-1 space-y-6 bg-card border border-border/50 rounded-2xl p-6 shadow-sm h-fit sticky top-24">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold flex items-center gap-2">
-              <Sliders size={18} /> Model Weights
+              <Sliders size={18} /> Filters & Weights
             </h3>
             <button 
               onClick={handleReset}
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 bg-background px-2 py-1 rounded border border-border"
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 bg-background px-2 py-1 rounded border border-border transition-colors"
             >
               <RefreshCw size={12} /> Reset
             </button>
           </div>
 
-          {Object.entries(weights).map(([key, val]) => (
-            <div key={key} className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="capitalize font-medium">{key}</span>
-                <span className="font-mono text-muted-foreground">{val.toFixed(3)}</span>
-              </div>
-              <input
-                type="range"
-                min="-2"
-                max="2"
-                step="0.05"
-                value={val}
-                onChange={(e) => setWeights(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
-                className="w-full accent-primary"
+          <div className="space-y-4">
+            <h3 className="font-bold text-sm text-primary">Tags</h3>
+            
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground font-medium">Must include ALL of:</label>
+              <TagSelector 
+                options={allTags.filter(t => !excludedTags.includes(t))}
+                selected={includedTags}
+                onChange={setIncludedTags}
+                placeholder="Include tags..."
               />
             </div>
-          ))}
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground font-medium">Must NOT include ANY of:</label>
+              <TagSelector 
+                options={allTags.filter(t => !includedTags.includes(t))}
+                selected={excludedTags}
+                onChange={setExcludedTags}
+                placeholder="Exclude tags..."
+              />
+            </div>
+          </div>
+
+          <hr className="border-border/50" />
+
+          <div className="space-y-4">
+            <h3 className="font-bold text-sm text-primary mb-4">Model Weights</h3>
+            {Object.entries(weights).map(([key, val]) => (
+              <div key={key} className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="capitalize font-medium">{key}</span>
+                  <span className="font-mono text-muted-foreground">{val.toFixed(3)}</span>
+                </div>
+                <input
+                  type="range"
+                  min="-2"
+                  max="2"
+                  step="0.05"
+                  value={val}
+                  onChange={(e) => setWeights(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
+                  className="w-full accent-primary"
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Results Panel */}
@@ -197,38 +256,50 @@ export default function InteractiveRankingsView() {
             <span className="text-sm text-muted-foreground">Intercept: {profile.intercept.toFixed(2)}</span>
           </div>
           
-          <div className="grid grid-cols-1 gap-3">
-            {rankedGames.map((game, index) => (
-              <a 
-                key={game.appid} 
-                href={`https://store.steampowered.com/app/${game.appid}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-4 bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm hover:border-primary/50 transition-colors group"
-              >
-                <div className="w-12 text-center font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                  #{index + 1}
-                </div>
-                <GameHeaderImage 
-                  appid={game.appid} 
-                  header_image={game.header_image}
-                  isNSFW={game.is_nsfw}
-                  blurNSFW={blurNSFW}
-                  className="w-32 h-[4.5rem] object-cover rounded shadow-sm border border-border/50 group-hover:scale-105 transition-transform"
-                />
-                <div className="flex-grow py-2">
-                  <h4 className="font-bold text-lg leading-tight truncate max-w-[200px] sm:max-w-sm md:max-w-md lg:max-w-lg" title={game.name}>
-                    {game.name}
-                  </h4>
-                </div>
-                <div className="px-6 flex flex-col items-end shrink-0">
-                  <div className="text-2xl font-black text-primary">
-                    {game.current_score.toFixed(2)}
+          {rankedGames.length === 0 ? (
+            <div className="bg-card border border-border/50 rounded-xl p-12 text-center text-muted-foreground">
+              No games found matching these filters. Try removing some tags.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {rankedGames.map((game, index) => (
+                <a 
+                  key={game.appid} 
+                  href={`https://store.steampowered.com/app/${game.appid}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-4 bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm hover:border-primary/50 transition-colors group"
+                >
+                  <div className="w-12 text-center font-bold text-muted-foreground group-hover:text-primary transition-colors">
+                    #{index + 1}
                   </div>
-                </div>
-              </a>
-            ))}
-          </div>
+                  <GameHeaderImage 
+                    appid={game.appid} 
+                    header_image={game.header_image}
+                    isNSFW={game.is_nsfw}
+                    blurNSFW={blurNSFW}
+                    className="w-32 h-[4.5rem] object-cover rounded shadow-sm border border-border/50 group-hover:scale-105 transition-transform"
+                  />
+                  <div className="flex-grow py-2">
+                    <h4 className="font-bold text-lg leading-tight truncate max-w-[200px] sm:max-w-sm md:max-w-md lg:max-w-lg" title={game.name}>
+                      {game.name}
+                    </h4>
+                    {/* Add a subtle tag list snippet for visual context */}
+                    {game.tags && game.tags.length > 0 && (
+                      <div className="text-xs text-muted-foreground truncate max-w-[200px] sm:max-w-sm md:max-w-md lg:max-w-lg mt-0.5">
+                        {game.tags.slice(0, 5).join(', ')}{game.tags.length > 5 ? ', ...' : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-6 flex flex-col items-end shrink-0">
+                    <div className="text-2xl font-black text-primary">
+                      {game.current_score.toFixed(2)}
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

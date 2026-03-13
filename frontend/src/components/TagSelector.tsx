@@ -5,6 +5,7 @@ interface TagSelectorProps {
   options: string[];
   selected: string[];
   onChange: (selected: string[]) => void;
+  placeholder?: string;
 }
 
 const customStyles = {
@@ -85,7 +86,7 @@ const customStyles = {
   }),
 };
 
-const TagSelector: React.FC<TagSelectorProps> = ({ options, selected, onChange }) => {
+const TagSelector: React.FC<TagSelectorProps> = ({ options, selected, onChange, placeholder = "Filter by tags (AND)..." }) => {
   const selectOptions = options.map(opt => ({ value: opt, label: opt }));
   const value = selected.map(s => ({ value: s, label: s }));
 
@@ -97,7 +98,7 @@ const TagSelector: React.FC<TagSelectorProps> = ({ options, selected, onChange }
       onChange={(selectedOptions) => {
         onChange((selectedOptions as any || []).map((opt: any) => opt.value));
       }}
-      placeholder="Filter by tags (AND)..."
+      placeholder={placeholder}
       styles={customStyles}
       className="text-sm"
       menuPortalTarget={document.body}
@@ -108,3 +109,4 @@ const TagSelector: React.FC<TagSelectorProps> = ({ options, selected, onChange }
 };
 
 export default TagSelector;
+
