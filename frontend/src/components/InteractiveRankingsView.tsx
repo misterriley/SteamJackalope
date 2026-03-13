@@ -229,23 +229,48 @@ export default function InteractiveRankingsView() {
 
           <div className="space-y-4">
             <h3 className="font-bold text-sm text-primary mb-4">Model Weights</h3>
-            {Object.entries(weights).map(([key, val]) => (
-              <div key={key} className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="capitalize font-medium">{key}</span>
-                  <span className="font-mono text-muted-foreground">{val.toFixed(3)}</span>
+            {Object.entries(weights).map(([key, val]) => {
+              // Descriptive text for specific complex sliders
+              let tooltip = "";
+              if (key === 'tone') {
+                tooltip = "Tone measures the emotional weight of a game. Positive values favor intense, mature, or serious games (e.g., Horror, Violence). Negative values favor lighter, more relaxed games (e.g., Cute, Cozy).";
+              } else if (key === 'kernel') {
+                tooltip = "The Kernel represents non-linear 'vibe' similarity to your favorite games based on structure and mechanics. 1.0 is the recommended default. Increasing this makes the list hyper-focus on games strictly identical to your favorites, while decreasing it relies more on general baseline features like Quality or Age.";
+              }
+
+              return (
+                <div key={key} className="space-y-2 group/slider relative">
+                  <div className="flex justify-between text-sm items-center">
+                    <div className="flex items-center gap-1.5">
+                      <span className="capitalize font-medium">{key}</span>
+                      {tooltip && (
+                        <div className="text-muted-foreground hover:text-primary cursor-help">
+                          <AlertCircle size={14} />
+                        </div>
+                      )}
+                    </div>
+                    <span className="font-mono text-muted-foreground">{val.toFixed(3)}</span>
+                  </div>
+                  
+                  {/* Tooltip Popup */}
+                  {tooltip && (
+                    <div className="absolute left-0 bottom-full mb-2 w-64 p-2.5 bg-popover border border-border rounded-lg shadow-xl text-xs text-muted-foreground opacity-0 group-hover/slider:opacity-100 transition-opacity pointer-events-none z-50">
+                      {tooltip}
+                    </div>
+                  )}
+
+                  <input
+                    type="range"
+                    min="-2"
+                    max="2"
+                    step="0.05"
+                    value={val}
+                    onChange={(e) => setWeights(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
+                    className="w-full accent-primary"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min="-2"
-                  max="2"
-                  step="0.05"
-                  value={val}
-                  onChange={(e) => setWeights(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
-                  className="w-full accent-primary"
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
