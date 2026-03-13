@@ -116,11 +116,19 @@ def solve_user_taste(ground_truth_path, output_path=None):
     gt_rated = gt[gt['status'] == 'rated'].copy()
     all_gt_appids = set(gt['appid'].tolist())
     
+    # Identify unowned games (backlog + wishlist)
     unplayed_statuses = ['backlog', 'unplayed', 'wishlist']
-    backlog_appids = set(gt[gt['status'].isin(unplayed_statuses)]['appid'].tolist())
-    if len(backlog_appids) == 0:
-        backlog_appids = set(gt[~gt['status'].isin(['rated', 'ignored', 'played'])]['appid'].tolist())
-        
+    all_unowned_appids = set(gt[gt['status'].isin(unplayed_statuses)]['appid'].tolist())
+    if len(all_unowned_appids) == 0:
+        all_unowned_appids = set(gt[~gt['status'].isin(['rated', 'ignored', 'played'])]['appid'].tolist())
+
+    # Strictly separate backlog vs wishlist for UI flags
+    backlog_only_appids = set(gt[gt['status'].isin(['backlog', 'unplayed'])]['appid'].tolist())
+    wishlist_only_appids = set(gt[gt['status'] == 'wishlist']['appid'].tolist())
+    
+    # backlog_appids remains the set of things we're allowed to recommend from the owned but unplayed pool
+    backlog_appids = backlog_only_appids
+    
     ignored_appids = set(gt[gt['status'] == 'ignored']['appid'].tolist())
     
     merged = gt_rated.merge(df[['appid']], on='appid', how='inner')
@@ -418,9 +426,16 @@ def solve_user_taste(ground_truth_path, output_path=None):
             'name': str(game['name']),
             'header_image': str(game['header_image']),
             'is_nsfw': bool(game['is_nsfw']),
+            'is_backlog': bool(game['appid'] in backlog_only_appids),
+            'is_wishlist': bool(game['appid'] in wishlist_only_appids),
+            'is_free': bool(is_free[idx]),
+            'tags': get_list(game['tags']),
             'projected_rating': float(game['projected_rating']),
             'features': features,
-            'kernel_residual': float(target_residual_pred[idx])
+            'kernel_residual': float(target_residual_pred[idx]),
+            'raw_price': str(game['price']),
+            'raw_difficulty': float(game['difficulty_predicted']),
+            'raw_length': float(game['estimated_playtime'] / 60.0)
         })
     t_end_interactive = time.time()
     print(f"-> Interactive pool ({len(interactive_pool)} games) generated in {t_end_interactive - t_interactive:.2f}s")

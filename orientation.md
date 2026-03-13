@@ -66,7 +66,7 @@ The `onPush.md` file serves as a protocol for all contributors. Before pushing c
 - `scraping/get_steam_appids.py` retrieves the full list of Steam AppIDs. It includes an automatic fallback to the public `ISteamApps/GetAppList/v2` endpoint if the primary `IStoreService` API call fails (e.g., due to an invalid API key).
 - The pipeline is functional but could benefit from better progress monitoring.
 - **Client/Server Architecture:** The project uses a decoupled architecture where heavy data loading and vector computations are performed by a FastAPI backend (`app/server.py`), while a modern React frontend (`frontend/`) or a legacy Streamlit UI (`app/app.py`) provides the interface.
-- **Metadata and Search:** The backend provides `/metadata`, `/genres`, `/term_links`, `/games/search`, and `/games/random` endpoints. `/games/search` enables fast autocomplete for seed game selection.
+- **Metadata and Media:** The backend provides `/metadata`, `/genres`, `/term_links`, `/games/search`, and a cached `/games/{appid}/media` endpoint. The media endpoint bridges Steam's AppDetails API to fetch trailers and screenshots, caching results in `data/media_cache/` to ensure high-speed hover previews.
 - **Personalization Engine:** The system features a sophisticated "Taste DNA" pipeline.
     - **Async Solver:** The `/user/solve` endpoint runs an asynchronous subprocess to build a user's mathematical profile from their Steam history.
     - **Archetypal Ridge Regression (Build 50)**: The solver uses **Archetypal Ridge Regression** across 45 structural features (38 MIGs, 1 Quality Probit, 6 Metadata Z-scores). This prevents overfitting and ensures that the learned model generalizes to the entire Steam population. $R^2$ is typically around 0.28.

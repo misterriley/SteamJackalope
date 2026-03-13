@@ -1,19 +1,29 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useUser } from '../context/UserContext';
+import { useContextMenu } from '../context/ContextMenuContext';
 import { API_BASE_URL } from '../api';
-import { Sliders, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { Sliders, RefreshCw, AlertCircle, Loader2, Target } from 'lucide-react';
 import GameHeaderImage from './GameHeaderImage';
 import TagSelector from './TagSelector';
+import SeedSelector from './SeedSelector';
+import GameHoverCard from './GameHoverCard';
+import { type GameStatus, type GameMetadata } from '../types';
 
-interface InteractiveGame {
+interface InteractiveGame extends GameMetadata {
   appid: number;
   name: string;
   header_image: string;
   is_nsfw?: boolean;
+  is_backlog?: boolean;
+  is_wishlist?: boolean;
+  is_free?: boolean;
   tags?: string[];
   projected_rating: number;
   features: { [key: string]: number };
   kernel_residual: number;
+  raw_price?: string;
+  raw_difficulty?: number;
+  raw_length?: number;
 }
 
 interface TasteProfile {
@@ -24,15 +34,41 @@ interface TasteProfile {
 
 export default function InteractiveRankingsView() {
   const { steamId } = useUser();
+  const { showContextMenu } = useContextMenu();
   const [profile, setProfile] = useState<TasteProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blurNSFW, setBlurNSFW] = useState(true);
 
+  // Hover state
+  const [hoveredGame, setHoveredGame] = useState<InteractiveGame | null>(null);
+  const [hoverAnchor, setHoverAnchor] = useState<DOMRect | undefined>(undefined);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleGameMouseEnter = (e: React.MouseEvent, game: InteractiveGame) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredGame(game);
+      setHoverAnchor(rect);
+    }, 400);
+  };
+
+  const handleGameMouseLeave = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setHoveredGame(null);
+  };
+
   // Filters state
   const [weights, setWeights] = useState<{ [key: string]: number }>({});
   const [includedTags, setIncludedTags] = useState<string[]>([]);
   const [excludedTags, setExcludedTags] = useState<string[]>([]);
+  
+  // Kernel Targeting State
+  const [seedGames, setSeedGames] = useState<string[]>([]);
+  const [seedKernelLimit, setSeedKernelLimit] = useState<number>(250);
+  const [kernelAppidScores, setKernelAppidScores] = useState<{ [appid: string]: number } | null>(null);
+  const [isFetchingKernel, setIsFetchingKernel] = useState(false);
 
   useEffect(() => {
     const saved = sessionStorage.getItem('recommendations_filters');
@@ -44,42 +80,125 @@ export default function InteractiveRankingsView() {
     }
   }, []);
 
-  useEffect(() => {
+  const fetchProfile = async (isManual = false) => {
     if (!steamId) return;
-    const fetchProfile = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE_URL}/user/insights/${steamId}`);
-        if (!res.ok) throw new Error("Could not load taste profile. Have you solved your Taste DNA yet?");
-        const data = await res.json();
-        if (!data.interactive_pool || data.interactive_pool.length === 0) {
-          throw new Error("Interactive pool not found in profile. Please re-run the solver.");
-        }
-        setProfile(data);
-        
-        // Initialize weights from metadata
-        const initialWeights: { [key: string]: number } = {
-          quality: data.metadata.quality || 0,
-          difficulty: data.metadata.difficulty || 0,
-          price: data.metadata.price || 0,
-          age: data.metadata.age || 0,
-          length: data.metadata.length || 0,
-          popularity: data.metadata.popularity || 0,
-          tone: data.metadata.tone || 0,
-          kernel: 1.0 // Kernel residual multiplier defaults to 1.0
-        };
-        setWeights(initialWeights);
-        setIncludedTags([]);
-        setExcludedTags([]);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+    setLoading(true);
+    setError(null);
+    try {
+      // Add cache buster to bypass browser caching of the profile JSON
+      const cacheBuster = isManual ? `?t=${Date.now()}` : '';
+      const res = await fetch(`${API_BASE_URL}/user/insights/${steamId}${cacheBuster}`);
+      if (!res.ok) throw new Error("Could not load taste profile. Have you solved your Taste DNA yet?");
+      const data = await res.json();
+      if (!data.interactive_pool || data.interactive_pool.length === 0) {
+        throw new Error("Interactive pool not found in profile. Please re-run the solver.");
       }
-    };
+      setProfile(data);
+      
+      // Initialize weights from metadata
+      const initialWeights: { [key: string]: number } = {
+        quality: data.metadata.quality || 0,
+        difficulty: data.metadata.difficulty || 0,
+        price: data.metadata.price || 0,
+        age: data.metadata.age || 0,
+        length: data.metadata.length || 0,
+        popularity: data.metadata.popularity || 0,
+        tone: data.metadata.tone || 0,
+        kernel: 1.0 // Kernel residual multiplier defaults to 1.0
+      };
+      setWeights(initialWeights);
+      setIncludedTags([]);
+      setExcludedTags([]);
+      setSeedGames([]);
+      setKernelAppidScores(null);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchProfile();
   }, [steamId]);
+
+  useEffect(() => {
+    if (seedGames.length === 0) {
+      setKernelAppidScores(null);
+      return;
+    }
+    
+    let isMounted = true;
+    const fetchKernel = async () => {
+      setIsFetchingKernel(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/user/interactive/kernel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ seed_games: seedGames })
+        });
+        if (!res.ok) throw new Error("Failed to fetch kernel sims");
+        const data = await res.json();
+        if (isMounted) {
+          setKernelAppidScores(data);
+        }
+      } catch (e) {
+        console.error("Kernel fetch error", e);
+      } finally {
+        if (isMounted) setIsFetchingKernel(false);
+      }
+    };
+    fetchKernel();
+    return () => { isMounted = false; };
+  }, [seedGames]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, game: InteractiveGame) => {
+    e.preventDefault();
+    
+    // Determine current status
+    let currentStatus: GameStatus = 'none';
+    if (game.is_backlog) currentStatus = 'backlog';
+    else if (game.is_wishlist) currentStatus = 'wishlist';
+
+    showContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      appid: game.appid,
+      steamId: steamId || '',
+      currentStatus,
+      onUpdate: (aid: number, status: GameStatus) => {
+        setProfile((prev: any) => {
+          if (!prev) return prev;
+          
+          // Removal statuses for the interactive pool (played, rated, ignored are typically hidden from recommendations)
+          // Note: 'deleted' resets status to 'none', so it stays in the recommendation pool.
+          const removalStatuses: GameStatus[] = ['played', 'rated', 'ignored'];
+          
+          if (removalStatuses.includes(status)) {
+            return {
+              ...prev,
+              interactive_pool: prev.interactive_pool.filter((g: any) => g.appid !== aid)
+            };
+          }
+          
+          // Update flags if it stays in the pool (e.g. toggling between none, backlog, and wishlist)
+          return {
+            ...prev,
+            interactive_pool: prev.interactive_pool.map((g: any) => {
+              if (g.appid === aid) {
+                return {
+                  ...g,
+                  is_backlog: status === 'backlog',
+                  is_wishlist: status === 'wishlist'
+                };
+              }
+              return g;
+            })
+          };
+        });
+      }
+    });
+  }, [showContextMenu, steamId]);
 
   const allTags = useMemo(() => {
     if (!profile?.interactive_pool) return [];
@@ -104,13 +223,27 @@ export default function InteractiveRankingsView() {
     });
     setIncludedTags([]);
     setExcludedTags([]);
+    setSeedGames([]);
   };
 
   const rankedGames = useMemo(() => {
     if (!profile) return [];
     
-    // 1. Tag Filtering
     let filtered = profile.interactive_pool;
+
+    // 0. Kernel Target Filtering
+    if (seedGames.length > 0 && kernelAppidScores !== null) {
+      // Sort by kernel score descending
+      const poolWithSims = filtered.map(game => ({
+        ...game,
+        _kernel_sim: kernelAppidScores[game.appid.toString()] || 0
+      }));
+      poolWithSims.sort((a, b) => b._kernel_sim - a._kernel_sim);
+      // Slice top N
+      filtered = poolWithSims.slice(0, seedKernelLimit);
+    }
+
+    // 1. Tag Filtering
     if (includedTags.length > 0) {
       filtered = filtered.filter(game => 
         game.tags && includedTags.every(tag => game.tags!.includes(tag))
@@ -142,7 +275,7 @@ export default function InteractiveRankingsView() {
 
     scored.sort((a, b) => b.current_score - a.current_score);
     return scored.slice(0, 100); // Only render top 100 for performance
-  }, [profile, weights, includedTags, excludedTags]);
+  }, [profile, weights, includedTags, excludedTags, seedGames, seedKernelLimit, kernelAppidScores]);
 
   if (!steamId) {
     return (
@@ -193,12 +326,56 @@ export default function InteractiveRankingsView() {
             <h3 className="font-bold flex items-center gap-2">
               <Sliders size={18} /> Filters & Weights
             </h3>
-            <button 
-              onClick={handleReset}
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 bg-background px-2 py-1 rounded border border-border transition-colors"
-            >
-              <RefreshCw size={12} /> Reset
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => fetchProfile(true)}
+                className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded border border-primary/20 transition-colors"
+                title="Force reload taste profile from server"
+              >
+                <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Sync Data
+              </button>
+              <button 
+                onClick={handleReset}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 bg-background px-2 py-1 rounded border border-border transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          {/* Targeting Panel */}
+          <div className="space-y-4 pb-4 border-b border-border/50">
+            <h3 className="font-bold text-sm text-primary flex items-center gap-2">
+              <Target size={14} /> Kernel Targeting
+            </h3>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-muted-foreground font-medium">Seed Games:</label>
+                {isFetchingKernel && <Loader2 size={12} className="animate-spin text-primary" />}
+              </div>
+              <SeedSelector 
+                selected={seedGames}
+                onChange={setSeedGames}
+                placeholder="Select seed games..."
+              />
+            </div>
+            
+            <div className="space-y-2 opacity-90 transition-opacity" style={{ opacity: seedGames.length > 0 ? 1 : 0.5 }}>
+              <div className="flex justify-between text-xs font-medium items-center">
+                <span>Pool Size Limit</span>
+                <span className="font-mono text-muted-foreground">{seedKernelLimit} games</span>
+              </div>
+              <input
+                type="range"
+                min="50"
+                max="2000"
+                step="50"
+                value={seedKernelLimit}
+                onChange={(e) => setSeedKernelLimit(parseInt(e.target.value))}
+                className="w-full accent-primary"
+                disabled={seedGames.length === 0}
+              />
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -235,14 +412,25 @@ export default function InteractiveRankingsView() {
               if (key === 'tone') {
                 tooltip = "Tone measures the emotional weight of a game. Positive values favor intense, mature, or serious games (e.g., Horror, Violence). Negative values favor lighter, more relaxed games (e.g., Cute, Cozy).";
               } else if (key === 'kernel') {
-                tooltip = "The Kernel represents non-linear 'vibe' similarity to your favorite games based on structure and mechanics. 1.0 is the recommended default. Increasing this makes the list hyper-focus on games strictly identical to your favorites, while decreasing it relies more on general baseline features like Quality or Age.";
+                tooltip = "The Kernel represents non-linear 'vibe' similarity to your favorite games based on structure and mechanics. 1.0 is the recommended default. Increasing this makes the list hyper-focus on games strictly identical to your favorites, while decreasing it relies more on general baseline features like Quality or Release Date.";
               }
+
+              const displayLabels: { [key: string]: string } = {
+                age: 'Release Date',
+                quality: 'Quality',
+                difficulty: 'Difficulty',
+                price: 'Price',
+                length: 'Length',
+                popularity: 'Popularity',
+                tone: 'Tone',
+                kernel: 'Kernel Strength'
+              };
 
               return (
                 <div key={key} className="space-y-2 group/slider relative">
                   <div className="flex justify-between text-sm items-center">
                     <div className="flex items-center gap-1.5">
-                      <span className="capitalize font-medium">{key}</span>
+                      <span className="font-medium">{displayLabels[key] || key.charAt(0).toUpperCase() + key.slice(1)}</span>
                       {tooltip && (
                         <div className="text-muted-foreground hover:text-primary cursor-help">
                           <AlertCircle size={14} />
@@ -277,7 +465,14 @@ export default function InteractiveRankingsView() {
         {/* Results Panel */}
         <div className="lg:col-span-3 space-y-4">
           <div className="flex justify-between items-center mb-2 px-2">
-            <h3 className="font-bold text-xl">Top 100 Matches</h3>
+            <h3 className="font-bold text-xl flex items-center gap-2">
+              Top 100 Matches
+              {seedGames.length > 0 && kernelAppidScores !== null && (
+                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                  Targeted to {seedKernelLimit} closest games
+                </span>
+              )}
+            </h3>
             <span className="text-sm text-muted-foreground">Intercept: {profile.intercept.toFixed(2)}</span>
           </div>
           
@@ -293,6 +488,9 @@ export default function InteractiveRankingsView() {
                   href={`https://store.steampowered.com/app/${game.appid}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onContextMenu={(e) => handleContextMenu(e, game)}
+                  onMouseEnter={(e) => handleGameMouseEnter(e, game)}
+                  onMouseLeave={handleGameMouseLeave}
                   className="flex items-center gap-4 bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm hover:border-primary/50 transition-colors group"
                 >
                   <div className="w-12 text-center font-bold text-muted-foreground group-hover:text-primary transition-colors">
@@ -309,6 +507,24 @@ export default function InteractiveRankingsView() {
                     <h4 className="font-bold text-lg leading-tight truncate max-w-[200px] sm:max-w-sm md:max-w-md lg:max-w-lg" title={game.name}>
                       {game.name}
                     </h4>
+                    {/* Status Badges */}
+                    <div className="flex items-center gap-2 mt-0.5 mb-1">
+                      {game.is_backlog && (
+                        <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-500/30">
+                          Backlog
+                        </span>
+                      )}
+                      {game.is_wishlist && (
+                        <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border border-purple-500/30">
+                          Wishlist
+                        </span>
+                      )}
+                      {game.is_free && (
+                        <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border border-green-500/30">
+                          Free
+                        </span>
+                      )}
+                    </div>
                     {/* Add a subtle tag list snippet for visual context */}
                     {game.tags && game.tags.length > 0 && (
                       <div className="text-xs text-muted-foreground truncate max-w-[200px] sm:max-w-sm md:max-w-md lg:max-w-lg mt-0.5">
@@ -327,6 +543,16 @@ export default function InteractiveRankingsView() {
           )}
         </div>
       </div>
+      
+      {/* Global Hover Card for Interactive View */}
+      {hoveredGame && (
+        <GameHoverCard 
+          game={hoveredGame} 
+          isVisible={!!hoveredGame} 
+          anchorRect={hoverAnchor} 
+          weights={weights}
+        />
+      )}
     </div>
   );
 }

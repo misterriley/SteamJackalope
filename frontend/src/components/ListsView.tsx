@@ -22,7 +22,7 @@ const ListsView: React.FC = () => {
       appid: appid,
       steamId: globalSteamId || "",
       onUpdate: (aid, status) => {
-        if (status === 'ignored' || status === 'played' || status === 'rated') {
+        if (status === 'ignored' || status === 'played' || status === 'rated' || status === 'deleted') {
           // In lists, we can just remove locally if we want, but usually lists stay static
           // unless they are filtered by profile.
           setData((prev: any) => {

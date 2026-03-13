@@ -228,7 +228,9 @@ const CatalogueViewContent: React.FC = () => {
         appid: appid,
         steamId: globalSteamId || "",
         onUpdate: (aid, status, rating) => {
-          if (status === 'rated' && rating !== undefined) {
+          if (status === 'deleted') {
+            setEntries(prev => prev.filter(e => e.appid !== aid));
+          } else if (status === 'rated' && rating !== undefined) {
             handleRatingChange(aid, rating);
           } else {
             handleStatusChange(aid, status as GameStatus);
@@ -346,10 +348,15 @@ const CatalogueViewContent: React.FC = () => {
     }
   };
 
-  const handleDeleteEntry = useCallback((appid: number) => {
-    if (!window.confirm("Remove this entry?")) return;
-    setEntries(prev => prev.filter(e => e.appid !== appid));
-  }, []);
+  const handleDeleteEntry = useCallback(async (appid: number) => {
+    if (!window.confirm("Remove this entry from your catalogue?")) return;
+    try {
+      await updateUserVerify(steamId, appid, 0, false, 'none', "", true);
+      setEntries(prev => prev.filter(e => e.appid !== appid));
+    } catch (err) {
+      console.error("Failed to delete entry", err);
+    }
+  }, [steamId]);
 
   const handleSave = async () => {
     setIsSaving(true);

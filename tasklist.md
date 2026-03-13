@@ -7,6 +7,12 @@
 - [ ] Transition `more_like_this.json` to a sparse matrix format for production optimization.
 
 ## ✅ Recently Completed
+- [x] **Visual Context & Interactive Media (v7.2)**:
+    - Built a high-fidelity interactive hover card with an automated media slideshow (trailers/screenshots).
+    - Implemented a magnitude-sorted, color-coded score breakdown chart for real-time model transparency.
+    - Integrated a raw stat grid (Price, Difficulty, Length) directly into the recommendation previews.
+    - Added disk-based media caching (`data/media_cache/`) to the backend to ensure low-latency hover response.
+    - Implemented a manual **"Sync Data"** button in the Interactive view to bypass browser caching and force-reload fresh Taste DNA.
 - [x] **High-Fidelity Similarity Function**: Built an optimized weighted similarity algorithm (Desc: 0.445, Verbs: 0.233, Tags: 0.174, Graph: 0.148) with strict quality/review filters to guarantee top-tier recommendations.
 - [x] **Puzzle Subgenre Firewall**: Implemented a structural penalty system based on Steam tags to prevent cross-contamination between distinct puzzle subgenres (Spatial, Automation, Sokoban/Grid, Hidden Object).
 - [x] **Context-Menu Categorization**: Integrated a checkmark-enabled right-click menu across Solve, Catalogue, and Recommender pages for real-time status updates and live UI list removal.

@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+import requests
 import pandas as pd
 import numpy as np
 import os
@@ -506,6 +507,7 @@ data_manager = DataManager()
 @app.on_event("startup")
 async def startup_event():
     logger.info("FastAPI startup event triggered")
+    os.makedirs(MEDIA_CACHE_DIR, exist_ok=True)
     data_manager.load_data()
     logger.info("DataManager initialization complete")
 
@@ -513,6 +515,14 @@ async def startup_event():
 
 class MetadataRequest(BaseModel):
     names: List[str]
+
+class GameMediaResponse(BaseModel):
+    screenshots: List[str]
+    movies: List[str]
+    error: Optional[str] = None
+
+class InteractiveKernelRequest(BaseModel):
+    seed_games: List[str]
 
 class UserFetchRequest(BaseModel):
     steam_id: str
@@ -525,6 +535,7 @@ class UserVerifyUpdate(BaseModel):
     ignore: bool
     status: Optional[str] = None
     notes: Optional[str] = None
+    delete: Optional[bool] = False
 
 class RecommendationRequest(BaseModel):
     alpha: float = 0.5
@@ -997,6 +1008,10 @@ def update_verification_data(updates: List[UserVerifyUpdate]):
         df = pd.DataFrame(columns=['appid', 'actual_rating', 'ignore', 'status', 'notes'])
         
     for up in updates:
+        if up.delete:
+            df = df[df['appid'] != up.appid]
+            continue
+
         # Update or add
         mask = df['appid'] == up.appid
         if mask.any():
@@ -1056,7 +1071,97 @@ def get_user_insights(steam_id: str):
     with open(profile_path, 'r') as f:
         profile = json.load(f)
     
+    # PATCH: Ensure the interactive pool reflects the LATEST ground truth statuses
+    # This ensures badges (Wishlist/Backlog) and removals (Played/Ignored) are live.
+    gt_path = f"data/user_{steam_id}_ground_truth.csv"
+    if os.path.exists(gt_path) and 'interactive_pool' in profile:
+        try:
+            gt = pd.read_csv(gt_path)
+            status_map = dict(zip(gt['appid'], gt['status']))
+            
+            removal_statuses = {'played', 'rated', 'ignored'}
+            new_pool = []
+            
+            for game in profile['interactive_pool']:
+                aid = game['appid']
+                stat = status_map.get(aid, 'none')
+                
+                if stat in removal_statuses:
+                    continue
+                    
+                game['is_backlog'] = stat in {'backlog', 'unplayed'}
+                game['is_wishlist'] = stat == 'wishlist'
+                new_pool.append(game)
+                
+            profile['interactive_pool'] = new_pool
+        except Exception as e:
+            logger.error(f"Failed to dynamically patch interactive pool: {e}")
+    
     return ensure_python_types(profile)
+
+@app.post("/user/interactive/kernel")
+def get_interactive_kernel(request: InteractiveKernelRequest):
+    """Returns Jackalope kernel similarities for the selected seed games against the entire library."""
+    logger.info(f"POST /user/interactive/kernel called with seeds: {request.seed_games}")
+    if data_manager.metadata is None:
+        raise HTTPException(status_code=503, detail="Data not loaded yet")
+        
+    metadata = data_manager.metadata
+    seed_indices = np.where(metadata['name'].isin(request.seed_games))[0]
+    
+    if len(seed_indices) == 0:
+        return {}
+        
+    # Prepare Seed Vectors
+    seed_verb_profile = np.mean(data_manager.verb_profiles[seed_indices], axis=0)
+    seed_sem_vec = np.mean(data_manager.embeddings_desc_norm[seed_indices], axis=0)
+    seed_sem_norm = np.linalg.norm(seed_sem_vec)
+    seed_sem_vec /= (seed_sem_norm + EPSILON)
+    
+    seed_topic_dist = np.mean(data_manager.topic_distributions[seed_indices], axis=0)
+    seed_topic_dist /= (np.sum(seed_topic_dist) + EPSILON)
+    
+    # Prepare Metadata via unified helper
+    from common.utils import extract_seed_metadata, calculate_title_hijack_mask
+    seed_meta = extract_seed_metadata(seed_indices, metadata)
+    title_hijack_mask = calculate_title_hijack_mask(request.seed_games, metadata)
+    
+    jackalope_sims = calculate_jackalope_kernel(
+        verb_profiles=data_manager.verb_profiles,
+        seed_verb_profile=seed_verb_profile,
+        sem_vectors=data_manager.embeddings_desc_norm,
+        sem_norms=data_manager.embeddings_desc_norms,
+        seed_sem_vec=seed_sem_vec,
+        seed_sem_norm=seed_sem_norm,
+        topic_distributions=data_manager.topic_distributions,
+        seed_topic_dist=seed_topic_dist,
+        topic_means=data_manager.topic_means,
+        topic_stds=data_manager.topic_stds,
+        tag_scaling_factor=TAG_GLOBAL_SCALING_FACTOR,
+        dot_product_lambda=DOT_PRODUCT_LAMBDA,
+        sem_scaling_factor=SEMANTIC_GLOBAL_SCALING_FACTOR,
+        sem_lambda=SEMANTIC_DOT_PRODUCT_LAMBDA,
+        mature_content_flags=metadata['mature_content'].values > 0,
+        seed_mature_content=bool(np.any(seed_meta['mature_flags'])),
+        seed_migs=seed_meta['migs_list'][0] if len(seed_meta['migs_list']) == 1 else set().union(*seed_meta['migs_list']),
+        seed_tags=seed_meta['all_soul_tags'],
+        candidate_anchor_masks=data_manager.anchor_masks,
+        active_narrative_seed=seed_meta['active_narrative'],
+        is_cinematic_seed=seed_meta['is_cinematic'],
+        precalculated_masks={"title_hijack": title_hijack_mask},
+        difficulty_z=metadata['difficulty_z'].values,
+        seed_difficulty_z=np.mean(metadata.iloc[seed_indices]['difficulty_z']),
+        tone_z=metadata['tone_z'].values if 'tone_z' in metadata.columns else None,
+        seed_tone_z=np.mean(metadata.iloc[seed_indices]['tone_z']) if 'tone_z' in metadata.columns else None,
+        return_components=False,
+        graph_embeddings=data_manager.embeddings_graph,
+        seed_graph_vec=np.mean(data_manager.embeddings_graph[seed_indices], axis=0) if data_manager.embeddings_graph is not None else None
+    )
+    
+    # To reduce payload size, return dict of {appid: sim}
+    appids = metadata['appid'].values
+    sims_dict = {str(appids[i]): float(jackalope_sims[i]) for i in range(len(appids)) if jackalope_sims[i] > 0.0}
+    return sims_dict
 
 @app.get("/lists/{category}")
 def get_list(category: str, discovery_pref: float = 0.0):
@@ -1267,13 +1372,70 @@ def get_metadata(request: MetadataRequest):
             "is_nsfw": game_meta['is_nsfw'],
             "is_delisted": game_meta['is_delisted'],
             "raw_pop": raw_pop,
-            "raw_length": raw_length
+            "raw_length": raw_length,
+            "raw_price": str(game_meta['price']),
+            "raw_difficulty": float(game_meta['difficulty_predicted'])
         }
         response_items.append(item)
     
     cleaned_response = ensure_python_types(response_items)
     logger.info(f"/metadata returning {len(cleaned_response)} items")
     return cleaned_response
+
+MEDIA_CACHE_DIR = os.path.join(ROOT_DIR, "data", "media_cache")
+
+def get_game_media(appid: int):
+    """Fetches screenshots and movies from Steam API with disk caching."""
+    cache_path = os.path.join(MEDIA_CACHE_DIR, f"{appid}.json")
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+            
+    try:
+        # Removing restrictive filters as they can sometimes cause success:false on Steam API
+        url = f"https://store.steampowered.com/api/appdetails?appids={appid}&l=english"
+        res = requests.get(url, timeout=10)
+        data = res.json()
+        
+        if not data or not data.get(str(appid)) or not data[str(appid)].get('success'):
+            return {"screenshots": [], "movies": [], "error": "Steam API success:false or app not found"}
+        
+        game_data = data[str(appid)]['data']
+        screenshots = [s['path_full'] for s in game_data.get('screenshots', [])]
+        movies = []
+        for m in game_data.get('movies', []):
+            # Prefer MP4 max quality, fallback to 480p, then WebM
+            mp4_data = m.get('mp4', {})
+            webm_data = m.get('webm', {})
+            
+            movie_url = mp4_data.get('max') or mp4_data.get('480') or webm_data.get('max') or webm_data.get('480')
+            
+            if not movie_url:
+                movie_url = m.get('hls_h264') or m.get('dash_h264')
+                
+            if movie_url:
+                movies.append(movie_url)
+        
+        result = {"screenshots": screenshots, "movies": movies}
+        
+        # Save to cache
+        os.makedirs(MEDIA_CACHE_DIR, exist_ok=True)
+        with open(cache_path, 'w') as f:
+            json.dump(result, f)
+            
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching media for {appid}: {e}")
+        return {"screenshots": [], "movies": [], "error": str(e)}
+
+@app.get("/games/{appid}/media", response_model=GameMediaResponse)
+def get_media(appid: int):
+    """Returns media links for a specific appid."""
+    logger.info(f"GET /games/{appid}/media called")
+    return get_game_media(appid)
 
 @app.post("/recommend")
 def recommend(request: RecommendationRequest):

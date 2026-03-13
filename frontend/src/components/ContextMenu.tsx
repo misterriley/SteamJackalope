@@ -6,7 +6,8 @@ import {
   XCircle,
   ChevronRight,
   Clock,
-  Heart
+  Heart,
+  Trash2
 } from 'lucide-react';
 import { updateUserVerify } from '../api';
 import { type GameStatus } from '../types';
@@ -38,13 +39,20 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, appid, steamId, current
   const handleStatusChange = async (status: GameStatus, rating: number = 5) => {
     try {
       const isIgnore = status === 'ignored';
-      await updateUserVerify(steamId, appid, rating, isIgnore, status);
+      const isDelete = status === 'deleted';
+      await updateUserVerify(steamId, appid, rating, isIgnore, status, "", isDelete);
       if (onUpdate) {
         onUpdate(appid, status, rating);
       }
       onClose();
     } catch (err) {
       console.error("Failed to update game status", err);
+    }
+  };
+
+  const handleDelete = () => {
+    if (window.confirm("Are you sure you want to remove this game from your catalogue? This will delete your manual rating/status for this game.")) {
+      handleStatusChange('deleted');
     }
   };
 
@@ -137,6 +145,16 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, appid, steamId, current
               )}
             </AnimatePresence>
           </div>
+
+          <div className="h-px bg-border my-1" />
+
+          <button
+            onClick={handleDelete}
+            className="w-full px-3 py-2 flex items-center gap-2.5 text-xs font-medium text-red-500 hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 size={14} />
+            <span>Remove from Catalogue</span>
+          </button>
         </>
       )}
     </motion.div>

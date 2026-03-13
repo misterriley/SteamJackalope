@@ -80,19 +80,25 @@ export const getMetadata = async (names: string[]): Promise<GameMetadata[]> => {
   return response.data;
 };
 
+export const getGameMedia = async (appid: number): Promise<{ screenshots: string[], movies: string[], error?: string }> => {
+  const response = await api.get(`/games/${appid}/media`);
+  return response.data;
+};
+
 export const recommend = async (request: RecommendationRequest): Promise<GameMetadata[]> => {
   const response = await api.post('/recommend', request);
   return response.data;
 };
 
-export const updateUserVerify = async (steamId: string, appid: number, rating: number, ignore: boolean, status: string, notes: string = "") => {
+export const updateUserVerify = async (steamId: string, appid: number, rating: number, ignore: boolean, status: string, notes: string = "", deleteGame: boolean = false) => {
   const response = await api.post('/user/verify', [{
     steam_id: steamId,
     appid: appid,
     actual_rating: rating,
     ignore: ignore,
     status: status,
-    notes: notes
+    notes: notes,
+    delete: deleteGame
   }]);
   return response.data;
 };

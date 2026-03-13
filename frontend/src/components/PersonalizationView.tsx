@@ -221,6 +221,10 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
       steamId,
       currentStatus: statusHint,
       onUpdate: (aid: number, status: GameStatus) => {
+        if (status === 'deleted') {
+          setGames(prev => prev.filter(g => g.appid !== aid));
+        }
+        
         // If status is changed to anything other than what would keep it in the current list, remove it.
         setInsights((prev: any) => {
           if (!prev) return prev;
@@ -229,9 +233,13 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
           // Discovery lists show 'none' status. Anything else is a removal.
           // Backlog list shows 'backlog' status. Anything else is a removal.
           const isDiscoveryList = ['top', 'upcoming', 'free', 'tag', 'fav'].includes(currentList);
+          
+          // Normalized status for logic: 'deleted' behaves like 'none' (reset to recommendations)
+          const effectiveStatus = (status === 'deleted') ? 'none' : status;
+          
           const isRemovalStatus = isDiscoveryList 
-            ? (status !== 'none') 
-            : (status !== 'backlog');
+            ? (effectiveStatus !== 'none') 
+            : (effectiveStatus !== 'backlog');
           
           if (currentList === 'top' && isRemovalStatus) {
             next.top_recommendations = next.top_recommendations?.filter((g: any) => g.appid !== aid);
@@ -478,11 +486,7 @@ const PersonalizationView: React.FC<PersonalizationViewProps> = ({ onApply }) =>
     if (!window.confirm("Remove this manual entry?")) return;
     setGames(prev => prev.filter(g => g.appid !== appid));
     try {
-      await fetch(`${API_BASE_URL}/user/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([{ steam_id: steamId, appid: appid, actual_rating: 0, ignore: true }])
-      });
+      await updateUserVerify(steamId, appid, 0, false, 'none', "", true);
     } catch (err) {}
   }, [steamId]);
 

@@ -1,4 +1,4 @@
-export type GameStatus = 'ignored' | 'backlog' | 'played' | 'rated' | 'wishlist' | 'none';
+export type GameStatus = 'ignored' | 'backlog' | 'played' | 'rated' | 'wishlist' | 'none' | 'deleted';
 
 export interface GameMetadata {
   appid: number;
@@ -12,7 +12,7 @@ export interface GameMetadata {
   positive: number;
   negative: number;
   genres: string;
-  tags: string;
+  tags: string | string[]; // Can be string or parsed array
   price?: string;
   is_free?: boolean;
   is_in_library?: boolean;
@@ -28,6 +28,18 @@ export interface GameMetadata {
   match_percent?: number;
   is_personalized?: boolean;
   
+  // Interactive Pool / DNA fields
+  is_backlog?: boolean;
+  is_wishlist?: boolean;
+  features?: { [key: string]: number };
+  kernel_residual?: number;
+  raw_price?: string;
+  raw_difficulty?: number;
+
+  // Media
+  screenshots?: string[];
+  movies?: string[];
+
   // Debug components
   z_semantic?: number;
   w_semantic?: number;

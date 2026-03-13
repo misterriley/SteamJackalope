@@ -36,7 +36,18 @@ The **Taste DNA Solver** and the **Live Recommender** share identical NW Kernel 
 - **Strict Free-to-Play Selection**: To eliminate unreleased games and "coming soon" placeholders from discovery gems, the system uses a **positive-indicator filter**. A game only appears in the "Top Free Games" list if it carries the explicit `'Free to Play'` community tag, bypassing the ambiguity of HTML storefront price fields.
 - **Quality Refinement**: Recommendations are further prioritized by a Bayesian quality score, effectively "weeding out" low-fidelity clones that mimic mechanics but lack execution.
 
-## Theoretical Limits & Findings
-
-### The Plateau of Implicit Philosophy
+## The Plateau of Implicit Philosophy
 While the "Core 9" model captures the statistical body of user taste, the remaining ~80% of variance represents **Implicit Structural Philosophy**—concepts like "Metroidbrainia" or "Linguistic Archeology." These are often discussed in user reviews but require high-fidelity LLM sentiment analysis to transform into first-class discovery features.
+
+## Interface & Visual Context (v7.2)
+To augment the statistical model with human intuition, the UI now provides high-fidelity visual context for every recommendation.
+
+### 1. The High-Signal Hover Card
+Every game card features an interactive hover element providing a multi-dimensional preview:
+- **Automated Media Slideshow**: Fetches real-time trailers and screenshots from Steam via a cached backend bridge. Trailers play silently by default with an optional sound toggle.
+- **Dynamic Score Breakdown**: A magnitude-sorted, color-coded chart displaying exactly how each "Core 9" feature contributed to the final recommendation score.
+- **Raw Stat Grid**: Displays the ground-truth **Price**, **Difficulty**, and **Estimated Length** (in hours) derived from the raw data pipeline.
+
+### 2. Zero-Latency Interactive DNA
+The **Interactive Rankings** view allows users to live-adjust model weights. To maintain performance, the system uses a pre-calculated `interactive_pool` containing raw feature vectors for the top ~2000 potential matches, enabling instantaneous re-sorting and score updates without server-side re-calculation.
+

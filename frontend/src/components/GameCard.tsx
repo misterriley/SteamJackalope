@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import type { GameMetadata } from '../types';
 import { Star, Clock, Trophy, ExternalLink, Bug, AlertTriangle, Sparkles } from 'lucide-react';
 import { useContextMenu } from '../context/ContextMenuContext';
@@ -6,6 +6,7 @@ import { useUser } from '../context/UserContext';
 import type { GameStatus } from '../types';
 
 import GameHeaderImage from './GameHeaderImage';
+import GameHoverCard from './GameHoverCard';
 
 interface GameCardProps {
   game: GameMetadata;
@@ -22,10 +23,25 @@ const GameCard: React.FC<GameCardProps> = ({
   termLinks = {},
   onStatusUpdate 
 }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { showContextMenu } = useContextMenu();
   const { steamId } = useUser();
   const steamUrl = `https://store.steampowered.com/app/${game.appid}/`;
   
+  const handleMouseEnter = () => {
+    // Add a small delay to prevent flickering when moving mouse across cards
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHovered(true);
+    }, 400);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setIsHovered(false);
+  };
+
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     showContextMenu({
@@ -165,10 +181,20 @@ const GameCard: React.FC<GameCardProps> = ({
 
   return (
     <div 
+      ref={cardRef}
       onClick={handleCardClick}
       onContextMenu={handleContextMenu}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       className={`bg-card rounded-lg overflow-hidden shadow-lg border border-border hover:border-primary/50 transition-all group flex flex-col h-full cursor-pointer active:scale-[0.98] ${isNSFW ? 'border-orange-500/20' : ''} ${isSeed ? 'ring-2 ring-primary/30 border-primary/40' : ''}`}
     >
+      {/* Hover Card */}
+      <GameHoverCard 
+        game={game} 
+        isVisible={isHovered} 
+        anchorRect={cardRef.current?.getBoundingClientRect()} 
+      />
+
       {/* Image Container */}
       <div className="relative aspect-video overflow-hidden bg-secondary/30">
         <GameHeaderImage 
