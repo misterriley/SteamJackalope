@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ImageOff } from 'lucide-react';
 
 interface GameHeaderImageProps {
@@ -21,6 +21,7 @@ const GameHeaderImage: React.FC<GameHeaderImageProps> = ({
   const [src, setSrc] = useState<string>(getInitialSrc());
   const [failedAll, setFailedAll] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     const newSrc = getInitialSrc();
@@ -28,6 +29,12 @@ const GameHeaderImage: React.FC<GameHeaderImageProps> = ({
     setFailedAll(false);
     setIsLoaded(false);
   }, [appid, header_image]);
+
+  useEffect(() => {
+    if (imgRef.current?.complete) {
+      setIsLoaded(true);
+    }
+  }, [src]);
 
   const handleError = () => {
     const fallbacks = [
@@ -74,6 +81,7 @@ const GameHeaderImage: React.FC<GameHeaderImageProps> = ({
         </div>
       )}
       <img
+        ref={imgRef}
         src={src}
         className={`w-full h-full object-cover transition-all duration-700 z-10 relative ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-110'} ${isNSFW && blurNSFW ? 'blur-2xl scale-125' : ''}`}
         onLoad={() => setIsLoaded(true)}
