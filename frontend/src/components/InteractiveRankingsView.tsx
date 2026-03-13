@@ -188,7 +188,7 @@ export default function InteractiveRankingsView() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Sliders Panel */}
-        <div className="lg:col-span-1 space-y-6 bg-card border border-border/50 rounded-2xl p-6 shadow-sm h-fit sticky top-24">
+        <div className="lg:col-span-1 space-y-6 bg-card border border-border/50 rounded-2xl p-6 shadow-sm h-fit sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold flex items-center gap-2">
               <Sliders size={18} /> Filters & Weights
