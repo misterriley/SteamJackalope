@@ -65,6 +65,7 @@ export interface GameMetadata {
   total_reviews?: number;
   playtime?: number;
   term_links?: Record<string, string>;
+  predicted_rating?: number;
 }
 
 export interface RecommendationRequest {

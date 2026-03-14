@@ -80,7 +80,7 @@ export const getMetadata = async (names: string[]): Promise<GameMetadata[]> => {
   return response.data;
 };
 
-export const getGameMedia = async (appid: number): Promise<{ screenshots: string[], movies: string[], error?: string }> => {
+export const getGameMedia = async (appid: number): Promise<{ screenshots: string[], movies: {url: string, poster: string}[], error?: string }> => {
   const response = await api.get(`/games/${appid}/media`);
   return response.data;
 };

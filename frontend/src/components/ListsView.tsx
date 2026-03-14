@@ -18,21 +18,43 @@ const ListsView: React.FC = () => {
   // Stable Hover State
   const [hoverState, setHoverState] = useState<{ game: any, anchor: DOMRect } | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isOverTriggerRef = useRef<boolean>(false);
+  const isOverCardRef = useRef<boolean>(false);
 
   const handleGameMouseEnter = (e: React.MouseEvent, game: any) => {
-    const rect = e.currentTarget.getBoundingClientRect();
+    isOverTriggerRef.current = true;
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+
+    if (hoverState?.game?.appid === game.appid) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
     const delay = hoverState ? 50 : 150; 
+    
     hoverTimerRef.current = setTimeout(() => {
       setHoverState({ game, anchor: rect });
     }, delay);
   };
 
   const handleGameMouseLeave = () => {
+    isOverTriggerRef.current = false;
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    
     hoverTimerRef.current = setTimeout(() => {
-      setHoverState(null);
-    }, 100);
+      // ONLY unmount if BOTH the trigger and the card are no longer hovered
+      if (!isOverTriggerRef.current && !isOverCardRef.current) {
+        setHoverState(null);
+      }
+    }, 800);
+  };
+
+  const handleCardMouseEnter = () => {
+    isOverCardRef.current = true;
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+  };
+
+  const handleCardMouseLeave = () => {
+    isOverCardRef.current = false;
+    handleGameMouseLeave();
   };
 
   const handleContextMenu = useCallback((e: React.MouseEvent, appid: number) => {
@@ -246,6 +268,8 @@ const ListsView: React.FC = () => {
       <GameHoverCard 
         game={hoverState?.game || null} 
         anchorRect={hoverState?.anchor} 
+        onMouseEnter={handleCardMouseEnter}
+        onMouseLeave={handleCardMouseLeave}
       />
     </div>
   );

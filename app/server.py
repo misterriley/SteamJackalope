@@ -518,7 +518,7 @@ class MetadataRequest(BaseModel):
 
 class GameMediaResponse(BaseModel):
     screenshots: List[str]
-    movies: List[str]
+    movies: List[Dict[str, str]]
     error: Optional[str] = None
 
 class InteractiveKernelRequest(BaseModel):
@@ -1430,6 +1430,18 @@ def get_game_media(appid: int):
     except Exception as e:
         logger.error(f"Error fetching media for {appid}: {e}")
         return {"screenshots": [], "movies": [], "error": str(e)}
+
+@app.get("/diag/media_cache")
+def list_media_cache():
+    """Diagnostic endpoint to list files in the media cache."""
+    if not os.path.exists(MEDIA_CACHE_DIR):
+        return {"error": f"Directory not found: {MEDIA_CACHE_DIR}"}
+    files = os.listdir(MEDIA_CACHE_DIR)
+    return {
+        "dir": MEDIA_CACHE_DIR,
+        "count": len(files),
+        "sample": files[:10]
+    }
 
 @app.get("/games/{appid}/media", response_model=GameMediaResponse)
 def get_media(appid: int):

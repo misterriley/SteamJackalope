@@ -1,18 +1,26 @@
 import React from 'react';
-import type { GameMetadata } from '../types';
-import { ExternalLink, Sparkles, Star, Clock, Trophy } from 'lucide-react';
+import type { GameMetadata, GameStatus } from '../types';
+import { 
+  Plus, 
+  CheckCircle2, 
+  Clock, 
+  Trophy, 
+  TrendingUp,
+  AlertCircle,
+  EyeOff,
+  Star,
+  BookOpen,
+  Heart
+} from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useContextMenu } from '../context/ContextMenuContext';
-import { useUser } from '../context/UserContext';
-import type { GameStatus } from '../types';
-
 import GameHeaderImage from './GameHeaderImage';
 
 interface GameCardProps {
   game: GameMetadata;
   hideNSFW?: boolean;
   isSeed?: boolean;
-  termLinks?: Record<string, string>;
-  onStatusUpdate?: (appid: number, status: GameStatus, rating?: number) => void;
+  onStatusUpdate?: (appid: number, status: GameStatus) => void;
   onMouseEnter?: (e: React.MouseEvent, game: any) => void;
   onMouseLeave?: () => void;
 }
@@ -21,21 +29,18 @@ const GameCard: React.FC<GameCardProps> = ({
   game, 
   hideNSFW = true, 
   isSeed = false, 
-  termLinks = {},
   onStatusUpdate,
   onMouseEnter,
   onMouseLeave
 }) => {
   const { showContextMenu } = useContextMenu();
-  const { steamId } = useUser();
-  const steamUrl = `https://store.steampowered.com/app/${game.appid}/`;
-  
-  const handleMouseEnter = (e: React.MouseEvent) => {
-    if (onMouseEnter) onMouseEnter(e, game);
-  };
 
-  const handleMouseLeave = () => {
-    if (onMouseLeave) onMouseLeave();
+  // Find current status (placeholder for now as library is managed in parents)
+  const status: GameStatus = 'none';
+
+  const handleStatusClick = (e: React.MouseEvent, newStatus: GameStatus) => {
+    e.stopPropagation();
+    if (onStatusUpdate) onStatusUpdate(game.appid, newStatus);
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -44,80 +49,149 @@ const GameCard: React.FC<GameCardProps> = ({
       x: e.clientX,
       y: e.clientY,
       appid: game.appid,
-      steamId: steamId || "", 
-      onUpdate: onStatusUpdate
+      steamId: "", 
+      currentStatus: status,
+      onUpdate: (aid, newStatus) => {
+        if (onStatusUpdate) onStatusUpdate(aid, newStatus as GameStatus);
+      }
     });
   };
 
-  const isNSFW = !!game.is_nsfw;
-  const shouldBlur = isNSFW && hideNSFW;
-
-  const parseGenres = (genresStr: any) => {
-    if (!genresStr) return [];
-    if (Array.isArray(genresStr)) return genresStr;
-    const str = String(genresStr);
-    return str.split(',').map(g => g.trim()).filter(g => g);
-  };
-
-  const parseTags = (tagsStr: any) => {
-    if (!tagsStr) return [];
-    if (Array.isArray(tagsStr)) return tagsStr;
-    if (typeof tagsStr === 'object') return Object.keys(tagsStr);
-    return [];
-  };
-
-  const allGenres = parseGenres(game.genres);
-  const allTags = parseTags(game.tags);
-
-  const renderLinkableTerm = (term: string, isGenre: boolean) => {
-    const link = termLinks[term];
-    const baseClasses = isGenre 
-      ? "px-1.5 py-0.5 bg-primary/10 text-[9px] font-bold text-primary rounded border border-primary/20 uppercase tracking-tighter whitespace-nowrap"
-      : "px-1.5 py-0.5 bg-secondary/50 text-[9px] font-bold text-muted-foreground rounded border border-border/50 uppercase tracking-tighter whitespace-nowrap";
-    if (link) {
-      return (
-        <a key={term} href={link} target="_blank" rel="noopener noreferrer" className={`${baseClasses} hover:bg-primary/20 hover:text-primary cursor-pointer`} onClick={(e) => e.stopPropagation()}>
-          {term}
-        </a>
-      );
+  const getStatusIcon = (s: GameStatus) => {
+    switch (s) {
+      case 'backlog': return <BookOpen size={14} />;
+      case 'played': return <CheckCircle2 size={14} />;
+      case 'rated': return <Star size={14} />;
+      case 'ignored': return <EyeOff size={14} />;
+      case 'wishlist': return <Heart size={14} />;
+      default: return <Plus size={14} />;
     }
-    return <span key={term} className={baseClasses}>{term}</span>;
   };
 
-  const handleCardClick = () => { window.open(steamUrl, '_blank', 'noopener,noreferrer'); };
+  const getStatusColor = (s: GameStatus) => {
+    switch (s) {
+      case 'backlog': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'played': return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+      case 'rated': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'ignored': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'wishlist': return 'bg-pink-500/20 text-pink-400 border-pink-500/30';
+      default: return 'bg-secondary/80 text-muted-foreground border-border/50 hover:border-primary/50';
+    }
+  };
 
   return (
-    <div 
-      onClick={handleCardClick}
+    <motion.div
+      onPointerEnter={(e) => {
+        onMouseEnter?.(e as any, game);
+      }}
+      onPointerLeave={() => {
+        onMouseLeave?.();
+      }}
       onContextMenu={handleContextMenu}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      className={`bg-card rounded-lg overflow-hidden shadow-lg border border-border hover:border-primary/50 transition-all group flex flex-col h-full cursor-pointer active:scale-[0.98] ${isNSFW ? 'border-orange-500/20' : ''} ${isSeed ? 'ring-2 ring-primary/30 border-primary/40' : ''} relative`}
+      className={`relative bg-card border-2 rounded-2xl overflow-hidden shadow-lg transition-all group/card cursor-pointer h-full flex flex-col ${
+        isSeed ? 'border-primary/40 ring-2 ring-primary/20' : 'border-border/50 hover:border-primary/30'
+      }`}
+      onClick={() => window.open(`https://store.steampowered.com/app/${game.appid}`, '_blank')}
     >
-      <div className="relative aspect-video overflow-hidden bg-secondary/30">
-        <GameHeaderImage appid={game.appid} header_image={game.header_image} isNSFW={isNSFW} blurNSFW={hideNSFW} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500" alt={game.name} />
-        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-primary border border-primary/30 z-10">{game.release_year}</div>
-        {(game.is_free || (game.price && (game.price.toLowerCase().includes("free") || game.price === ""))) && (<div className="absolute top-0 left-0 px-2 py-1 bg-green-500 text-[10px] font-black text-white rounded-br-lg shadow-2xl uppercase tracking-wider z-20">Free</div>)}
-        {game.is_in_library && (<div className={`absolute ${game.is_free ? 'top-6' : 'top-0'} left-0 px-2 py-1 bg-blue-600 text-[10px] font-black text-white rounded-br-lg shadow-2xl uppercase tracking-wider z-20`}>In Library</div>)}
-        {game.price && (<div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-white border border-white/20 z-10">{game.price}</div>)}
-        {isSeed && (<div className="absolute top-2 left-2 bg-primary px-2 py-1 rounded text-[10px] font-bold text-primary-foreground shadow-lg z-10 flex items-center gap-1 uppercase tracking-wider"><Sparkles size={10} fill="currentColor" />Seed Game</div>)}
-        {isNSFW && !isSeed && (<div className={`absolute top-2 left-2 px-2 py-1 rounded text-[10px] font-bold border z-10 flex items-center gap-1 ${shouldBlur ? 'bg-orange-600/80 text-white border-orange-400/50' : 'bg-black/60 backdrop-blur-md text-orange-500 border-orange-500/30'}`}>NSFW</div>)}
-        {shouldBlur && (<div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"><div className="bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full border border-white/10"><span className="text-[10px] font-bold uppercase tracking-widest text-white/80">Content Hidden</span></div></div>)}
-      </div>
-      <div className="p-4 flex flex-col flex-grow">
-        <div className="flex justify-between items-start mb-2 gap-2"><h3 className="text-base font-bold line-clamp-1 text-foreground group-hover:text-primary transition-colors flex-grow">{game.name}</h3><div className="text-muted-foreground group-hover:text-primary transition-colors shrink-0"><ExternalLink size={16} /></div></div>
-        <div className="min-h-[2.5rem] mb-2"><p className="text-xs text-muted-foreground line-clamp-2 flex-grow">{game.short_description}</p></div>
-        {allGenres.length > 0 && (<div className="flex flex-wrap gap-1 mb-1 h-5 overflow-hidden content-start">{allGenres.slice(0, 3).map((genre) => renderLinkableTerm(genre, true))}</div>)}
-        {allTags.length > 0 && (<div className="flex flex-wrap gap-1 mb-4 h-5 overflow-hidden content-start">{allTags.slice(0, 5).map((tag) => renderLinkableTerm(tag, false))}</div>)}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px] mt-auto border-t border-border/30 pt-3">
-          <div className="flex items-center gap-1.5 text-muted-foreground"><Star size={12} className="text-yellow-500" /><span>{game.match_percent !== undefined ? `${Math.round(game.match_percent)}% Match` : 'No Match Data'}</span></div>
-          <div className="flex items-center gap-1.5 text-muted-foreground"><Clock size={12} className="text-blue-500" /><span>{Math.round(game.estimated_playtime / 60)}h</span></div>
-          <div className="flex items-center gap-1.5 text-muted-foreground"><Trophy size={12} className="text-orange-500" /><span>Diff: {game.difficulty_predicted?.toFixed(1) || '0.0'}</span></div>
-          <div className="flex items-center gap-1.5 text-muted-foreground"><span className="bg-secondary px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider">ID: {game.appid}</span></div>
+      {/* Header Image */}
+      <div className="relative aspect-video overflow-hidden bg-secondary">
+        <GameHeaderImage 
+          appid={game.appid} 
+          header_image={game.header_image} 
+          isNSFW={game.is_nsfw}
+          blurNSFW={hideNSFW}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+        
+        {/* Quality Score Badge */}
+        <div className="absolute top-3 right-3 px-2 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg flex items-center gap-1.5 shadow-2xl">
+          <Trophy size={12} className="text-yellow-400" />
+          <span className="text-[10px] font-mono font-black text-white">
+            {Math.round((game.quality_score || 0) * 100)}
+          </span>
         </div>
-        {game.weighted_score !== undefined && game.weighted_score !== null && !isSeed && (<div className="mt-4 pt-3 border-t border-border flex justify-between items-center"><span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">Match Score</span><span className="text-primary font-bold text-sm">{(game.weighted_score || 0).toFixed(2)}</span></div>)}
+
+        {/* Action Buttons Overlay */}
+        <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center translate-y-2 opacity-0 group-hover/card:translate-y-0 group-hover/card:opacity-100 transition-all duration-300">
+          <div className="flex gap-2">
+            {(['backlog', 'wishlist', 'played'] as GameStatus[]).map((s) => (
+              <button
+                key={s}
+                onClick={(e) => handleStatusClick(e, s)}
+                className={`p-2 rounded-lg backdrop-blur-md border transition-all ${
+                  status === s ? 'bg-primary text-primary-foreground border-primary shadow-lg scale-110' : 'bg-black/40 text-white/80 border-white/10 hover:bg-black/60'
+                }`}
+                title={`Mark as ${s}`}
+              >
+                {getStatusIcon(s)}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleContextMenu(e); }}
+            className="p-2 bg-black/40 text-white/80 backdrop-blur-md border border-white/10 rounded-lg hover:bg-black/60 transition-all"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+
+        {isSeed && (
+          <div className="absolute top-3 left-3 px-2 py-1 bg-primary text-primary-foreground text-[8px] font-black uppercase tracking-tighter rounded shadow-lg flex items-center gap-1">
+            <TrendingUp size={10} />
+            Seed Source
+          </div>
+        )}
       </div>
-    </div>
+
+      {/* Content */}
+      <div className="p-4 flex flex-col flex-grow bg-gradient-to-b from-card to-background">
+        <div className="mb-3">
+          <h3 className="font-bold text-base leading-tight group-hover/card:text-primary transition-colors line-clamp-2 min-h-[2.5rem]">
+            {game.name}
+          </h3>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="text-[9px] font-mono text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded border border-border/30">
+              {game.appid}
+            </span>
+            <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border transition-colors ${getStatusColor(status)}`}>
+              {status}
+            </span>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-2 mt-auto">
+          <div className="bg-secondary/30 rounded-xl p-2 flex items-center gap-2 border border-border/20">
+            <Clock size={12} className="text-primary/70" />
+            <div className="flex flex-col">
+              <span className="text-[8px] font-black uppercase text-muted-foreground tracking-tighter leading-none">Length</span>
+              <span className="text-[10px] font-bold text-foreground">{(((game as any).playtime || game.estimated_playtime || 0) / 60).toFixed(1)}h</span>
+            </div>
+          </div>
+          <div className="bg-secondary/30 rounded-xl p-2 flex items-center gap-2 border border-border/20">
+            <AlertCircle size={12} className="text-primary/70" />
+            <div className="flex flex-col">
+              <span className="text-[8px] font-black uppercase text-muted-foreground tracking-tighter leading-none">Diff</span>
+              <span className="text-[10px] font-bold text-foreground">{(game.difficulty_predicted || 0).toFixed(1)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Match Confidence (If available) */}
+        {game.predicted_rating !== undefined && (
+          <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Match Affinity</span>
+            </div>
+            <span className="text-xs font-mono font-bold text-primary">
+              {Math.round(game.predicted_rating * 10)}%
+            </span>
+          </div>
+        )}
+      </div>
+    </motion.div>
   );
 };
 

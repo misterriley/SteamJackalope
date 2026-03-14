@@ -40,26 +40,61 @@ export default function InteractiveRankingsView() {
   const [error, setError] = useState<string | null>(null);
   const [blurNSFW, setBlurNSFW] = useState(true);
 
-  // Hover state (Stable Pattern)
+  // Sticky State Machine
   const [hoverState, setHoverState] = useState<{ game: any, anchor: DOMRect } | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isOverSystemRef = useRef<boolean>(false);
+  const activeAppidRef = useRef<number | null>(null);
 
   const handleGameMouseEnter = (e: React.MouseEvent, game: any) => {
+    isOverSystemRef.current = true;
+    
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+
+    if (activeAppidRef.current === game.appid) return;
+
     const rect = e.currentTarget.getBoundingClientRect();
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    const delay = activeAppidRef.current ? 0 : 150; 
     
-    const delay = hoverState ? 50 : 150;
-    
-    hoverTimerRef.current = setTimeout(() => {
+    const mount = () => {
+      activeAppidRef.current = game.appid;
       setHoverState({ game, anchor: rect });
-    }, delay);
+    };
+
+    if (delay === 0) mount();
+    else hoverTimerRef.current = setTimeout(mount, delay);
   };
 
   const handleGameMouseLeave = () => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    isOverSystemRef.current = false;
+    
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    
     hoverTimerRef.current = setTimeout(() => {
-      setHoverState(null);
-    }, 100);
+      if (!isOverSystemRef.current) {
+        activeAppidRef.current = null;
+        setHoverState(null);
+      }
+    }, 800);
+  };
+
+  const handleCardMouseEnter = () => {
+    isOverSystemRef.current = true;
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
+
+  const handleCardMouseLeave = () => {
+    isOverSystemRef.current = false;
+    handleGameMouseLeave();
   };
 
   // Filters state
@@ -494,6 +529,8 @@ export default function InteractiveRankingsView() {
         game={hoverState?.game || null} 
         anchorRect={hoverState?.anchor} 
         weights={weights}
+        onMouseEnter={handleCardMouseEnter}
+        onMouseLeave={handleCardMouseLeave}
       />
     </div>
   );

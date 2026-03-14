@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { GameMetadata, RecommendationRequest } from '../types';
-import { recommend, getGenres, getTags, getTermLinks, getRandomGame, getRandomTrendingGame, getMetadata } from '../api';
+import { recommend, getGenres, getTags, getRandomGame, getRandomTrendingGame, getMetadata } from '../api';
 import GameCard from './GameCard';
 import Filters from './Filters';
 import SeedSelector from './SeedSelector';
@@ -27,7 +27,6 @@ interface RecommendationsViewProps {
 const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClear }) => {
   const [genresList, setGenresList] = useState<string[]>(DEFAULT_GENRES);
   const [tagsList, setTagsList] = useState<string[]>([]);
-  const [termLinks, setTermLinks] = useState<Record<string, string>>({});
   const [recommendations, setRecommendations] = useState<GameMetadata[]>([]);
   const [seedGamesMetadata, setSeedGamesMetadata] = useState<GameMetadata[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,24 +37,61 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const isInitialMount = useRef(true);
 
-  // Stable Hover State
+  // Sticky State Machine
   const [hoverState, setHoverState] = useState<{ game: any, anchor: DOMRect } | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isOverSystemRef = useRef<boolean>(false);
+  const activeAppidRef = useRef<number | null>(null);
 
   const handleGameMouseEnter = (e: React.MouseEvent, game: any) => {
+    isOverSystemRef.current = true;
+    
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+
+    if (activeAppidRef.current === game.appid) return;
+
     const rect = e.currentTarget.getBoundingClientRect();
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    const delay = hoverState ? 50 : 150; 
-    hoverTimerRef.current = setTimeout(() => {
+    const delay = activeAppidRef.current ? 0 : 150; 
+    
+    const mount = () => {
+      activeAppidRef.current = game.appid;
       setHoverState({ game, anchor: rect });
-    }, delay);
+    };
+
+    if (delay === 0) mount();
+    else hoverTimerRef.current = setTimeout(mount, delay);
   };
 
   const handleGameMouseLeave = () => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    isOverSystemRef.current = false;
+    
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    
     hoverTimerRef.current = setTimeout(() => {
-      setHoverState(null);
-    }, 100);
+      if (!isOverSystemRef.current) {
+        activeAppidRef.current = null;
+        setHoverState(null);
+      }
+    }, 800);
+  };
+
+  const handleCardMouseEnter = () => {
+    isOverSystemRef.current = true;
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
+
+  const handleCardMouseLeave = () => {
+    isOverSystemRef.current = false;
+    handleGameMouseLeave();
   };
 
   // Track window resize and scroll position
@@ -128,15 +164,13 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [genres, tags, links] = await Promise.all([
+        const [genres, tags] = await Promise.all([
           getGenres(),
-          getTags(),
-          getTermLinks()
+          getTags()
         ]);
 
         if (genres && genres.length > 0) setGenresList(genres);
         if (tags && tags.length > 0) setTagsList(tags);
-        if (links) setTermLinks(links);
       } catch (err) {
         console.error("Failed to load initial data", err);
         setError("Failed to connect to the discovery server. Is the backend running?");
@@ -541,7 +575,6 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
                       game={game}
                       hideNSFW={filters.remove_nsfw}
                       isSeed={true}
-                      termLinks={termLinks}
                       onMouseEnter={handleGameMouseEnter}
                       onMouseLeave={handleGameMouseLeave}
                     />
@@ -560,7 +593,6 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
                     <GameCard
                       game={game}
                       hideNSFW={filters.remove_nsfw}
-                      termLinks={termLinks}
                       onStatusUpdate={handleStatusUpdate}
                       onMouseEnter={handleGameMouseEnter}
                       onMouseLeave={handleGameMouseLeave}
@@ -589,6 +621,8 @@ const RecommendationsView: React.FC<RecommendationsViewProps> = ({ onProfileClea
       <GameHoverCard 
         game={hoverState?.game || null} 
         anchorRect={hoverState?.anchor} 
+        onMouseEnter={handleCardMouseEnter}
+        onMouseLeave={handleCardMouseLeave}
       />
     </div>
   );

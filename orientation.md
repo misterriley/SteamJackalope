@@ -21,7 +21,8 @@ For detailed documentation of each directory, see the individual README files:
 - `research/README.md` - Experimental and analytical scripts
 - `tests/README.md` - Automated test suite
 - `tools/README.md` - Debugging and maintenance utilities
-- `tools/kernel_explorer.py` - Advanced diagnostic UI for the Mechanical Identity Group (MIG) similarity kernel. Run with `streamlit run tools/kernel_explorer.py`.
+- `tools/parse_media_from_html.py`: Multithreaded script to initialize and update the media cache (`data/media_cache/`) by parsing trailers and screenshots from raw storefront HTML. **CRITICAL**: Run this script after any new scraping pass to ensure hover cards have high-fidelity media available. It automatically converts Steam's DASH manifests to direct browser-compatible MP4 URLs.
+- `tools/kernel_explorer.py`: Advanced diagnostic UI for the Mechanical Identity Group (MIG) similarity kernel. Run with `streamlit run tools/kernel_explorer.py`.
 - `deployment/README.md` - Deployment configurations
 - `data/README.md` - Intermediate data files
 - `user.md` - User profile, technical preferences, and expectations
